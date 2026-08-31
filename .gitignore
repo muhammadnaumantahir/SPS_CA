@@ -1,0 +1,196 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# IDE Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# SPS-CA Specific Ignores
+
+# Runtime logs and temporary files
+experience/logs/*.json
+governance/decisions/*.json
+evaluation/scenarios/*.json
+evaluation/sandbox/*.json
+evaluation/regression/*.json
+evaluation/rollback/*.json
+evaluation/metrics/*.json
+ui/session_history.json
+
+# Generated capabilities (will be created during Phase 4)
+capabilities/generated/*/
+
+# Target projects (will be created during Phase 8)
+projects/project_a_python/
+projects/project_b_java/
+projects/project_c_typescript/
+
+# Ollama model files (large, not needed in repo)
+*.bin
+*.model
+
+# Local LLM inference cache
+.ollama/
+llm_cache/
+
+# Docker build artifacts
+.docker/
+
+# Temporary test data
+*.tmp
+*.test
+test_output/
+
+# Secrets and sensitive data
+.env.local
+.env.*.local
+secrets/
+credentials/
+
+# Optional: Node modules (for TypeScript project)
+node_modules/
+
+# Optional: Java build files (for Spring Boot project)
+*.class
+*.jar
+target/
+.mvn/
+mvn/
+
+# Keep these directories even if empty
+!core/tests/.gitkeep
+!capabilities/seeds/.gitkeep
+!capabilities/generated/.gitkeep
+!projects/.gitkeep
+!sandbox/.gitkeep
+!governance/decisions/.gitkeep
+!experience/logs/.gitkeep
+!evaluation/scenarios/.gitkeep
+!evaluation/checklists/.gitkeep
+!baselines/.gitkeep
+!docs/.gitkeep
