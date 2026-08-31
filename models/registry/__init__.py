@@ -1,0 +1,1 @@
+"""Model/provider registry boundary."""
