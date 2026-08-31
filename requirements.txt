@@ -21,6 +21,13 @@ jsonschema>=4.21,<5
 # Code analysis
 # 0.21.0 is incompatible with Python 3.12+; use a current release.
 tree-sitter>=0.25,<0.27
+# Language grammars for the 5 target languages (Section 8 / Phase 1: R1.3).
+tree-sitter-python>=0.23,<1
+tree-sitter-javascript>=0.23,<1
+tree-sitter-typescript>=0.23,<1
+tree-sitter-java>=0.23,<1
+tree-sitter-go>=0.23,<1
+tree-sitter-c-sharp>=0.23,<1
 
 # Testing
 pytest>=8,<9

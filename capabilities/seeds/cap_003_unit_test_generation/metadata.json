@@ -1,0 +1,22 @@
+{
+  "id": "CAP-003",
+  "name": "Unit Test Generation",
+  "version": "0.1.0",
+  "description": "Generates a stub pytest test module for the top-level functions found in the given source file.",
+  "entry_point": "capabilities.seeds.cap_003_unit_test_generation.capability.run",
+  "origin": "seed",
+  "status": "active",
+  "target_languages": [
+    "python",
+    "java",
+    "javascript",
+    "typescript",
+    "go",
+    "csharp"
+  ],
+  "parent_capability_id": null,
+  "tags": [
+    "testing",
+    "generation"
+  ]
+}

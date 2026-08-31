@@ -1,0 +1,22 @@
+{
+  "id": "CAP-007",
+  "name": "Type Annotation Addition",
+  "version": "0.1.0",
+  "description": "Detects function parameters and return values with no type annotation and proposes annotations inferred from simple heuristics (defaults, literal returns).",
+  "entry_point": "capabilities.seeds.cap_007_type_annotation_addition.capability.run",
+  "origin": "seed",
+  "status": "active",
+  "target_languages": [
+    "python",
+    "java",
+    "javascript",
+    "typescript",
+    "go",
+    "csharp"
+  ],
+  "parent_capability_id": null,
+  "tags": [
+    "typing",
+    "refactor"
+  ]
+}

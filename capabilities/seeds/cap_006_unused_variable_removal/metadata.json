@@ -1,0 +1,22 @@
+{
+  "id": "CAP-006",
+  "name": "Unused Variable Removal",
+  "version": "0.1.0",
+  "description": "Detects locally-assigned variables that are never read again in the same scope and proposes their removal.",
+  "entry_point": "capabilities.seeds.cap_006_unused_variable_removal.capability.run",
+  "origin": "seed",
+  "status": "active",
+  "target_languages": [
+    "python",
+    "java",
+    "javascript",
+    "typescript",
+    "go",
+    "csharp"
+  ],
+  "parent_capability_id": null,
+  "tags": [
+    "cleanup",
+    "refactor"
+  ]
+}
