@@ -7,6 +7,7 @@ from .evolution_engine import (
     GeneratedCapability,
     TestResults,
 )
+from .evolution_workflow import EvolutionWorkflow, EvolutionWorkflowResult
 
 __all__ = [
     "CapabilityPlan",
@@ -14,4 +15,6 @@ __all__ = [
     "EvolutionError",
     "GeneratedCapability",
     "TestResults",
+    "EvolutionWorkflow",
+    "EvolutionWorkflowResult",
 ]
