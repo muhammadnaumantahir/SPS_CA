@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "capabilities": {
+    "CAP-009": {
+      "capability_id": "CAP-009",
+      "name": "Universal Parser",
+      "version": "1.0.0",
+      "path": "capabilities/generated/CAP-009",
+      "entry_point": "universal_parser",
+      "trigger_pattern": "repeated_parsing_failures",
+      "parent_capabilities": [],
+      "model_provider": "phase_4_evolution_trial",
+      "model": "manual",
+      "test_coverage": null,
+      "generated": true,
+      "origin": "phase_4_evolution_trial",
+      "trigger_tasks": ["task_010", "task_015", "task_020"]
+    }
+  }
+}
