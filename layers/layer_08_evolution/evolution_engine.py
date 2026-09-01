@@ -10,8 +10,7 @@ from __future__ import annotations
 import ast
 import json
 import re
-import subprocess
-import sys
+import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,8 +22,6 @@ from models.base import LLMProvider, LLMRequest
 
 @dataclass(frozen=True)
 class CapabilityPlan:
-    """Deterministic plan for a capability produced from a failure pattern."""
-
     capability_id: str
     name: str
     trigger_pattern: str
@@ -37,8 +34,6 @@ class CapabilityPlan:
 
 @dataclass
 class GeneratedCapability:
-    """Files generated for a capability before governance promotion."""
-
     capability_id: str
     files: Dict[str, str]
     metadata: Dict[str, Any]
@@ -46,8 +41,6 @@ class GeneratedCapability:
 
 @dataclass
 class TestResults:
-    """Sandbox-style validation result for a generated capability."""
-
     passed: bool
     return_code: int = 0
     output: str = ""
@@ -60,12 +53,10 @@ class EvolutionError(RuntimeError):
 
 
 class EvolutionEngine:
-    """Detect, plan, generate, validate and stage new capabilities.
+    """Detect, plan, generate and stage new capabilities.
 
-    ``ExperienceLog`` is the source of failure evidence. A model provider is
-    optional for planning/tests, but required when generated source is
-    requested. This keeps detection deterministic and makes the component
-    straightforward to unit-test without Ollama.
+    Promotion is intentionally not a governance decision. Callers must pass
+    explicit approval after validation and the Layer 7 governance gate.
     """
 
     def __init__(
@@ -86,49 +77,29 @@ class EvolutionEngine:
         self.model = model
         self.timeout_seconds = timeout_seconds
 
-    def should_evolve(
-        self, experience_log: ExperienceLog, min_occurrences: Optional[int] = None
-    ) -> bool:
-        """Return True when any failure category reaches the threshold."""
-        threshold = min_occurrences or self.min_occurrences
+    def should_evolve(self, experience_log: ExperienceLog, min_occurrences: Optional[int] = None) -> bool:
+        threshold = self.min_occurrences if min_occurrences is None else min_occurrences
         if threshold < 1:
             raise ValueError("min_occurrences must be >= 1")
         return any(count >= threshold for count in experience_log.get_failure_patterns().values())
 
-    def repeated_failure_patterns(
-        self, experience_log: ExperienceLog, min_occurrences: Optional[int] = None
-    ) -> Dict[str, int]:
-        """Return recurring failure categories ordered by frequency."""
-        threshold = min_occurrences or self.min_occurrences
-        patterns = {
-            name: count
-            for name, count in experience_log.get_failure_patterns().items()
-            if count >= threshold
-        }
+    def repeated_failure_patterns(self, experience_log: ExperienceLog, min_occurrences: Optional[int] = None) -> Dict[str, int]:
+        threshold = self.min_occurrences if min_occurrences is None else min_occurrences
+        patterns = {name: count for name, count in experience_log.get_failure_patterns().items() if count >= threshold}
         return dict(sorted(patterns.items(), key=lambda item: (-item[1], item[0])))
 
-    def plan_new_capability(
-        self,
-        trigger_pattern: str,
-        experience_log: Optional[ExperienceLog] = None,
-        capability_id: Optional[str] = None,
-    ) -> CapabilityPlan:
-        """Create a stable plan without invoking the model."""
+    def plan_new_capability(self, trigger_pattern: str, experience_log: Optional[ExperienceLog] = None, capability_id: Optional[str] = None) -> CapabilityPlan:
         trigger = trigger_pattern.strip()
         if not trigger:
             raise ValueError("trigger_pattern must be non-empty")
-
         parent_ids: List[str] = []
         languages: List[str] = ["python"]
         if experience_log:
             for task in experience_log.tasks:
-                if task.failure_category == trigger and task.selected_capability:
-                    if task.selected_capability not in parent_ids:
-                        parent_ids.append(task.selected_capability)
-                if task.failure_category == trigger and task.target_language:
-                    if task.target_language not in languages:
-                        languages.append(task.target_language)
-
+                if task.failure_category == trigger and task.selected_capability and task.selected_capability not in parent_ids:
+                    parent_ids.append(task.selected_capability)
+                if task.failure_category == trigger and task.target_language and task.target_language not in languages:
+                    languages.append(task.target_language)
         slug = self._slug(trigger)
         cap_id = capability_id or self._next_capability_id()
         name = "".join(part.capitalize() for part in slug.split("_")) or "GeneratedCapability"
@@ -146,13 +117,9 @@ class EvolutionEngine:
             reason=f"Repeated failure pattern '{trigger}' met the evolution threshold.",
         )
 
-    def generate_capability_code(
-        self, plan: CapabilityPlan, evidence: Optional[Sequence[str]] = None
-    ) -> GeneratedCapability:
-        """Ask the provider for a capability package and parse its JSON envelope."""
+    def generate_capability_code(self, plan: CapabilityPlan, evidence: Optional[Sequence[str]] = None) -> GeneratedCapability:
         if self.provider is None:
             raise EvolutionError("An LLMProvider is required to generate capability code")
-
         evidence_text = "\n".join(f"- {item}" for item in (evidence or []))
         prompt = f"""Generate a new SPS-CA capability from this evolution plan.
 Return ONLY valid JSON with keys capability_py, tests_py, readme_md.
@@ -169,42 +136,22 @@ Rules:
 - capability.py must expose run(context) and use capabilities.base.CapabilityContext/CapabilityResult.
 - Do not modify SPS-CA governance, DNA, execution or existing seed capabilities.
 - tests.py must be self-contained and test the public run() entry point.
-- Do not execute subprocesses, network calls, filesystem writes, eval, exec, or dynamic imports in the generated capability.
+- Do not execute subprocesses, network calls, filesystem writes, eval, exec, or dynamic imports.
 """
-        response = self.provider.generate(
-            LLMRequest(
-                prompt=prompt,
-                system="You generate small, testable, deterministic SPS-CA capability modules.",
-                model=self.model,
-                temperature=0.1,
-                timeout_seconds=self.timeout_seconds,
-                metadata={"layer": "8", "capability_id": plan.capability_id},
-            )
-        )
+        response = self.provider.generate(LLMRequest(prompt=prompt, system="You generate small, testable, deterministic SPS-CA capability modules.", model=self.model, temperature=0.1, timeout_seconds=self.timeout_seconds, metadata={"layer": "8", "capability_id": plan.capability_id}))
         payload = self._parse_json_response(response.text)
         required = {"capability_py", "tests_py", "readme_md"}
         missing = required.difference(payload)
         if missing:
             raise EvolutionError(f"Generated response missing keys: {sorted(missing)}")
-
         capability_py = str(payload["capability_py"])
         tests_py = str(payload["tests_py"])
         self._validate_generated_source(capability_py, "capability.py")
         self._validate_generated_source(tests_py, "tests.py")
         metadata = self._metadata(plan, response.provider, response.model)
-        return GeneratedCapability(
-            capability_id=plan.capability_id,
-            files={
-                "capability.py": capability_py,
-                "tests.py": tests_py,
-                "metadata.json": json.dumps(metadata, indent=2) + "\n",
-                "README.md": str(payload["readme_md"]),
-            },
-            metadata=metadata,
-        )
+        return GeneratedCapability(plan.capability_id, {"capability.py": capability_py, "tests.py": tests_py, "metadata.json": json.dumps(metadata, indent=2) + "\n", "README.md": str(payload["readme_md"])}, metadata)
 
     def stage_capability(self, generated: GeneratedCapability) -> Path:
-        """Write generated files to a non-active pending directory."""
         target = self.pending_root / generated.capability_id
         if target.exists():
             raise EvolutionError(f"Pending capability already exists: {target}")
@@ -215,30 +162,18 @@ Rules:
         return target
 
     def test_capability(self, capability_id: str, staged_path: Optional[Path] = None) -> TestResults:
-        """Run generated tests with Python's isolated test process."""
+        """Compatibility helper for direct engine callers.
+
+        Full package validation, including the mandatory coverage gate, is
+        owned by Layer 6's CapabilityPackageValidator.
+        """
         path = staged_path or (self.pending_root / capability_id)
         tests = path / "tests.py"
         if not tests.exists():
             return TestResults(False, error=f"tests.py not found: {tests}")
-        try:
-            proc = subprocess.run(
-                [sys.executable, "-m", "pytest", "-q", str(tests)],
-                cwd=str(path),
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return TestResults(False, error=str(exc))
-        output = (proc.stdout + "\n" + proc.stderr).strip()
-        coverage = self._extract_coverage(output)
-        passed = proc.returncode == 0 and (coverage is None or coverage >= 80.0)
-        error = None if passed else ("Generated tests failed" if proc.returncode else "Coverage below 80%")
-        return TestResults(passed, proc.returncode, output, coverage, error)
+        return TestResults(False, error="Use Layer 6 CapabilityPackageValidator for authoritative validation")
 
     def promote_capability(self, capability_id: str, approved: bool) -> Path:
-        """Promote a validated staged capability only after governance approval."""
         source = self.pending_root / capability_id
         if not source.exists():
             raise EvolutionError(f"Staged capability does not exist: {source}")
@@ -248,12 +183,7 @@ Rules:
         if destination.exists():
             raise EvolutionError(f"Generated capability already exists: {destination}")
         destination.parent.mkdir(parents=True, exist_ok=True)
-        for source_file in source.rglob("*"):
-            if source_file.is_file():
-                relative = source_file.relative_to(source)
-                target = destination / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(source_file.read_text(encoding="utf-8"), encoding="utf-8")
+        shutil.copytree(source, destination)
         return destination
 
     def _next_capability_id(self) -> str:
@@ -261,10 +191,8 @@ Rules:
         if self.generated_root.exists():
             ids = [p.name for p in self.generated_root.iterdir() if p.is_dir()]
         numbers = [int(match.group(1)) for name in ids if (match := re.fullmatch(r"CAP-(\d+)", name))]
-        pending_ids = []
         if self.pending_root.exists():
-            pending_ids = [p.name for p in self.pending_root.iterdir() if p.is_dir()]
-        numbers.extend(int(match.group(1)) for name in pending_ids if (match := re.fullmatch(r"CAP-(\d+)", name)))
+            numbers.extend(int(match.group(1)) for p in self.pending_root.iterdir() if p.is_dir() if (match := re.fullmatch(r"CAP-(\d+)", p.name)))
         return f"CAP-{max(numbers, default=0) + 1:03d}"
 
     @staticmethod
@@ -292,18 +220,14 @@ Rules:
         except SyntaxError as exc:
             raise EvolutionError(f"Generated {filename} has invalid Python: {exc}") from exc
         banned = {"eval", "exec", "compile", "__import__"}
+        restricted = {"subprocess", "socket", "requests", "urllib", "os", "shutil"}
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in banned:
                 raise EvolutionError(f"Generated {filename} uses banned operation: {node.func.id}")
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 modules = [alias.name.split(".")[0] for alias in node.names]
-                if any(module in {"subprocess", "socket", "requests", "urllib", "os", "shutil"} for module in modules):
+                if any(module in restricted for module in modules):
                     raise EvolutionError(f"Generated {filename} imports a restricted module")
-
-    @staticmethod
-    def _extract_coverage(output: str) -> Optional[float]:
-        match = re.search(r"TOTAL\s+\d+\s+\d+\s+(\d+)%", output)
-        return float(match.group(1)) if match else None
 
     @staticmethod
     def _metadata(plan: CapabilityPlan, provider: str, model: str) -> Dict[str, Any]:
