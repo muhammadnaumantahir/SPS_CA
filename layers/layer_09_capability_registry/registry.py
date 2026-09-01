@@ -1,12 +1,13 @@
 """Layer 9: capability registry.
 
-Provides a small persistent registry for promoted capabilities. Layer 8 owns
-creation and governance; this layer owns discovery and registration.
+Provides a persistent registry for promoted capabilities. Layer 8 owns
+creation and governance; this layer owns discovery, registration, and lineage
+metadata required by the Phase 4 specification.
 """
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -26,6 +27,10 @@ class CapabilityRecord:
     parent_capabilities: Optional[List[str]] = None
     model_provider: str = ""
     model: str = ""
+    test_coverage: Optional[float] = None
+    generated: bool = False
+    origin: str = ""
+    trigger_tasks: Optional[List[str]] = None
 
 
 class CapabilityRegistry:
@@ -67,7 +72,10 @@ class CapabilityRegistry:
             raise RegistryError("Registry must contain a JSON object")
         for capability_id, data in payload.get("capabilities", {}).items():
             if isinstance(data, dict):
-                self._records[capability_id] = CapabilityRecord(**data)
+                try:
+                    self._records[capability_id] = CapabilityRecord(**data)
+                except TypeError as exc:
+                    raise RegistryError(f"Invalid registry record {capability_id}: {exc}") from exc
 
     def _save(self) -> None:
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
