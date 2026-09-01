@@ -1,7 +1,7 @@
 """End-to-end governed evolution workflow for Phase 4.
 
-experience evidence -> Layer 8 planning/generation -> Layer 6 validation
-boundary -> Layer 7 governance -> Layer 9 registration.
+experience evidence -> Layer 8 planning/generation -> Layer 6 package
+validation -> Layer 7 governance -> Layer 9 registration.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-from layers.layer_06_validation import Validator
+from layers.layer_06_validation.capability_package_validator import CapabilityPackageValidator
 from layers.layer_07_governance import GovernanceGate
 from layers.layer_07_governance.models import ChangeType, DecisionStatus
 from layers.layer_09_capability_registry.registry import CapabilityRecord, CapabilityRegistry
@@ -31,36 +31,53 @@ class EvolutionWorkflowResult:
 class EvolutionWorkflow:
     """Coordinate one safe evolution cycle without bypassing governance."""
 
-    def __init__(self, engine: EvolutionEngine, governance: GovernanceGate, registry: CapabilityRegistry) -> None:
+    def __init__(
+        self,
+        engine: EvolutionEngine,
+        governance: GovernanceGate,
+        registry: CapabilityRegistry,
+        validator: Optional[CapabilityPackageValidator] = None,
+    ) -> None:
         self.engine = engine
         self.governance = governance
         self.registry = registry
+        self.validator = validator or CapabilityPackageValidator()
 
     def evolve(
         self,
         experience_log: ExperienceLog,
-        validator: Optional[Validator] = None,
         evidence: Optional[List[str]] = None,
         approved: Optional[bool] = None,
     ) -> EvolutionWorkflowResult:
         patterns = self.engine.repeated_failure_patterns(experience_log)
         if not patterns:
             raise EvolutionError("No repeated failure pattern meets the evolution threshold")
+
         trigger = next(iter(patterns))
         plan = self.engine.plan_new_capability(trigger, experience_log)
         generated: GeneratedCapability = self.engine.generate_capability_code(plan, evidence)
         staged = self.engine.stage_capability(generated)
-        tests = self.engine.test_capability(plan.capability_id, staged)
+
+        # Layer 6 is the authoritative package validation boundary. A
+        # capability cannot reach governance/promotion unless its generated
+        # package passes syntax, pytest, and the >=80% coverage gate.
+        validation = self.validator.validate(staged)
+        tests = TestResults(
+            passed=validation.passed,
+            return_code=validation.return_code,
+            output=validation.output,
+            coverage_percent=validation.coverage_percent,
+            error=validation.error,
+        )
         if not tests.passed:
-            raise EvolutionError(f"Generated capability failed validation: {tests.error or 'unknown error'}")
+            raise EvolutionError(
+                f"Generated capability failed Layer 6 validation: {tests.error or 'unknown error'}"
+            )
 
-        # Layer 6 currently validates project-file changes. Layer 8 creates a
-        # new isolated capability package, so its own pytest/coverage gate is
-        # the applicable validation here. Keep Validator injectable for the
-        # next project-level regression integration without coupling layers.
-        _ = validator
-
-        affected_files = [f"capabilities/generated/{plan.capability_id}/{name}" for name in generated.files]
+        affected_files = [
+            f"capabilities/generated/{plan.capability_id}/{name}"
+            for name in generated.files
+        ]
         decision = self.governance.make_decision(
             change_id=plan.capability_id,
             change_type=ChangeType.EVOLUTION,
@@ -72,6 +89,7 @@ class EvolutionWorkflow:
             DecisionStatus.AUTO_APPROVED,
             DecisionStatus.APPROVED,
         }
+
         promoted: Optional[Path] = None
         registered = False
         if governance_approved:
@@ -89,6 +107,7 @@ class EvolutionWorkflow:
             )
             self.registry.register(record)
             registered = True
+
         return EvolutionWorkflowResult(
             capability_id=plan.capability_id,
             trigger_pattern=trigger,
