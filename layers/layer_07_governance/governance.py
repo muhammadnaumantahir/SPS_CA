@@ -11,7 +11,7 @@ for risk before approval.
 
 import json
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Tuple
 from datetime import datetime
 import logging
 
@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 class GovernanceError(Exception):
     """Raised when governance decision cannot be made."""
-    pass
 
 
 class GovernanceGate:
@@ -51,23 +50,46 @@ class GovernanceGate:
     All SPS-CA changes must pass through this gate.
     """
 
-    def __init__(self, dna_rules_path: str = None, decisions_dir: str = None):
+    def __init__(
+        self,
+        dna_rules_path: str = "governance/dna_rules.json",
+        decisions_dir: Optional[str] = None,
+    ):
         """
         Initialize governance gate.
 
+        Loads two complementary rule sets into ``self.dna_rules``:
+        1. Mechanical, file-pattern rules (``gov_mech_NNN``) that this gate
+           can check automatically via glob matching against affected files
+           (see ``_initialize_default_rules``).
+        2. The declarative Software DNA rules from Layer 1
+           (``governance/dna_rules.json``, ``rule_NNN``) — the canonical,
+           human-reviewed constraint set. These are always loaded for
+           visibility/audit purposes even though most are behavioral
+           constraints rather than file-pattern checks, so they don't yet
+           drive ``check_dna_violations`` directly.
+
+        The two sets use disjoint ID namespaces (``gov_mech_*`` vs
+        ``rule_*``) specifically so they never collide when merged.
+
         Args:
-            dna_rules_path: Path to DNA rules JSON file
+            dna_rules_path: Path to the canonical DNA rules JSON file.
+                Missing file is not an error — mechanical rules still load.
             decisions_dir: Directory to store decision logs
         """
         self.dna_rules: Dict[str, DNARule] = {}
         self.decisions: List[GovernanceDecision] = []
         self.stats = GovernanceStats()
 
-        # Load DNA rules
+        # Mechanical, file-pattern-checkable rules are always available —
+        # they're what check_dna_violations can actually enforce today.
+        self._initialize_default_rules()
+
+        # Merge in the canonical, declarative Software DNA rule set on top
+        # (additive: load_dna_rules only ever adds/overwrites by rule.id,
+        # and the gov_mech_* namespace above never collides with rule_*).
         if dna_rules_path:
             self.load_dna_rules(dna_rules_path)
-        else:
-            self._initialize_default_rules()
 
         # Setup decisions directory
         self.decisions_dir = Path(decisions_dir or "governance/decisions")
@@ -76,31 +98,39 @@ class GovernanceGate:
         logger.info(f"GovernanceGate initialized with {len(self.dna_rules)} DNA rules")
 
     def _initialize_default_rules(self):
-        """Initialize default DNA rules."""
+        """Initialize mechanical, file-pattern-checkable DNA rules.
+
+        These IDs are namespaced ``gov_mech_*`` (never ``rule_*``) so they
+        never collide with the canonical, declarative Software DNA rules
+        loaded from ``governance/dna_rules.json`` by :meth:`load_dna_rules`.
+        Each of these corresponds to (and mechanically enforces a subset
+        of) a canonical rule's intent, but expressed as a checkable file
+        glob rather than a natural-language constraint.
+        """
         default_rules = [
             DNARule(
-                id="rule_001",
+                id="gov_mech_001",
                 constraint="Never modify core governance logic (Layer 7)",
                 severity=DNARuleSeverity.HARD,
                 affected_files=["layers/layer_07_governance/governance.py"],
                 description="Governance logic must remain immutable to prevent self-modification of controls"
             ),
             DNARule(
-                id="rule_002",
+                id="gov_mech_002",
                 constraint="Never modify existing seed capabilities (only version-bump)",
                 severity=DNARuleSeverity.HARD,
                 affected_files=["capabilities/seeds/*/capability.py"],
                 description="Seed capability lineage must be preserved for reproducibility"
             ),
             DNARule(
-                id="rule_003",
+                id="gov_mech_003",
                 constraint="All generated capabilities must have >80% test coverage",
                 severity=DNARuleSeverity.SOFT,
                 affected_files=["capabilities/generated/*/tests.py"],
                 description="Generated code quality must meet minimum standards"
             ),
             DNARule(
-                id="rule_004",
+                id="gov_mech_004",
                 constraint="Never modify DNA rules without explicit approval",
                 severity=DNARuleSeverity.HARD,
                 affected_files=["layers/layer_01_software_dna/", "governance/dna_rules.json"],
@@ -111,33 +141,44 @@ class GovernanceGate:
         for rule in default_rules:
             self.dna_rules[rule.id] = rule
 
-        logger.info(f"Initialized {len(default_rules)} default DNA rules")
+        logger.info(f"Initialized {len(default_rules)} mechanical DNA rules")
 
     def load_dna_rules(self, dna_rules_path: str):
         """
-        Load DNA rules from JSON file.
+        Merge canonical DNA rules from JSON file into self.dna_rules.
+
+        This is additive — it never removes the mechanical ``gov_mech_*``
+        rules loaded by ``_initialize_default_rules``, and a missing file
+        is logged (not treated as an error) since mechanical rules alone
+        are enough for check_dna_violations to function.
 
         Args:
             dna_rules_path: Path to DNA rules JSON
         """
         path = Path(dna_rules_path)
         if not path.exists():
-            logger.warning(f"DNA rules file not found: {dna_rules_path}")
-            self._initialize_default_rules()
+            logger.warning(
+                f"Canonical DNA rules file not found: {dna_rules_path} "
+                f"(continuing with {len(self.dna_rules)} mechanical rules only)"
+            )
             return
 
         try:
             with open(path) as f:
                 data = json.load(f)
 
+            loaded = 0
             for rule_data in data.get("dna_rules", []):
                 rule = DNARule(**rule_data)
                 self.dna_rules[rule.id] = rule
+                loaded += 1
 
-            logger.info(f"Loaded {len(self.dna_rules)} DNA rules from {dna_rules_path}")
+            logger.info(
+                f"Merged {loaded} canonical DNA rules from {dna_rules_path} "
+                f"({len(self.dna_rules)} total)"
+            )
         except Exception as e:
-            logger.error(f"Failed to load DNA rules: {e}")
-            self._initialize_default_rules()
+            logger.error(f"Failed to load canonical DNA rules: {e}")
 
     def check_dna_violations(
         self,
@@ -214,7 +255,7 @@ class GovernanceGate:
         change_type: ChangeType,
         affected_files: List[str],
         violations: List[DNAViolation],
-        related_capabilities: List[str] = None
+        related_capabilities: Optional[List[str]] = None
     ) -> RiskAssessment:
         """
         Assess risk level of a proposed change.
@@ -291,7 +332,7 @@ class GovernanceGate:
         change_type: ChangeType,
         change_description: str,
         affected_files: List[str],
-        related_capabilities: List[str] = None
+        related_capabilities: Optional[List[str]] = None
     ) -> GovernanceDecision:
         """
         Make a governance decision for a proposed change.

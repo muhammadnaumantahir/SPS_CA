@@ -157,11 +157,18 @@ class TestGovernanceGate:
             assert Path(tmpdir).exists()
 
     def test_default_rules_loaded(self, governance_gate):
-        """Test that default DNA rules are loaded."""
+        """Test that both mechanical and canonical DNA rules are loaded."""
+        # Mechanical, file-pattern-checkable rules (namespaced gov_mech_*
+        # specifically so they never collide with the canonical rule_* IDs
+        # below).
+        assert "gov_mech_001" in governance_gate.dna_rules
+        assert "gov_mech_002" in governance_gate.dna_rules
+        assert "gov_mech_003" in governance_gate.dna_rules
+        assert "gov_mech_004" in governance_gate.dna_rules
+        # Canonical, declarative Software DNA rules from
+        # governance/dna_rules.json, merged in by default.
         assert "rule_001" in governance_gate.dna_rules
         assert "rule_002" in governance_gate.dna_rules
-        assert "rule_003" in governance_gate.dna_rules
-        assert "rule_004" in governance_gate.dna_rules
 
     def test_load_custom_dna_rules(self):
         """Test loading custom DNA rules from file."""

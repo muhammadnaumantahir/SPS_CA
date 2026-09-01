@@ -5,14 +5,12 @@ Implements sandbox testing, regression detection, performance monitoring,
 and rollback mechanisms for safe code modification.
 """
 
-import json
 import subprocess
 import tempfile
 import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-from abc import ABC, abstractmethod
+from typing import Optional, Dict
 
 from .models import (
     SandboxStatus, SandboxResult, MetricsSnapshot, RegressionDetected,
@@ -22,7 +20,6 @@ from .models import (
 
 class ValidationError(Exception):
     """Raised when validation fails."""
-    pass
 
 
 class Validator:
@@ -231,7 +228,7 @@ class Validator:
             plan.executed = True
             return True
         except Exception as e:
-            raise ValidationError(f"Rollback failed: {str(e)}")
+            raise ValidationError(f"Rollback failed: {str(e)}") from e
     
     def _capture_metrics(self) -> MetricsSnapshot:
         """Capture current project metrics."""
@@ -244,6 +241,7 @@ class Validator:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                check=False,
             )
             
             # Parse pytest output for test count
@@ -265,9 +263,9 @@ class Validator:
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
+                check=False,
             )
             
-            snapshot.exit_code = result.returncode
             snapshot.tests_passing = (
                 snapshot.test_count if result.returncode == 0 else 0
             )
@@ -308,6 +306,7 @@ class Validator:
                 text=True,
                 timeout=self.timeout_seconds,
                 cwd=str(project_path),
+                check=False,
             )
             
             result.stdout = test_result.stdout

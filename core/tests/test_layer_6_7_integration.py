@@ -58,22 +58,27 @@ class TestLayer6Layer7Integration:
 
         # Step 2: Create simulated validation result
         before_metrics = MetricsSnapshot(
+            timestamp=datetime.now(),
             test_count=42,
             tests_passing=42,
-            code_coverage=85.0,
+            code_coverage_percent=85.0,
             execution_time_ms=2100.0
         )
 
         after_metrics = MetricsSnapshot(
+            timestamp=datetime.now(),
             test_count=42,
             tests_passing=42,
-            code_coverage=86.0,
+            code_coverage_percent=86.0,
             execution_time_ms=2050.0
         )
 
         result = SandboxResult(
+            change_id="CHANGE-001",
             status=SandboxStatus.SUCCESS,
-            metrics=after_metrics,
+            start_time=datetime.now(),
+            metrics_before=before_metrics,
+            metrics_after=after_metrics,
             stdout="All tests passed",
             stderr="",
             exit_code=0
@@ -129,15 +134,18 @@ class TestLayer6Layer7Integration:
 
         # But validation detects regression
         after_metrics = MetricsSnapshot(
+            timestamp=datetime.now(),
             test_count=42,
             tests_passing=40,  # 2 tests now fail!
-            code_coverage=85.0,
+            code_coverage_percent=85.0,
             execution_time_ms=2100.0
         )
 
         result = SandboxResult(
+            change_id="CHANGE-003",
             status=SandboxStatus.FAILURE,
-            metrics=after_metrics,
+            start_time=datetime.now(),
+            metrics_after=after_metrics,
             stdout="",
             stderr="2 tests failed",
             exit_code=1
@@ -167,7 +175,18 @@ class TestLayer6Layer7Integration:
 
     def test_adaptation_workflow(self, workflow_setup):
         """
-        Test adaptation change workflow (adjusting existing capability).
+        Test adaptation change workflow (adjusting an existing capability's
+        runtime parameters for a new task/language).
+
+        Per Layer 5 (Adaptation)'s actual design, a Type 6 change reuses a
+        capability by adjusting its runtime parameters (timeout, language,
+        aggressiveness) and logging an AdaptationRecord — it never patches
+        the seed capability's own source file on disk. Only Evolution
+        (Type 7, via capabilities/generated/) produces new capability code.
+        So the affected file here is the adaptation log, not the immutable
+        seed file — hitting capabilities/seeds/*/capability.py directly
+        would (correctly) trip gov_mech_002 and get REJECTED, since that
+        rule exists specifically to stop in-place edits to seed capabilities.
         """
         gate = workflow_setup["governance_gate"]
 
@@ -175,13 +194,32 @@ class TestLayer6Layer7Integration:
         decision = gate.make_decision(
             change_id="CHANGE-005",
             change_type=ChangeType.ADAPTATION,
-            change_description="Adapt CAP-001 timeout from 30s to 60s",
-            affected_files=["capabilities/seeds/CAP-001/capability.py"],
+            change_description="Adapt CAP-001 timeout from 30s to 60s for this task",
+            affected_files=["experience/logs/adaptations.json"],
             related_capabilities=["CAP-001"]
         )
 
         # Should be low risk if only adjusting parameters
         assert decision.decision in [DecisionStatus.AUTO_APPROVED, DecisionStatus.PENDING_HUMAN_REVIEW]
+
+    def test_adaptation_workflow_rejects_direct_seed_file_edit(self, workflow_setup):
+        """
+        An adaptation that (incorrectly) tries to patch a seed capability's
+        source file directly must still be rejected — adaptation adjusts
+        runtime parameters, it does not rewrite seed capability code.
+        """
+        gate = workflow_setup["governance_gate"]
+
+        decision = gate.make_decision(
+            change_id="CHANGE-005B",
+            change_type=ChangeType.ADAPTATION,
+            change_description="Directly edit CAP-001's hardcoded timeout constant",
+            affected_files=["capabilities/seeds/CAP-001/capability.py"],
+            related_capabilities=["CAP-001"]
+        )
+
+        assert decision.decision == DecisionStatus.REJECTED
+        assert any(v.rule_id == "gov_mech_002" for v in decision.dna_violations)
 
     def test_test_generation_workflow(self, workflow_setup):
         """
