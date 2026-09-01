@@ -1,0 +1,17 @@
+{
+  "id": "CAP-009",
+  "name": "Universal Parser",
+  "version": "1.0.0",
+  "created_date": "2026-09-01T00:00:00+00:00",
+  "entry_point": "universal_parser",
+  "supported_languages": ["python", "java", "javascript"],
+  "dependencies": [],
+  "test_coverage": null,
+  "reuse_count": 0,
+  "generated": true,
+  "origin": "phase_4_evolution_trial",
+  "failure_pattern": "repeated_parsing_failures",
+  "trigger_tasks": ["task_010", "task_015", "task_020"],
+  "parent_capabilities": [],
+  "generation_reason": "Generated after three repeated parsing failures."
+}
