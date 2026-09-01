@@ -1,8 +1,7 @@
 """End-to-end governed evolution workflow for Phase 4.
 
-This orchestration layer keeps the responsibilities explicit:
-experience evidence -> Layer 8 planning/generation -> Layer 6 validation ->
-Layer 7 governance -> Layer 9 registration.
+experience evidence -> Layer 8 planning/generation -> Layer 6 validation
+boundary -> Layer 7 governance -> Layer 9 registration.
 """
 from __future__ import annotations
 
@@ -32,12 +31,7 @@ class EvolutionWorkflowResult:
 class EvolutionWorkflow:
     """Coordinate one safe evolution cycle without bypassing governance."""
 
-    def __init__(
-        self,
-        engine: EvolutionEngine,
-        governance: GovernanceGate,
-        registry: CapabilityRegistry,
-    ) -> None:
+    def __init__(self, engine: EvolutionEngine, governance: GovernanceGate, registry: CapabilityRegistry) -> None:
         self.engine = engine
         self.governance = governance
         self.registry = registry
@@ -60,16 +54,14 @@ class EvolutionWorkflow:
         if not tests.passed:
             raise EvolutionError(f"Generated capability failed validation: {tests.error or 'unknown error'}")
 
-        # Layer 6 is an optional integration boundary because its current API
-        # validates project-file changes, while Layer 8 generates a new package.
-        # When supplied, callers can run project-level regression checks here.
+        # Layer 6 currently validates project-file changes. Layer 8 creates a
+        # new isolated capability package, so its own pytest/coverage gate is
+        # the applicable validation here. Keep Validator injectable for the
+        # next project-level regression integration without coupling layers.
         _ = validator
 
-        affected_files = [
-            f"capabilities/generated/{plan.capability_id}/{name}"
-            for name in generated.files
-        ]
-        decision = self.governance.evaluate_change(
+        affected_files = [f"capabilities/generated/{plan.capability_id}/{name}" for name in generated.files]
+        decision = self.governance.make_decision(
             change_id=plan.capability_id,
             change_type=ChangeType.EVOLUTION,
             change_description=plan.reason,
