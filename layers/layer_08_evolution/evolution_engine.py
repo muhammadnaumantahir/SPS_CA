@@ -293,8 +293,9 @@ def run(context: CapabilityContext) -> CapabilityResult:
     if not context.code or not context.code.strip():
         return CapabilityResult.fail(error="No code provided to modify.")
 
-        _nl = chr(10)
-        marker = _nl + _nl + "# Layer 8 generated capability: " + TRIGGER_PATTERN + _nl
+    nl = chr(10)
+    marker = nl + nl + "# Layer 8 generated capability: " + TRIGGER_PATTERN + nl
+    updated = context.code.rstrip() + marker
     return CapabilityResult.ok(
         summary=f"Generated {TRIGGER_PATTERN} marker transformation.",
         modified_code=updated,

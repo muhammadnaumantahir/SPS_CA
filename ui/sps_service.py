@@ -284,6 +284,8 @@ class SPSScenarioService:
     @staticmethod
     def _best_registry_text_match(matches: List[Any], request_lower: str):
         tokens = {token for token in request_lower.split() if len(token) > 3}
+        if not tokens:
+            return None
         scored = []
         for capability in matches:
             text = f"{getattr(capability, 'name', '')} {getattr(capability, 'description', '')}".lower()
@@ -292,5 +294,9 @@ class SPSScenarioService:
                 scored.append((score, capability))
         if not scored:
             return None
+        # Require at least 2 matching tokens to avoid single-generic-word false positives.
         scored.sort(key=lambda item: (-item[0], getattr(item[1], "id", "")))
+        best_score = scored[0][0]
+        if best_score < 2:
+            return None
         return scored[0][1]
