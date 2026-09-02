@@ -15,11 +15,11 @@ from brain import Brain, BrainError
 from capabilities.base import CapabilityContext
 from capabilities.seed_registry import load_entry_point
 from layers.architecture import architecture_manifest
-from layers.knowledge_core import KnowledgeCore
-from layers.layer_03_experience import ExperienceLog, Task
-from layers.layer_04_meta_learning import MetaLearner
-from layers.layer_05_adaptation import Adaptation
-from layers.layer_09_capability_registry import CapabilityRegistryManager
+from layers.layer_04_knowledge import KnowledgeCore
+from layers.layer_05_experience import ExperienceLog, Task
+from layers.layer_06_meta_learning import MetaLearner
+from layers.layer_07_adaptation import Adaptation
+from layers.capability_registry import CapabilityRegistryManager
 
 
 @dataclass

@@ -1,6 +1,6 @@
 import pytest
 
-from layers.layer_02_cognitive_core.project_analyzer import (
+from layers.layer_03_cognitive.project_analyzer import (
     ProjectAnalyzer,
     UnsupportedLanguageError,
 )

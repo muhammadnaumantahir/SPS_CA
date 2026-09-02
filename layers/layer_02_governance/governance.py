@@ -112,7 +112,7 @@ class GovernanceGate:
                 id="gov_mech_001",
                 constraint="Never modify core governance logic (Layer 7)",
                 severity=DNARuleSeverity.HARD,
-                affected_files=["layers/layer_07_governance/governance.py"],
+                affected_files=["layers/layer_02_governance/governance.py"],
                 description="Governance logic must remain immutable to prevent self-modification of controls"
             ),
             DNARule(
@@ -232,7 +232,7 @@ class GovernanceGate:
         Simple pattern matching for file paths.
 
         Args:
-            pattern: Pattern with * wildcards (e.g., "layers/layer_07_governance/*")
+            pattern: Pattern with * wildcards (e.g., "layers/layer_02_governance/*")
             filename: Filename to check
 
         Returns:

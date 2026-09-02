@@ -77,8 +77,8 @@ class TestSoftwareDNAInMemory:
         [
             ("governance/dna_rules.json", True),
             ("layers/layer_01_software_dna/software_dna.py", True),
-            ("layers/layer_07_governance/gate.py", True),
-            ("layers/layer_02_cognitive_core/cognitive_core.py", False),
+            ("layers/layer_02_governance/gate.py", True),
+            ("layers/layer_03_cognitive/cognitive_core.py", False),
             ("projects/project_a/app.py", False),
         ],
     )

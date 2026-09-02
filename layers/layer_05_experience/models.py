@@ -3,7 +3,7 @@
 A ``Task`` is one record of SPS-CA attempting to satisfy a user request
 against a target project using a selected capability. Tasks are append-only
 history: nothing in the system rewrites a past task, it only adds new ones
-(see :class:`~layers.layer_03_experience.experience_log.ExperienceLog`).
+(see :class:`~layers.layer_05_experience.experience_log.ExperienceLog`).
 """
 
 from __future__ import annotations

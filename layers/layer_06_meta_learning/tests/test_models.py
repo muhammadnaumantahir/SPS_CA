@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from layers.layer_04_meta_learning.models import MetaLearningDecision
+from layers.layer_06_meta_learning.models import MetaLearningDecision
 
 
 def test_decision_requires_id():

@@ -1,6 +1,6 @@
 import pytest
 
-from layers.layer_02_cognitive_core.llm_interface import LLMInterface, LLMQueryError
+from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 from models.base import (
     LLMProvider,
     LLMRequest,

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from layers.layer_03_experience.experience_log import ExperienceLog
-from layers.layer_03_experience.models import Task
-from layers.layer_04_meta_learning.meta_learner import (
+from layers.layer_05_experience.experience_log import ExperienceLog
+from layers.layer_05_experience.models import Task
+from layers.layer_06_meta_learning.meta_learner import (
     MetaLearner, MetaLearningDecisionLog)
-from layers.layer_04_meta_learning.models import MetaLearningDecision
+from layers.layer_06_meta_learning.models import MetaLearningDecision
 
 
 def _task(id_, status="success", capability="CAP-001", failure_category=None):

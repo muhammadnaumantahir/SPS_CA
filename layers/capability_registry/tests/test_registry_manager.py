@@ -7,8 +7,8 @@ import json
 import tempfile
 from pathlib import Path
 
-from layers.layer_09_capability_registry.registry import CapabilityRegistryManager
-from layers.layer_09_capability_registry.models import (
+from layers.capability_registry.registry import CapabilityRegistryManager
+from layers.capability_registry.models import (
     CapabilityMetadata,
     CapabilityType,
     CapabilityQuery,

@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from layers.layer_02_cognitive_core.llm_interface import LLMInterface, LLMQueryError
+from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 

@@ -23,7 +23,7 @@ The ten layers describe **architectural responsibilities**. The Brain is a separ
 
 Sub-components are **optional**. A deployment can implement them incrementally without changing the responsibility of the parent layer.
 
-The public vocabulary is implemented by `layers/architecture.py` and exposed to the UI/API. A dedicated `layers/knowledge_core/` module now provides the initial implementation boundary for the Knowledge Layer.
+The public vocabulary is implemented by `layers/architecture.py` and exposed to the UI/API. A dedicated `layers/layer_04_knowledge/` module now provides the initial implementation boundary for the Knowledge Layer.
 
 ## 3. Brain boundary
 

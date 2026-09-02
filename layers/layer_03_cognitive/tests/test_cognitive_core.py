@@ -1,8 +1,8 @@
 import pytest
 
 from layers.layer_01_software_dna import CapabilityTemplate
-from layers.layer_02_cognitive_core.cognitive_core import CognitiveCore
-from layers.layer_02_cognitive_core.models import ProjectAnalysis
+from layers.layer_03_cognitive.cognitive_core import CognitiveCore
+from layers.layer_03_cognitive.models import ProjectAnalysis
 
 
 def fake_capabilities():

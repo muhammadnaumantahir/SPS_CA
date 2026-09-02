@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from layers.layer_03_experience.experience_log import ExperienceLog
-from layers.layer_07_governance.governance import GovernanceGate
-from layers.layer_07_governance.models import ChangeType, DecisionStatus
+from layers.layer_05_experience.experience_log import ExperienceLog
+from layers.layer_02_governance.governance import GovernanceGate
+from layers.layer_02_governance.models import ChangeType, DecisionStatus
 
 from .models import (
     CapabilityPlan,

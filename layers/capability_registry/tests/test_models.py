@@ -4,7 +4,7 @@ Layer 9 - Tests for data models (CapabilityMetadata, CapabilityQuery, etc.)
 
 import pytest
 from datetime import datetime
-from layers.layer_09_capability_registry.models import (
+from layers.capability_registry.models import (
     CapabilityMetadata,
     CapabilityType,
     CapabilityLanguage,

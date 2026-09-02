@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from models.ollama.provider import DEFAULT_MODEL
-from layers.layer_02_cognitive_core.llm_interface import LLMInterface
+from layers.layer_03_cognitive.llm_interface import LLMInterface
 
 
 def build_local_llm(model: str = DEFAULT_MODEL):

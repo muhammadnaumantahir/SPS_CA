@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from layers.layer_05_adaptation.models import AdaptationRecord
+from layers.layer_07_adaptation.models import AdaptationRecord
 
 
 def test_record_requires_id():

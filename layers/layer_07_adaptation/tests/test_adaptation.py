@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from layers.layer_03_experience.models import Task
-from layers.layer_05_adaptation.adaptation import Adaptation, AdaptationLog
-from layers.layer_05_adaptation.models import AdaptationRecord
+from layers.layer_05_experience.models import Task
+from layers.layer_07_adaptation.adaptation import Adaptation, AdaptationLog
+from layers.layer_07_adaptation.models import AdaptationRecord
 
 
 def _task(id_, request, status="success", capability="CAP-003"):

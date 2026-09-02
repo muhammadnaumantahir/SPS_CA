@@ -453,7 +453,7 @@ class TestValidatorCaptureMetrics:
             stdout="TOTAL   100  10  90%\ncoverage: 90%\n", returncode=0
         )
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run",
+            "layers.layer_09_validation.validation.subprocess.run",
             side_effect=[collect_output, run_output],
         ):
             snapshot = validator._capture_metrics()
@@ -465,7 +465,7 @@ class TestValidatorCaptureMetrics:
 
         validator = Validator(str(tmp_path))
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run",
+            "layers.layer_09_validation.validation.subprocess.run",
             side_effect=subprocess_module.TimeoutExpired(cmd="pytest", timeout=30),
         ):
             snapshot = validator._capture_metrics()
@@ -477,7 +477,7 @@ class TestValidatorCaptureMetrics:
     def test_capture_metrics_handles_unexpected_exception_gracefully(self, tmp_path):
         validator = Validator(str(tmp_path))
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run",
+            "layers.layer_09_validation.validation.subprocess.run",
             side_effect=FileNotFoundError("pytest not installed"),
         ):
             snapshot = validator._capture_metrics()
@@ -501,7 +501,7 @@ class TestValidatorRunTestsInSandbox:
         validator, result = validator_and_result
         proc = MagicMock(stdout="3 passed", stderr="", returncode=0)
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run", return_value=proc
+            "layers.layer_09_validation.validation.subprocess.run", return_value=proc
         ):
             updated = validator._run_tests_in_sandbox(tmp_path, result)
         assert updated.status == SandboxStatus.SUCCESS
@@ -511,7 +511,7 @@ class TestValidatorRunTestsInSandbox:
         validator, result = validator_and_result
         proc = MagicMock(stdout="", stderr="1 failed", returncode=1)
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run", return_value=proc
+            "layers.layer_09_validation.validation.subprocess.run", return_value=proc
         ):
             updated = validator._run_tests_in_sandbox(tmp_path, result)
         assert updated.status == SandboxStatus.FAILURE
@@ -522,7 +522,7 @@ class TestValidatorRunTestsInSandbox:
 
         validator, result = validator_and_result
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run",
+            "layers.layer_09_validation.validation.subprocess.run",
             side_effect=subprocess_module.TimeoutExpired(cmd="pytest", timeout=30),
         ):
             updated = validator._run_tests_in_sandbox(tmp_path, result)
@@ -532,7 +532,7 @@ class TestValidatorRunTestsInSandbox:
     def test_unexpected_exception_sets_error_status(self, validator_and_result, tmp_path):
         validator, result = validator_and_result
         with patch(
-            "layers.layer_06_validation.validation.subprocess.run",
+            "layers.layer_09_validation.validation.subprocess.run",
             side_effect=RuntimeError("boom"),
         ):
             updated = validator._run_tests_in_sandbox(tmp_path, result)

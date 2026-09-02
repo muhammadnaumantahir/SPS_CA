@@ -167,7 +167,7 @@ class SoftwareDNA:
         protected_prefixes = (
             "governance/",
             "layers/layer_01_software_dna/",
-            "layers/layer_07_governance/",
+            "layers/layer_02_governance/",
         )
         normalized = target_path.replace("\\", "/").lstrip("./")
         return normalized.startswith(protected_prefixes)

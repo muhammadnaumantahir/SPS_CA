@@ -11,9 +11,9 @@ from typing import Any, Dict, Optional
 
 from capabilities.base import CapabilityContext
 from experience.evolution_trace import EvolutionTraceStore
-from layers.layer_06_validation import Validator
-from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGate
-from layers.layer_09_capability_registry import CapabilityRegistryManager
+from layers.layer_09_validation import Validator
+from layers.layer_02_governance import ChangeType, DecisionStatus, GovernanceGate
+from layers.capability_registry import CapabilityRegistryManager
 from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit
 
 from .sps_service import SPSAnalysisResult, SPSScenarioService

@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from layers.layer_03_experience.experience_log import ExperienceLog
-from layers.layer_03_experience.models import Task
+from layers.layer_05_experience.experience_log import ExperienceLog
+from layers.layer_05_experience.models import Task
 
 
 def _task(id_, status="success", capability="CAP-001", failure_category=None):

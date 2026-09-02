@@ -23,10 +23,10 @@ from brain import Brain, BrainError  # noqa: E402
 from capabilities.base import CapabilityContext  # noqa: E402
 from capabilities.seed_registry import load_entry_point, load_seed_capabilities  # noqa: E402
 from experience.evolution_trace import EvolutionTraceStore  # noqa: E402
-from layers.layer_02_cognitive_core import CognitiveCore  # noqa: E402
-from layers.layer_06_validation import Validator  # noqa: E402
-from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGate  # noqa: E402
-from layers.layer_09_capability_registry import CapabilityRegistryManager  # noqa: E402
+from layers.layer_03_cognitive import CognitiveCore  # noqa: E402
+from layers.layer_09_validation import Validator  # noqa: E402
+from layers.layer_02_governance import ChangeType, DecisionStatus, GovernanceGate  # noqa: E402
+from layers.capability_registry import CapabilityRegistryManager  # noqa: E402
 from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit  # noqa: E402
 from ui.sps_service import SPSScenarioService  # noqa: E402
 

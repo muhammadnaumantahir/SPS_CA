@@ -9,8 +9,8 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 
-from layers.layer_06_validation import Validator, SandboxResult, SandboxStatus, MetricsSnapshot
-from layers.layer_07_governance import GovernanceGate, ChangeType, DecisionStatus
+from layers.layer_09_validation import Validator, SandboxResult, SandboxStatus, MetricsSnapshot
+from layers.layer_02_governance import GovernanceGate, ChangeType, DecisionStatus
 
 
 class TestLayer6Layer7Integration:
@@ -165,7 +165,7 @@ class TestLayer6Layer7Integration:
             change_id="CHANGE-004",
             change_type=ChangeType.LOGIC_FIX,
             change_description="Fix bug in governance.py",
-            affected_files=["layers/layer_07_governance/governance.py"]
+            affected_files=["layers/layer_02_governance/governance.py"]
         )
 
         # Should be rejected due to HARD DNA violation
@@ -318,7 +318,7 @@ class TestRiskLevelProgression:
                 change_id="RISK-003",
                 change_type=ChangeType.LOGIC_FIX,
                 change_description="Fix governance",
-                affected_files=["layers/layer_07_governance/governance.py"]
+                affected_files=["layers/layer_02_governance/governance.py"]
             )
             assert high_risk.decision == DecisionStatus.REJECTED
 

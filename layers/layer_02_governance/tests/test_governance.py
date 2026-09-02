@@ -35,7 +35,7 @@ class TestDNARule:
             id="rule_001",
             constraint="Never modify governance logic",
             severity=DNARuleSeverity.HARD,
-            affected_files=["layers/layer_07_governance/*"],
+            affected_files=["layers/layer_02_governance/*"],
             description="Governance must be immutable"
         )
 
@@ -117,7 +117,7 @@ class TestDNAViolation:
             rule_id="rule_001",
             rule_description="Never modify governance logic",
             severity=DNARuleSeverity.HARD,
-            evidence="File layers/layer_07_governance/governance.py would be modified"
+            evidence="File layers/layer_02_governance/governance.py would be modified"
         )
 
         assert violation.rule_id == "rule_001"
@@ -200,7 +200,7 @@ class TestGovernanceGate:
 
     def test_dna_violation_detection_hard_violation(self, governance_gate):
         """Test detection of HARD DNA violations."""
-        affected_files = ["layers/layer_07_governance/governance.py"]
+        affected_files = ["layers/layer_02_governance/governance.py"]
         violations, has_hard = governance_gate.check_dna_violations(
             change_id="change_001",
             affected_files=affected_files,
@@ -270,7 +270,7 @@ class TestGovernanceGate:
 
         assessment = governance_gate.assess_risk(
             change_type=ChangeType.EVOLUTION,
-            affected_files=["layers/layer_07_governance/governance.py"],
+            affected_files=["layers/layer_02_governance/governance.py"],
             violations=violations
         )
 
@@ -309,7 +309,7 @@ class TestGovernanceGate:
             change_id="change_003",
             change_type=ChangeType.LOGIC_FIX,
             change_description="Modify governance logic",
-            affected_files=["layers/layer_07_governance/governance.py"]
+            affected_files=["layers/layer_02_governance/governance.py"]
         )
 
         assert decision.decision == DecisionStatus.REJECTED

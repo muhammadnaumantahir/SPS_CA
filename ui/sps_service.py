@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from experience.evolution_trace import EvolutionTraceStore
-from layers.layer_02_cognitive_core import CognitiveCore
-from layers.layer_07_governance import ChangeType, GovernanceGate
+from layers.layer_03_cognitive import CognitiveCore
+from layers.layer_02_governance import ChangeType, GovernanceGate
 from layers.layer_08_evolution import CapabilityGapPlanner, EvolutionEngine
-from layers.layer_09_capability_registry import CapabilityRegistryManager
+from layers.capability_registry import CapabilityRegistryManager
 
 
 @dataclass

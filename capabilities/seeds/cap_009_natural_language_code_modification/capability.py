@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from capabilities.base import CapabilityContext, CapabilityResult
-from layers.layer_02_cognitive_core.llm_interface import LLMInterface, LLMQueryError
+from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 
 _SYSTEM_INSTRUCTION = """Modify the supplied source code to satisfy the user's request exactly.
 
