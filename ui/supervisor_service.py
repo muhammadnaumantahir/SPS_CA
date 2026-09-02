@@ -1,8 +1,8 @@
-"""Supervisor-facing SPS scenario orchestration.
+"""SPS-CA scenario orchestration for analysis, capability routing, and growth.
 
-Presentation-adjacent orchestration for the research prototype. The canonical
-SPS architecture remains exactly ten layers; this service coordinates those
-layers for a submitted scenario and persists the research trace.
+This service coordinates the ten SPS layers for a submitted coding scenario and
+persists the resulting research trace. It is presentation-adjacent orchestration,
+not an additional SPS layer.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from layers.layer_09_capability_registry import CapabilityRegistryManager
 
 @dataclass
 class SupervisorAnalysisResult:
-    """Structured result from the supervisor-facing analysis/route stage."""
+    """Structured result from the SPS scenario analysis/route stage."""
 
     scenario_id: str
     stage: int
@@ -30,7 +30,7 @@ class SupervisorAnalysisResult:
 
 
 class SupervisorScenarioService:
-    """Run the supervisor SPS scenario through analysis and capability growth."""
+    """Run an SPS scenario through analysis and capability growth."""
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class SupervisorScenarioService:
             code=code,
             language=language,
             file_path=file_path,
-            metadata={"source": "supervisor_service"},
+            metadata={"source": "sps_service"},
         )
         scenario_id = scenario["scenario_id"]
         stage = int(scenario["stage_before"])
@@ -191,10 +191,14 @@ class SupervisorScenarioService:
                     },
                     **development,
                 }
-                generation_status = "capability_planned"
+                generation_status = (
+                    "capability_developed"
+                    if development["registered"]
+                    else "capability_development_failed"
+                )
                 self.trace_store.append_event(
                     scenario_id,
-                    "capability_developed" if development["registered"] else "capability_development_failed",
+                    generation_status,
                     {
                         "why": "The requested behavior had no suitable registered capability.",
                         "what": f"Generated {plan.capability_id} and ran its quality gates.",
