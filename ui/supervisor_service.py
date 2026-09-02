@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from experience.evolution_trace import EvolutionTraceStore
 from layers.layer_02_cognitive_core import CognitiveCore
-from layers.layer_07_governance import GovernanceGate
+from layers.layer_07_governance import ChangeType, GovernanceGate
 from layers.layer_08_evolution import CapabilityGapPlanner, EvolutionEngine
 from layers.layer_09_capability_registry import CapabilityRegistryManager
 
@@ -60,8 +60,6 @@ class SupervisorScenarioService:
             registry_path=registry_path,
             evaluation_dir=evaluation_dir,
         )
-        # Kept as a named Layer 8 collaborator for compatibility with earlier
-        # callers; planning remains inside Layer 8.
         self.gap_planner = CapabilityGapPlanner(
             seeds_dir=seeds_dir,
             generated_dir=generated_dir,
@@ -74,6 +72,7 @@ class SupervisorScenarioService:
         code: str,
         language: str,
         file_path: str = "",
+        project_root: str = ".",
     ) -> SupervisorAnalysisResult:
         """Analyze a submitted scenario and develop a missing capability when needed."""
         scenario = self.trace_store.start_scenario(
@@ -173,12 +172,11 @@ class SupervisorScenarioService:
                     },
                 )
 
+                governance_decision = self._govern_generated_capability(plan)
                 development = self.evolution.develop_capability_for_gap(
                     plan,
-                    project_root=".",
-                    # Layer 7 remains the authority; the engine receives the
-                    # resulting status and never invents its own approval.
-                    governance_decision_status=self._govern_generated_capability(plan),
+                    project_root=project_root,
+                    governance_decision_status=governance_decision.decision,
                 )
                 generation = {
                     "required": True,
@@ -188,6 +186,11 @@ class SupervisorScenarioService:
                     "trigger_pattern": plan.trigger_pattern,
                     "provenance": plan.provenance,
                     "developed": True,
+                    "governance": {
+                        "decision_id": governance_decision.id,
+                        "decision": governance_decision.decision.value,
+                        "rationale": governance_decision.rationale,
+                    },
                     **development,
                 }
                 generation_status = (
@@ -201,10 +204,11 @@ class SupervisorScenarioService:
                     {
                         "why": "The requested behavior had no suitable registered capability.",
                         "what": f"Generated {plan.capability_id} and ran its quality gates.",
-                        "how": "Layer 8 generation/test pipeline followed by Layer 7 governance status and Layer 9 registry persistence.",
+                        "how": "Layer 8 generation/test pipeline followed by Layer 7 governance and Layer 9 registry persistence.",
                         "capability_id": plan.capability_id,
                         "registered": development["registered"],
                         "tests_passed": development["test_result"]["passed"],
+                        "governance_decision": governance_decision.decision.value,
                     },
                 )
             else:
@@ -245,14 +249,13 @@ class SupervisorScenarioService:
             str(module_dir / "tests.py"),
             str(module_dir / "metadata.json"),
         ]
-        decision = self.governance.make_decision(
+        return self.governance.make_decision(
             change_id=f"evolution_{plan.capability_id}",
-            change_type="evolution",
+            change_type=ChangeType.EVOLUTION,
             change_description=plan.description,
             affected_files=affected,
             related_capabilities=[plan.capability_id],
         )
-        return decision.decision
 
     @staticmethod
     def _select_capability(candidates: List[Any], registry_matches: List[Any], request: str):
