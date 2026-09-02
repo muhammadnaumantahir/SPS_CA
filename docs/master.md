@@ -58,16 +58,16 @@ The SPS framework is expressed through ten architectural layers. The names and r
 
 | # | Layer | Core purpose | Optional sub-components |
 |---|---|---|---|
-| 1 | **Software DNA layer** | Absolute source of truth defining constraints and meta-rules that evolution must obey | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
-| 2 | **Governance layer** | Executive gatekeeper that authorizes proposed changes against Software DNA before deployment | Authorization, Evolution Approval, Compliance Checking, Risk Management |
-| 3 | **Cognitive core** | Synthesizes goals and system state into tactical decisions, reasoning and plans | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
-| 4 | **Knowledge core** | Manages structured, evolving domain knowledge | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
-| 5 | **Experience core** | Collects and stores feedback and runtime signals as historical memory | Memory, Feedback, Monitoring, Learning Engine |
-| 6 | **Meta-learning core** | Evaluates and improves the system's own learning process | Learning Evaluation, Strategy Optimization, Learning Improvement |
-| 7 | **Adaptation core** | Shifts behavior by context without modifying source code | Context Awareness, Personalization, Capability Activation, Strategy Selection |
-| 8 | **Evolution core** | Engine of genuine structural self-growth | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation |
-| 9 | **Verification & Validation** | Screens new or mutated code in a sandbox before deployment | Testing, Simulation, Safety Validation, Performance Validation |
-| 10 | **Execution layer** | Translates validated decisions into real, observable action | Action Executor, Services, APIs, User Interaction |
+| 1 | **Software DNA Layer** | Absolute source of truth defining constraints and meta-rules that evolution must obey | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
+| 2 | **Governance Layer** | Executive gatekeeper that authorizes proposed changes against Software DNA before deployment | Authorization, Evolution Approval, Compliance Checking, Risk Management |
+| 3 | **Cognitive Layer** | Synthesizes goals and system state into tactical decisions, reasoning and plans | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
+| 4 | **Knowledge Layer** | Manages structured, evolving domain knowledge | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
+| 5 | **Experience Layer** | Collects and stores feedback and runtime signals as historical memory | Memory, Feedback, Monitoring, Learning Engine |
+| 6 | **Meta-Learning Layer** | Evaluates and improves the system's own learning process | Learning Evaluation, Strategy Optimization, Learning Improvement |
+| 7 | **Adaptation Layer** | Shifts behavior by context without modifying source code | Context Awareness, Personalization, Capability Activation, Strategy Selection |
+| 8 | **Evolution Layer** | Engine of genuine structural self-growth | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation |
+| 9 | **Verification & Validation Layer** | Screens new or mutated code in a sandbox before deployment | Testing, Simulation, Safety Validation, Performance Validation |
+| 10 | **Execution Layer** | Translates validated decisions into real, observable action | Action Executor, Services, APIs, User Interaction |
 
 Sub-components are **optional building blocks**. An implementation may introduce them gradually, replace them or omit them while the parent layer keeps its responsibility.
 
@@ -77,14 +77,14 @@ SPS-CA is not intended to compete on raw code generation alone. The research dis
 
 | Dimension | Conventional AI coding assistant | SPS-CA |
 |---|---|---|
-| Prompt understanding | Model-driven | Brain inside Cognitive core + SPS context |
+| Prompt understanding | Model-driven | Brain inside Cognitive Layer + SPS context |
 | Code generation | Core capability | Brain-assisted capability execution |
-| Persistent experience | Usually conversation/project context | Experience core with structured task outcomes |
-| Strategy improvement | Mostly implicit | Meta-learning core evaluates strategy performance |
-| Context adaptation | Prompt/context rules | Adaptation core selects or composes strategies |
+| Persistent experience | Usually conversation/project context | Experience Layer with structured task outcomes |
+| Strategy improvement | Mostly implicit | Meta-Learning Layer evaluates strategy performance |
+| Context adaptation | Prompt/context rules | Adaptation Layer selects or composes strategies |
 | Reusable skills | Scripts/plugins/instructions | Capability system with registry and lineage |
-| Self-growth | Usually user-directed | Evolution core can develop new SPS capabilities |
-| Governance | Tool permissions/constraints | Software DNA + Governance layer |
+| Self-growth | Usually user-directed | Evolution Layer can develop new SPS capabilities |
+| Governance | Tool permissions/constraints | Software DNA + Governance Layer |
 | Verification | Tests/tool execution | Dedicated Verification & Validation boundary |
 | Explainability | Conversation output | Decision, capability, layer and trace evidence |
 | Feedback loop | User conversation | Experience → Meta-learning → Adaptation → Evolution |
@@ -148,7 +148,7 @@ Experience becomes evidence for strategy evaluation. The system can later use th
 
 ### Capability evolution
 
-When repeated limitations justify structural improvement, the Evolution core can produce a capability candidate. Candidates must pass Verification & Validation and Governance before becoming reusable SPS capabilities.
+When repeated limitations justify structural improvement, the Evolution Layer can produce a capability candidate. Candidates must pass Verification & Validation and Governance before becoming reusable SPS capabilities.
 
 ### Governance and verification
 
@@ -165,31 +165,31 @@ A normal user request is conceptually processed as:
 ```text
 User prompt + code
       ↓
-Software DNA layer
+Software DNA Layer
       ↓
-Governance layer — policy/context gate
+Governance Layer — policy/context gate
       ↓
-Cognitive core
+Cognitive Layer
       ↕
    SPS-CA Brain
       ↓
-Knowledge core
+Knowledge Layer
       ↓
-Experience core
+Experience Layer
       ↓
-Meta-learning core
+Meta-Learning Layer
       ↓
-Adaptation core
+Adaptation Layer
       ↓
-Evolution core — only when self-growth is relevant
+Evolution Layer — only when self-growth is relevant
       ↓
 Capability selection / composition
       ↓
-Verification & Validation
+Verification & Validation Layer
       ↓
 Governance — final authorization
       ↓
-Execution layer
+Execution Layer
       ↓
 Experience / trace feedback
 ```
@@ -221,17 +221,17 @@ SPS-CA changes its own reusable capability system:
 ```text
 Repeated task/failure pattern
    ↓
-Experience core
+Experience Layer
    ↓
-Meta-learning core
+Meta-Learning Layer
    ↓
-Adaptation core
+Adaptation Layer
    ↓
-Brain-assisted Evolution core
+Brain-assisted Evolution Layer
    ↓
 Capability candidate
    ↓
-Verification & Validation
+Verification & Validation Layer
    ↓
 Governance
    ↓

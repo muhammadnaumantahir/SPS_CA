@@ -10,20 +10,20 @@ The ten layers describe **architectural responsibilities**. The Brain is a separ
 
 | # | Public name | Core purpose | Optional sub-components |
 |---|---|---|---|
-| L1 | **Software DNA layer** | Acts as the absolute source of truth, defining constraints and meta-rules that all evolution must obey. | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
-| L2 | **Governance layer** | Executive gatekeeper that authorizes proposed changes against the Software DNA before deployment. | Authorization, Evolution Approval, Compliance Checking, Risk Management |
-| L3 | **Cognitive core** | Synthesizes goals and system state into tactical decisions, reasoning, and plans. | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
-| L4 | **Knowledge core** | Manages structured, evolving domain knowledge. | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
-| L5 | **Experience core** | Collects and stores feedback and runtime signals as historical memory. | Memory, Feedback, Monitoring, Learning Engine |
-| L6 | **Meta-learning core** | Evaluates and improves the system's own learning process. | Learning Evaluation, Strategy Optimization, Learning Improvement |
-| L7 | **Adaptation core** | Shifts behavior instantly by context, without modifying source code. | Context Awareness, Personalization, Capability Activation, Strategy Selection |
-| L8 | **Evolution core** | The engine of genuine structural self-growth. | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation |
-| L9 | **Verification & Validation** | Screens new or mutated code in a sandbox before it reaches production. | Testing, Simulation, Safety Validation, Performance Validation |
-| L10 | **Execution layer** | Translates validated decisions into real, observable action. | Action Executor, Services, APIs, User Interaction |
+| L1 | **Software DNA Layer** | Acts as the absolute source of truth, defining constraints and meta-rules that all evolution must obey. | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
+| L2 | **Governance Layer** | Executive gatekeeper that authorizes proposed changes against the Software DNA before deployment. | Authorization, Evolution Approval, Compliance Checking, Risk Management |
+| L3 | **Cognitive Layer** | Synthesizes goals and system state into tactical decisions, reasoning, and plans. | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
+| L4 | **Knowledge Layer** | Manages structured, evolving domain knowledge. | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
+| L5 | **Experience Layer** | Collects and stores feedback and runtime signals as historical memory. | Memory, Feedback, Monitoring, Learning Engine |
+| L6 | **Meta-Learning Layer** | Evaluates and improves the system's own learning process. | Learning Evaluation, Strategy Optimization, Learning Improvement |
+| L7 | **Adaptation Layer** | Shifts behavior instantly by context, without modifying source code. | Context Awareness, Personalization, Capability Activation, Strategy Selection |
+| L8 | **Evolution Layer** | The engine of genuine structural self-growth. | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation |
+| L9 | **Verification & Validation Layer** | Screens new or mutated code in a sandbox before it reaches production. | Testing, Simulation, Safety Validation, Performance Validation |
+| L10 | **Execution Layer** | Translates validated decisions into real, observable action. | Action Executor, Services, APIs, User Interaction |
 
 Sub-components are **optional**. A deployment can implement them incrementally without changing the responsibility of the parent layer.
 
-The public vocabulary is implemented by `layers/architecture.py` and exposed to the UI/API. A dedicated `layers/knowledge_core/` module now provides the initial implementation boundary for the Knowledge core.
+The public vocabulary is implemented by `layers/architecture.py` and exposed to the UI/API. A dedicated `layers/knowledge_core/` module now provides the initial implementation boundary for the Knowledge Layer.
 
 ## 3. Brain boundary
 
@@ -57,31 +57,31 @@ The Capability Registry and Capability Lineage are supporting subsystems, not ad
 ```text
 User message + current working code + recent conversation
                            ↓
-                 Software DNA layer
+                 Software DNA Layer
                            ↓
                  Governance preflight
                            ↓
-                   Cognitive core
+                   Cognitive Layer
                            ↕
                       SPS-CA Brain
                            ↓
-                   Knowledge core
+                   Knowledge Layer
                            ↓
-                  Experience core
+                  Experience Layer
                            ↓
-                Meta-learning core
+                Meta-Learning Layer
                            ↓
-                  Adaptation core
+                  Adaptation Layer
                            ↓
-         Evolution core when self-growth is relevant
+         Evolution Layer when self-growth is relevant
                            ↓
               Capability selection/composition
                            ↓
-             Verification & Validation
+             Verification & Validation Layer
                            ↓
               Governance final decision
                            ↓
-                    Execution layer
+                    Execution Layer
                            ↓
                Experience / trace feedback
 ```
@@ -95,17 +95,17 @@ Self-programming is demonstrated when SPS-CA changes its own reusable capability
 ```text
 Repeated limitation or failure
           ↓
-Experience core
+Experience Layer
           ↓
-Meta-learning core
+Meta-Learning Layer
           ↓
-Adaptation core
+Adaptation Layer
           ↓
-Brain-assisted Evolution core
+Brain-assisted Evolution Layer
           ↓
 Capability candidate
           ↓
-Verification & Validation
+Verification & Validation Layer
           ↓
 Governance approval
           ↓

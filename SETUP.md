@@ -84,7 +84,7 @@ The dashboard provides:
 - complete JSON trace for research/evaluation;
 - explicit separation of Brain, layers and capabilities.
 
-The web dashboard's code mode is a controlled **preview** boundary. It does not silently mutate a user's local filesystem. Real project mutation remains under the Execution layer.
+The web dashboard's code mode is a controlled **preview** boundary. It does not silently mutate a user's local filesystem. Real project mutation remains under the Execution Layer.
 
 ### CLI
 
@@ -102,17 +102,17 @@ Do not place real user projects, chats, credentials, or generated runtime data i
 
 See `docs/ARCHITECTURE.md` for the canonical ten-layer model. The public architecture is:
 
-1. Software DNA layer
-2. Governance layer
-3. Cognitive core
-4. Knowledge core
-5. Experience core
-6. Meta-learning core
-7. Adaptation core
-8. Evolution core
-9. Verification & Validation
-10. Execution layer
+1. Software DNA Layer
+2. Governance Layer
+3. Cognitive Layer
+4. Knowledge Layer
+5. Experience Layer
+6. Meta-Learning Layer
+7. Adaptation Layer
+8. Evolution Layer
+9. Verification & Validation Layer
+10. Execution Layer
 
-**Brain:** separate AI intelligence service used by the Cognitive core and other controlled SPS processes.
+**Brain:** separate AI intelligence service used by the Cognitive Layer and other controlled SPS processes.
 
 **Capabilities:** separate executable skills registered/versioned independently of the Brain.

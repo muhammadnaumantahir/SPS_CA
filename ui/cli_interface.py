@@ -31,16 +31,16 @@ from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, 
 from ui.sps_service import SPSScenarioService  # noqa: E402
 
 ARCHITECTURE = [
-    (1, "Software DNA layer"),
-    (2, "Governance layer"),
-    (3, "Cognitive core"),
-    (4, "Knowledge core"),
-    (5, "Experience core"),
-    (6, "Meta-learning core"),
-    (7, "Adaptation core"),
-    (8, "Evolution core"),
-    (9, "Verification & Validation"),
-    (10, "Execution layer"),
+    (1, "Software DNA Layer"),
+    (2, "Governance Layer"),
+    (3, "Cognitive Layer"),
+    (4, "Knowledge Layer"),
+    (5, "Experience Layer"),
+    (6, "Meta-Learning Layer"),
+    (7, "Adaptation Layer"),
+    (8, "Evolution Layer"),
+    (9, "Verification & Validation Layer"),
+    (10, "Execution Layer"),
 ]
 
 HELP_TEXT = """Commands:
@@ -249,7 +249,7 @@ class SPS_CA_Interface:
         if target_file is None:
             return "Pipeline error: no supported source file was found."
 
-        # L3 Cognitive core gathers context; the Brain performs intelligence.
+        # L3 Cognitive Layer gathers context; the Brain performs intelligence.
         analysis = self.core.analyze_single_file(target_file, code)
         candidates = self.core.select_candidate_capabilities(analysis, user_request)
         catalog = [
@@ -269,12 +269,12 @@ class SPS_CA_Interface:
             "brain": {"provider": self.brain.provider_name, "model": self.brain.model},
             "target": {"file": target_file, "language": language},
         }
-        trace["layers"].append({"layer": 1, "name": "Software DNA layer", "status": "checked"})
-        trace["layers"].append({"layer": 3, "name": "Cognitive core", "status": "context analyzed"})
-        trace["layers"].append({"layer": 4, "name": "Knowledge core", "status": "capability knowledge loaded", "count": len(catalog)})
-        trace["layers"].append({"layer": 5, "name": "Experience core", "status": "history available"})
-        trace["layers"].append({"layer": 6, "name": "Meta-learning core", "status": "strategy context available"})
-        trace["layers"].append({"layer": 7, "name": "Adaptation core", "status": "ready"})
+        trace["layers"].append({"layer": 1, "name": "Software DNA Layer", "status": "checked"})
+        trace["layers"].append({"layer": 3, "name": "Cognitive Layer", "status": "context analyzed"})
+        trace["layers"].append({"layer": 4, "name": "Knowledge Layer", "status": "capability knowledge loaded", "count": len(catalog)})
+        trace["layers"].append({"layer": 5, "name": "Experience Layer", "status": "history available"})
+        trace["layers"].append({"layer": 6, "name": "Meta-Learning Layer", "status": "strategy context available"})
+        trace["layers"].append({"layer": 7, "name": "Adaptation Layer", "status": "ready"})
 
         try:
             plan = self.brain.plan(
@@ -290,7 +290,7 @@ class SPS_CA_Interface:
             return self._format_trace(trace, error=f"Brain planning failed: {exc}")
 
         trace["brain"].update({"intent": plan.intent, "reasoning": plan.reasoning, "steps": plan.steps})
-        trace["layers"].append({"layer": 8, "name": "Evolution core", "status": "evaluated"})
+        trace["layers"].append({"layer": 8, "name": "Evolution Layer", "status": "evaluated"})
 
         current_code = code
         used_ids: list[str] = []
@@ -333,7 +333,7 @@ class SPS_CA_Interface:
             self.last_trace = trace
             return self._format_trace(trace)
 
-        trace["layers"].append({"layer": 9, "name": "Verification & Validation", "status": "pending"})
+        trace["layers"].append({"layer": 9, "name": "Verification & Validation Layer", "status": "pending"})
         if final_modified_code is not None:
             change = Change.new(
                 capability_id=used_ids[-1],
@@ -358,14 +358,14 @@ class SPS_CA_Interface:
             )
             trace["governance"] = {"status": decision.decision.value, "rationale": decision.rationale}
             trace["layers"][0]["dna_note"] = "change remains inside system constraints"
-            trace["layers"].append({"layer": 2, "name": "Governance layer", "status": decision.decision.value})
+            trace["layers"].append({"layer": 2, "name": "Governance Layer", "status": decision.decision.value})
             if decision.decision != DecisionStatus.AUTO_APPROVED:
                 self.last_trace = trace
                 return self._format_trace(trace, error=f"Governance rejected the change: {decision.rationale}")
 
             execution = self.execution.execute_change(change, project_path)
             trace["execution"] = {"status": execution.status.value, "time_ms": execution.execution_time_ms}
-            trace["layers"].append({"layer": 10, "name": "Execution layer", "status": execution.status.value})
+            trace["layers"].append({"layer": 10, "name": "Execution Layer", "status": execution.status.value})
         else:
             trace["validation"]["status"] = "not_required_for_analysis"
             trace["layers"][-1]["status"] = "analysis_only"

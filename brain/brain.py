@@ -62,7 +62,7 @@ class BrainPlan:
 
 
 class Brain:
-    """Provider-neutral reasoning Brain used by SPS-CA's Cognitive core."""
+    """Provider-neutral reasoning Brain used by SPS-CA's Cognitive Layer."""
 
     def __init__(
         self,

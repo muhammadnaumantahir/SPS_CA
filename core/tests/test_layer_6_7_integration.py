@@ -14,7 +14,7 @@ from layers.layer_07_governance import GovernanceGate, ChangeType, DecisionStatu
 
 
 class TestLayer6Layer7Integration:
-    """Test interaction between Validation and Governance layers."""
+    """Test interaction between Validation and Governance Layers."""
 
     @pytest.fixture
     def workflow_setup(self):

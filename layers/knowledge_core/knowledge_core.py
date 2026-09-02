@@ -8,7 +8,7 @@ from typing import Any, Iterable
 
 @dataclass(frozen=True)
 class KnowledgeSnapshot:
-    """Immutable knowledge projection supplied to the Cognitive core."""
+    """Immutable knowledge projection supplied to the Cognitive Layer."""
 
     language: str
     file_path: str

@@ -23,16 +23,16 @@ User message + code + conversation
 
 ## Ten architectural layers
 
-1. **Software DNA layer**
-2. **Governance layer**
-3. **Cognitive core**
-4. **Knowledge core**
-5. **Experience core**
-6. **Meta-learning core**
-7. **Adaptation core**
-8. **Evolution core**
-9. **Verification & Validation**
-10. **Execution layer**
+1. **Software DNA Layer**
+2. **Governance Layer**
+3. **Cognitive Layer**
+4. **Knowledge Layer**
+5. **Experience Layer**
+6. **Meta-Learning Layer**
+7. **Adaptation Layer**
+8. **Evolution Layer**
+9. **Verification & Validation Layer**
+10. **Execution Layer**
 
 Each layer has a defined responsibility and optional sub-components. The canonical machine-readable definition is in `layers/architecture.py`.
 
@@ -86,7 +86,7 @@ Evolution reasoning
         ↓
 New capability candidate
         ↓
-Verification & Validation
+Verification & Validation Layer
         ↓
 Governance
         ↓

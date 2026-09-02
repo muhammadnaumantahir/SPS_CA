@@ -3,16 +3,16 @@ const EXT = {python:'py',javascript:'js',typescript:'ts',java:'java',go:'go',csh
 const STORAGE_KEY = 'sps-ca-chat-session';
 
 const defaultLayers = [
-  ['Software DNA layer','Constraints and meta-rules.'],
-  ['Governance layer','Decision gates and risk assessment.'],
-  ['Cognitive core','Reasoning and planning — Brain interface.'],
-  ['Knowledge core','Structured domain knowledge.'],
-  ['Experience core','Historical memory and feedback.'],
-  ['Meta-learning core','Strategy improvement.'],
-  ['Adaptation core','Context-aware behavior adjustment.'],
-  ['Evolution core','Capability creation from failure patterns.'],
-  ['Verification & Validation','Sandboxed testing.'],
-  ['Execution layer','Applies validated changes.']
+  ['Software DNA Layer','Constraints and meta-rules.'],
+  ['Governance Layer','Decision gates and risk assessment.'],
+  ['Cognitive Layer','Reasoning and planning — Brain interface.'],
+  ['Knowledge Layer','Structured domain knowledge.'],
+  ['Experience Layer','Historical memory and feedback.'],
+  ['Meta-Learning Layer','Strategy improvement.'],
+  ['Adaptation Layer','Context-aware behavior adjustment.'],
+  ['Evolution Layer','Capability creation from failure patterns.'],
+  ['Verification & Validation Layer','Sandboxed testing.'],
+  ['Execution Layer','Applies validated changes.']
 ];
 
 let session = loadSession();

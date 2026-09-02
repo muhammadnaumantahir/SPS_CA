@@ -117,7 +117,7 @@ class SpsAssistantService:
                 facts={"conversation_turns": len(history), "working_source_chars": len(code)},
             )
             if not self.knowledge.validate(knowledge):
-                raise BrainError("Knowledge core rejected the current knowledge snapshot.")
+                raise BrainError("Knowledge Layer rejected the current knowledge snapshot.")
 
             recent_tasks = self.experience.tasks[-8:]
             current_task = Task(

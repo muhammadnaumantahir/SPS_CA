@@ -47,13 +47,13 @@ UI
  ↓
 core/assistant_service.py
  ↓
-Cognitive core ↔ Brain
+Cognitive Layer ↔ Brain
  ↓
 Knowledge / Experience / Meta-learning / Adaptation / Evolution context
  ↓
 Capabilities
  ↓
-Verification & Validation
+Verification & Validation Layer
  ↓
 Governance
  ↓

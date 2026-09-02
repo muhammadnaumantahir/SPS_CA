@@ -1,33 +1,33 @@
 # SPS-CA Request Pipeline
 
-SPS-CA uses ten architectural layers. The Brain is a separate AI intelligence service, used primarily by the Cognitive core, and is neither a layer nor a capability.
+SPS-CA uses ten architectural layers. The Brain is a separate AI intelligence service, used primarily by the Cognitive Layer, and is neither a layer nor a capability.
 
 ```text
 User message + current code + conversation
                     ↓
-L1 Software DNA layer
+L1 Software DNA Layer
                     ↓
-L2 Governance layer (preflight policy/risk)
+L2 Governance Layer (preflight policy/risk)
                     ↓
-L3 Cognitive core ↔ SPS-CA Brain
+L3 Cognitive Layer ↔ SPS-CA Brain
                     ↓
-L4 Knowledge core
+L4 Knowledge Layer
                     ↓
-L5 Experience core
+L5 Experience Layer
                     ↓
-L6 Meta-learning core
+L6 Meta-Learning Layer
                     ↓
-L7 Adaptation core
+L7 Adaptation Layer
                     ↓
-L8 Evolution core (when SPS self-growth is relevant)
+L8 Evolution Layer (when SPS self-growth is relevant)
                     ↓
 Capability system: select / compose reusable SPS skills
                     ↓
-L9 Verification & Validation
+L9 Verification & Validation Layer
                     ↓
-L2 Governance layer (final authorization)
+L2 Governance Layer (final authorization)
                     ↓
-L10 Execution layer
+L10 Execution Layer
                     ↓
 Result + trace → Experience → learning/adaptation/evolution
 ```
@@ -72,17 +72,17 @@ A user-project change is normal coding-assistant behavior. Self-programming is d
 ```text
 Repeated limitation/failure
         ↓
-Experience core
+Experience Layer
         ↓
-Meta-learning core
+Meta-Learning Layer
         ↓
-Adaptation core
+Adaptation Layer
         ↓
-Brain-assisted Evolution core
+Brain-assisted Evolution Layer
         ↓
 New capability candidate
         ↓
-L9 Verification & Validation
+L9 Verification & Validation Layer
         ↓
 L2 Governance
         ↓

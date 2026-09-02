@@ -4,16 +4,16 @@ from layers.architecture import BRAIN, LAYERS, architecture_manifest
 def test_canonical_layers_match_requested_structure():
     names = [name for _, name, _, _ in LAYERS]
     assert names == [
-        "Software DNA layer",
-        "Governance layer",
-        "Cognitive core",
-        "Knowledge core",
-        "Experience core",
-        "Meta-learning core",
-        "Adaptation core",
-        "Evolution core",
-        "Verification & Validation",
-        "Execution layer",
+        "Software DNA Layer",
+        "Governance Layer",
+        "Cognitive Layer",
+        "Knowledge Layer",
+        "Experience Layer",
+        "Meta-Learning Layer",
+        "Adaptation Layer",
+        "Evolution Layer",
+        "Verification & Validation Layer",
+        "Execution Layer",
     ]
 
 
