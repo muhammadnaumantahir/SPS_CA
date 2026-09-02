@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from layers.layer_08_evolution import EvolutionEngine
+from layers.layer_08_evolution.gap_planner import CapabilityGapPlanner
 
 
 def test_missing_capability_can_be_planned_without_repeated_failures(tmp_path):
-    engine = EvolutionEngine(
-        generated_dir=str(tmp_path / "generated"),
+    planner = CapabilityGapPlanner(
         seeds_dir="capabilities/seeds",
-        registry_path=str(tmp_path / "registry.json"),
-        evaluation_dir=str(tmp_path / "evaluation"),
+        generated_dir=str(tmp_path / "generated"),
     )
 
-    plan = engine.plan_capability_for_gap(
+    plan = planner.plan(
         task_description="Add input validation before calculating age",
         language="python",
         reason="No registered capability covers input validation",
@@ -23,14 +21,12 @@ def test_missing_capability_can_be_planned_without_repeated_failures(tmp_path):
 
 
 def test_capability_gap_plan_records_research_provenance(tmp_path):
-    engine = EvolutionEngine(
-        generated_dir=str(tmp_path / "generated"),
+    planner = CapabilityGapPlanner(
         seeds_dir="capabilities/seeds",
-        registry_path=str(tmp_path / "registry.json"),
-        evaluation_dir=str(tmp_path / "evaluation"),
+        generated_dir=str(tmp_path / "generated"),
     )
 
-    plan = engine.plan_capability_for_gap(
+    plan = planner.plan(
         task_description="Parameterize SQL queries",
         language="python",
         reason="No suitable SQL parameterization capability exists",
