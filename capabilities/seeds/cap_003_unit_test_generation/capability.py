@@ -1,8 +1,8 @@
 """CAP-003: Unit Test Generation.
 
 Generates executable pytest smoke tests for simple, statically understandable
-function shapes. Inputs are inferred from defaults, annotations, or a narrow
-string-concatenation pattern. Ambiguous signatures are left untouched.
+function shapes. Inputs are inferred from defaults, annotations, or narrow
+return-expression patterns. Ambiguous signatures are left untouched.
 """
 
 from __future__ import annotations
@@ -16,7 +16,8 @@ _SUPPORTED = {"python"}
 
 def _top_level_functions(tree: ast.AST):
     return [
-        node for node in ast.iter_child_nodes(tree)
+        node
+        for node in ast.iter_child_nodes(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
     ]
 
@@ -27,11 +28,24 @@ def _is_string_concat(expr: ast.expr) -> bool:
     )
 
 
-def _literal_for_parameter(arg: ast.arg, default: ast.expr | None, *, string_mode: bool = False):
+def _is_simple_arithmetic(expr: ast.expr) -> bool:
+    return isinstance(expr, ast.BinOp) and isinstance(expr.op, (ast.Add, ast.Sub, ast.Mult, ast.Div))
+
+
+def _literal_for_parameter(
+    arg: ast.arg,
+    default: ast.expr | None,
+    *,
+    string_mode: bool = False,
+    arithmetic_mode: bool = False,
+    passthrough_mode: bool = False,
+):
     if default is not None:
         return ast.unparse(default)
     if string_mode:
         return "'x'"
+    if arithmetic_mode or passthrough_mode:
+        return "2" if arithmetic_mode else "0"
     if arg.annotation is not None:
         name = ast.unparse(arg.annotation)
         if name in {"int", "float"}:
@@ -51,12 +65,22 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
 
     return_expr = node.body[-1].value if node.body and isinstance(node.body[-1], ast.Return) else None
     string_mode = bool(return_expr is not None and _is_string_concat(return_expr))
+    arithmetic_mode = bool(return_expr is not None and _is_simple_arithmetic(return_expr))
+    passthrough_mode = bool(
+        isinstance(return_expr, ast.Name) and any(arg.arg == return_expr.id for arg in node.args.args)
+    )
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + list(node.args.defaults)
     args = []
     for arg, default in zip(node.args.args, defaults):
         if arg.arg in {"self", "cls"}:
             return None
-        value = _literal_for_parameter(arg, default, string_mode=string_mode)
+        value = _literal_for_parameter(
+            arg,
+            default,
+            string_mode=string_mode,
+            arithmetic_mode=arithmetic_mode,
+            passthrough_mode=passthrough_mode,
+        )
         if value is None:
             return None
         args.append(value)
@@ -67,20 +91,32 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
     if string_mode:
         try:
             local_values = {arg.arg: "x" for arg in node.args.args}
-            expected = eval(compile(ast.Expression(return_expr), "<cap003>", "eval"), {"__builtins__": {}}, local_values)
+            expected = eval(
+                compile(ast.Expression(return_expr), "<cap003>", "eval"),
+                {"__builtins__": {}},
+                local_values,
+            )
             return f"assert {call} == {expected!r}"
         except Exception:
             return None
-    if isinstance(return_expr, ast.BinOp) and isinstance(return_expr.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+    if arithmetic_mode:
         try:
             local_values = {
                 arg.arg: ast.literal_eval(ast.parse(value, mode="eval").body)
                 for arg, value in zip(node.args.args, args)
             }
-            expected = eval(compile(ast.Expression(return_expr), "<cap003>", "eval"), {"__builtins__": {}}, local_values)
+            expected = eval(
+                compile(ast.Expression(return_expr), "<cap003>", "eval"),
+                {"__builtins__": {}},
+                local_values,
+            )
             return f"assert {call} == {expected!r}"
         except Exception:
             return None
+    if passthrough_mode:
+        source_name = return_expr.id
+        source_index = [arg.arg for arg in node.args.args].index(source_name)
+        return f"assert {call} == {args[source_index]}"
     if not node.args.args:
         return f"assert {call} is not None"
     return f"assert {call} is not None"
