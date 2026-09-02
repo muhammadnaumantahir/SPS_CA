@@ -1,0 +1,12 @@
+{
+  "id": "CAP-010",
+  "name": "Natural Language Code Modification",
+  "version": "1.0.0",
+  "description": "Applies an explicit natural-language code change using the configured reasoning model while preserving only the returned source code.",
+  "entry_point": "capabilities.seeds.cap_010_natural_language_code_modification.capability.run",
+  "origin": "seed",
+  "status": "active",
+  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
+  "parent_capability_id": null,
+  "tags": ["modification", "feature", "function", "validation", "repair"]
+}
