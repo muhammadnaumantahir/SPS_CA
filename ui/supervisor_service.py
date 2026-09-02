@@ -259,7 +259,7 @@ class SupervisorScenarioService:
 
     @staticmethod
     def _select_capability(candidates: List[Any], registry_matches: List[Any], request: str):
-        """Prefer a Core candidate, then a registry result, using request keywords."""
+        """Select only an explicitly relevant capability; generic candidates are not a match."""
         request_lower = request.lower()
         priority = (
             ("syntax", "CAP-002"),
@@ -277,4 +277,25 @@ class SupervisorScenarioService:
         for keyword, capability_id in priority:
             if keyword in request_lower and capability_id in by_id:
                 return by_id[capability_id]
-        return candidates[0] if candidates else (registry_matches[0] if registry_matches else None)
+
+        # Layer 9 may return an exact metadata match for generated capabilities.
+        # Prefer it only when the registry itself found text evidence.
+        if registry_matches:
+            exact = self._best_registry_text_match(registry_matches, request_lower)
+            if exact is not None:
+                return exact
+        return None
+
+    @staticmethod
+    def _best_registry_text_match(matches: List[Any], request_lower: str):
+        tokens = {token for token in request_lower.split() if len(token) > 3}
+        scored = []
+        for capability in matches:
+            text = f"{getattr(capability, 'name', '')} {getattr(capability, 'description', '')}".lower()
+            score = sum(1 for token in tokens if token in text)
+            if score:
+                scored.append((score, capability))
+        if not scored:
+            return None
+        scored.sort(key=lambda item: (-item[0], getattr(item[1], "id", "")))
+        return scored[0][1]
