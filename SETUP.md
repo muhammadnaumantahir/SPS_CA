@@ -1,12 +1,10 @@
 # SPS-CA Complete Setup Guide
 
-## Google Colab (recommended for the current prototype)
+## Local / Google Colab
 
-Colab is the easiest way to run SPS-CA when the development PC cannot comfortably store or run the selected local model.
+Clone the repository and install the existing dependencies as described below. The default AI Brain provider is Ollama and the default model is `qwen2.5-coder:7b`.
 
 ### Fresh Colab runtime
-
-Run these cells in order:
 
 ```bash
 !git clone https://github.com/muhammadnaumantahir/SPS_CA.git
@@ -14,64 +12,18 @@ Run these cells in order:
 !bash scripts/colab_setup.sh
 ```
 
-The default model is `qwen2.5-coder:7b`.
-
-### Choose another model
-
-Pass the Ollama model name as the script argument:
-
-```bash
-!bash scripts/colab_setup.sh qwen2.5-coder:7b
-```
-
-You can change the model later without changing SPS-CA code. Use a model that fits the GPU/RAM available in the current Colab runtime.
-
-### Verify Ollama
+Verify Ollama:
 
 ```bash
 !ollama list
 !curl -s http://127.0.0.1:11434/api/tags
 ```
 
-Test the model directly:
-
-```bash
-!ollama run qwen2.5-coder:7b "Write a Python hello-world program"
-```
-
-### Run tests
+Run tests:
 
 ```bash
 !bash scripts/run_tests.sh
 ```
-
-### Run SPS-CA
-
-```bash
-python ui/cli_interface.py
-```
-
-Commands include `load`, `show project`, `show registry`, `show experience`, `help`, and `quit`.
-
-## Reusing the same Colab workflow after GitHub updates
-
-For a new Colab runtime, always use:
-
-```bash
-!git clone https://github.com/muhammadnaumantahir/SPS_CA.git
-%cd SPS_CA
-!bash scripts/colab_setup.sh
-```
-
-For an existing cloned repository in the same runtime:
-
-```bash
-%cd /content/SPS_CA
-!git pull origin main
-!bash scripts/colab_setup.sh
-```
-
-It is safe to run the setup script after `git pull`. It reinstalls/updates Python dependencies, ensures Ollama is available, starts the local Ollama API, and pulls the selected model.
 
 ## Local Windows setup
 
@@ -84,69 +36,83 @@ cd SPS_CA
 
 ### 2. Python
 
-Install Python 3.11 or newer and verify:
-
-```bash
-python --version
-```
-
-### 3. Virtual environment
-
-Windows:
+Install Python 3.11 or newer, then create/activate a virtual environment:
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 4. Dependencies
-
-```bash
+.venv\\Scripts\\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 5. Ollama
+### 3. Ollama Brain
 
-Install Ollama from the official Ollama website, then verify:
+Install Ollama, then verify:
 
 ```bash
 ollama --version
 ollama list
-```
-
-### 6. Local model
-
-For a 16 GB RAM / Intel HD 620 / i7 7th Gen machine, start with:
-
-```bash
 ollama pull qwen2.5-coder:7b
 ```
 
-Qwen2.5-Coder 7B and Qwen3-Coder are different models. Qwen3-Coder can be used on a stronger runtime.
+The model provider is intentionally separate from SPS capabilities. The Brain can be switched to another provider later through `models/` without turning that provider into a capability.
 
-### 7. Verify
+### 4. Verify
 
 ```bash
 python -c "import tree_sitter, pytest, pydantic; print('dependencies OK')"
 pytest -q
 ```
 
+## Run SPS-CA
+
+### Advanced web dashboard
+
+```bash
+python ui/web_app.py
+```
+
+Open `http://127.0.0.1:8080` in a browser.
+
+The dashboard provides:
+- prompt and source-code workspace;
+- separate Brain panel with provider/model status;
+- live ten-layer architecture visualization;
+- Brain reasoning and ordered capability plan;
+- capability execution results;
+- modified code and unified diff;
+- complete JSON trace for research/evaluation;
+- explicit separation of Brain, layers and capabilities.
+
+The web dashboard's code mode is a controlled **preview** boundary. It does not silently mutate a user's local filesystem. Real project mutation remains under the Execution layer.
+
+### CLI
+
+```bash
+python ui/cli_interface.py
+```
+
+Commands include `load`, `show project`, `show architecture`, `show registry`, `show brain`, `show experience`, `help`, and `quit`.
+
 ## Runtime data and security
 
-Do not place real user projects, chats, credentials, or generated runtime data in Git. Configure a separate runtime data root when those services are implemented. Never commit API keys, tokens or passwords.
+Do not place real user projects, chats, credentials, or generated runtime data in Git. Never commit API keys, tokens or passwords. The Brain provider is configurable and should be supplied through runtime configuration/environment where applicable.
 
-## Troubleshooting
+## Architecture reference
 
-- If Python dependencies fail, verify Python is 3.11+ and that the intended environment is active.
-- If Ollama is not found after installation, restart the terminal or runtime.
-- If Ollama does not start in Colab, inspect `/tmp/ollama.log`.
-- If a model is too large for the current Colab runtime, select a smaller model.
-- If GitHub is unavailable from an office machine, use Colab for cloning and model execution.
+See `docs/ARCHITECTURE.md` for the canonical ten-layer model. The public architecture is:
+
+1. Software DNA layer
+2. Governance layer
+3. Cognitive core
+4. Knowledge core
+5. Experience core
+6. Meta-learning core
+7. Adaptation core
+8. Evolution core
+9. Verification & Validation
+10. Execution layer
+
+**Brain:** separate AI intelligence service used by the Cognitive core and other controlled SPS processes.
+
+**Capabilities:** separate executable skills registered/versioned independently of the Brain.
