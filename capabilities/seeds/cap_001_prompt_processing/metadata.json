@@ -1,0 +1,12 @@
+{
+  "id": "CAP-001",
+  "name": "Prompt Processing",
+  "version": "1.0.0",
+  "description": "Processes the user's natural-language request with the Ollama reasoning model and produces an ordered, allowlisted capability plan.",
+  "entry_point": "capabilities.seeds.cap_001_prompt_processing.capability.run",
+  "origin": "seed",
+  "status": "active",
+  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
+  "parent_capability_id": null,
+  "tags": ["prompt-processing", "routing", "planning", "brain", "ollama"]
+}
