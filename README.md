@@ -1,124 +1,162 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Goal:** Research a governed, traceable and reversible Self-Programming Software (SPS) framework expressed as a coding assistant.
+SPS-CA is a research coding assistant for studying **Self-Programming Software (SPS)**. It combines a conventional AI coding workflow with a ten-layer SPS architecture, a separate replaceable AI Brain, reusable executable capabilities, persistent experience and a controlled route to capability evolution.
 
-SPS-CA is designed around **10 architectural layers** plus a separate, replaceable **AI Brain**. The Brain is not a layer and is not a capability. Ollama is the default local Brain provider; future model providers can be swapped through `models/` without changing SPS capabilities.
-
-## The SPS-CA model
+## The model
 
 ```text
-User request + code
-       ↓
-L1  Software DNA layer
-       ↓
-L2  Governance layer
-       ↓
-L3  Cognitive core  ←── Brain (Ollama / other AI model)
-       ↓
-L4  Knowledge core
-       ↓
-L5  Experience core
-       ↓
-L6  Meta-learning core
-       ↓
-L7  Adaptation core
-       ↓
-L8  Evolution core
-       ↓
-Capabilities (seeded + generated)
-       ↓
-L9  Verification & Validation
-       ↓
-L10 Execution layer
-       ↓
-Experience / learning / evolution feedback
+User message + code + conversation
+                 ↓
+        SPS-CA ten-layer architecture
+                 ↕
+       Brain (Ollama / other AI)
+                 ↓
+       Capability system
+                 ↓
+ Verification & Validation → Governance → Execution
+                 ↓
+       Experience / feedback
+                 ↺ learning / adaptation / evolution
 ```
 
-A layer is an architectural responsibility. A capability is an executable skill. The Brain is the intelligence service that reasons over context and helps the layers select, compose, generate or improve capabilities.
+**Brain ≠ capability.** The Brain is an intelligence service. Capabilities are executable SPS skills. Neither is an additional architectural layer.
 
-## Canonical ten layers
+## Ten architectural layers
 
-| Layer | Name |
-|---|---|
-| 1 | **Software DNA layer** |
-| 2 | **Governance layer** |
-| 3 | **Cognitive core** |
-| 4 | **Knowledge core** |
-| 5 | **Experience core** |
-| 6 | **Meta-learning core** |
-| 7 | **Adaptation core** |
-| 8 | **Evolution core** |
-| 9 | **Verification & Validation** |
-| 10 | **Execution layer** |
+1. **Software DNA layer**
+2. **Governance layer**
+3. **Cognitive core**
+4. **Knowledge core**
+5. **Experience core**
+6. **Meta-learning core**
+7. **Adaptation core**
+8. **Evolution core**
+9. **Verification & Validation**
+10. **Execution layer**
 
-## Brain
+Each layer has a defined responsibility and optional sub-components. The canonical machine-readable definition is in `layers/architecture.py`.
 
-`brain/` contains the provider-neutral SPS-CA Brain. It currently delegates to the existing `models/` provider abstraction and defaults to Ollama. The Brain is responsible for reasoning, prompt analysis, planning, code understanding, debugging and strategy analysis. It can select capabilities from the registry, but it is never itself registered as a `CAP-NNN`.
+## Conversational coding assistant
 
-## Capabilities
+The top page is designed as a normal coding-assistant chat rather than a one-shot form. The user can provide code and a request, receive a result, and continue with feedback in the same session.
 
-`capabilities/` contains executable SPS skills with metadata, tests, versioning and lineage. Stage 0 starts with seeded coding capabilities such as bug detection, syntax repair, test generation, optimization, error handling, refactoring, type annotation, documentation and explicit code modification. Evolution may add generated capabilities after validation and governance.
+```text
+User: Add input validation.
+SPS-CA: [result]
+User: Also reject negative values.
+SPS-CA: [uses current code + recent conversation]
+User: Now add tests.
+SPS-CA: [new capability plan]
+```
 
-The Capability Registry is a supporting subsystem, not an eleventh architectural layer.
+The current working source and recent conversation are passed to the Brain on each turn. Experience records can also be supplied as reasoning context.
+
+## Stage 0 capabilities
+
+Stage 0 starts with seeded SPS skills, including:
+
+- CAP-001 — Simple Bug Detection
+- CAP-002 — Syntax Error Fix
+- CAP-003 — Unit Test Generation
+- CAP-004 — Loop Optimization
+- CAP-005 — Error Handling Pattern
+- CAP-006 — Unused Variable Removal
+- CAP-007 — Type Annotation Addition
+- CAP-008 — Documentation Generation
+- CAP-011 — Natural Language Code Modification
+
+Later SPS states can create or improve reusable capabilities through the Evolution → Verification & Validation → Governance → Registry path.
+
+## Research distinction
+
+A normal coding-assistant change to a user's project is not, by itself, self-programming.
+
+The SPS research behavior is:
+
+```text
+Repeated limitation/failure
+        ↓
+Experience
+        ↓
+Meta-learning
+        ↓
+Adaptation
+        ↓
+Evolution reasoning
+        ↓
+New capability candidate
+        ↓
+Verification & Validation
+        ↓
+Governance
+        ↓
+Capability Registry + lineage
+        ↓
+Reusable capability
+```
+
+The project therefore evaluates both **basic coding-assistant behavior** and **SPS behavior**.
 
 ## Evaluation
 
-The research implementation keeps three progressively stronger conditions:
+Controlled Python, Java and TypeScript projects are used to compare:
 
-- **Baseline A:** same-model naive coding assistant.
-- **Baseline B:** same-model tool-augmented coding assistant without SPS learning/evolution.
-- **SPS-CA Stage 0+:** ten-layer framework with fixed capabilities, then experience-informed adaptation and generated/reused capabilities.
+- Baseline A — naive/model-only coding assistant
+- Baseline B — tool-augmented coding assistant without SPS learning/evolution
+- SPS-CA Stage 0 — fixed capabilities and ten-layer architecture
+- later SPS state — experience-informed adaptation and evolved/reused capabilities
 
-The repository contains controlled projects and a 25-scenario evaluation harness. The important evidence is not simply that an LLM can write code, but whether SPS-CA can improve strategy selection, reuse experience, safely evolve capabilities and demonstrate measurable gains under repeated scenarios.
+The detailed test plan is in `docs/scenarios.md` and executable scenario definitions are in `evaluation/scenarios.py`.
 
-## Repository structure
+## Run locally
 
-```text
-SPS_CA/
-├── brain/                   # Separate AI Brain service
-├── layers/                  # Canonical ten-layer architecture
-├── core/                    # Cross-layer orchestration/state/events
-├── models/                  # Provider/model abstraction (Ollama default)
-├── capabilities/            # Seed/generated skills + registry + lineage
-├── coding/                  # Repository/code intelligence
-├── validation/              # Verification infrastructure
-├── governance/              # Governance infrastructure
-├── execution/               # Controlled execution infrastructure
-├── memory/                  # Runtime experience/memory/traces
-├── projects/                # Controlled benchmark projects
-├── baselines/               # Comparison agents
-├── evaluation/              # Scenarios, runner and metrics
-├── analytics/               # Evidence and growth analytics
-├── ui/                      # CLI + advanced web dashboard
-└── docs/                    # Research and architecture documentation
-```
+Install dependencies and Ollama as described in `SETUP.md`.
 
-## Run the CLI
-
-```bash
-python ui/cli_interface.py
-```
-
-## Run the advanced dashboard
+### Web UI
 
 ```bash
 python ui/web_app.py
 ```
 
-Then open `http://127.0.0.1:8080`.
+Open `http://127.0.0.1:8080`.
 
-The dashboard exposes the Brain boundary, live ten-layer status, capability decisions, reasoning summary, modified source, diff and trace. Browser execution is a preview boundary; project mutation remains controlled by the Execution layer.
+### CLI
 
-## Setup and experiments
+```bash
+python ui/cli_interface.py
+```
 
-See `SETUP.md`, `REQUIREMENTS.md`, `docs/ARCHITECTURE.md` and `docs/MASTER_DOCUMENT.md` for installation, research design and the evaluation protocol.
+## Project structure
 
-## Development rules
+```text
+SPS_CA/
+├── brain/                 # separate AI intelligence service
+├── layers/                # ten SPS architectural responsibilities
+├── capabilities/          # executable SPS skills
+├── core/                  # shared orchestration
+├── models/                # provider/model abstraction
+├── coding/                # code/repository intelligence
+├── validation/            # validation infrastructure
+├── governance/            # governance infrastructure
+├── execution/             # execution infrastructure
+├── projects/              # controlled evaluation projects
+├── baselines/             # comparison assistants
+├── evaluation/            # scenario runner and metrics
+├── analytics/             # evidence/analytics support
+├── memory/                # runtime memory support
+├── ui/                    # conversational web UI + CLI
+└── docs/                  # architecture, master overview and scenarios
+```
 
-1. Keep the ten public layer names stable.
-2. Never model the Brain as a capability or an eleventh layer.
-3. Keep model providers behind `models/` and the Brain interface.
-4. Keep capabilities independently versioned, tested and traceable.
-5. Evolution proposals must pass Verification & Validation and Governance before activation.
-6. Keep user/runtime data and secrets out of source control.
-7. Preserve baseline/SPS experimental separation so results remain reproducible.
+## Documentation
+
+- `docs/master.md` — what SPS-CA is, its framework, features and architecture
+- `docs/ARCHITECTURE.md` — canonical ten-layer definitions and boundaries
+- `docs/scenarios.md` — what will be tested and what evidence is required
+- `docs/PIPELINE.md` — request, feedback and self-programming lifecycle
+- `SETUP.md` — installation and local setup
+- `REQUIREMENTS.md` — system/software requirements
+
+## Security
+
+Never commit API keys, personal access tokens, passwords or other secrets. Runtime projects, conversations, model caches and generated data should remain outside Git whenever practical.
