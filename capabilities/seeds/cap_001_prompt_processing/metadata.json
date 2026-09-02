@@ -1,12 +1,12 @@
 {
-  "id": "CAP-001",
-  "name": "Prompt Processing",
+  "id": "CAP-001-LEGACY",
+  "name": "Legacy Prompt Processing",
   "version": "1.0.0",
-  "description": "Processes the user's natural-language request with the Ollama reasoning model and produces an ordered, allowlisted capability plan.",
+  "description": "Retired compatibility artifact. Prompt processing is now Brain responsibility, not an SPS capability.",
   "entry_point": "capabilities.seeds.cap_001_prompt_processing.capability.run",
-  "origin": "seed",
-  "status": "active",
+  "origin": "legacy",
+  "status": "retired",
   "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
   "parent_capability_id": null,
-  "tags": ["prompt-processing", "routing", "planning", "brain", "ollama"]
+  "tags": ["legacy", "retired", "brain-boundary"]
 }
