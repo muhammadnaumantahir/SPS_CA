@@ -142,8 +142,10 @@ evaluation/rollback/*.json
 evaluation/metrics/*.json
 ui/session_history.json
 
-# Generated capabilities (will be created during Phase 4)
-capabilities/generated/*/
+# NOTE: capabilities/generated/*/ is intentionally NOT ignored (unlike the
+# runtime-log ignores above). Generated capabilities are Layer 8's actual
+# research artifact -- versioned, tested Python modules committed with an
+# "EVOLUTION: ..." message (Phase 4) -- not regenerable runtime output.
 
 # Target projects (will be created during Phase 8)
 projects/project_a_python/
