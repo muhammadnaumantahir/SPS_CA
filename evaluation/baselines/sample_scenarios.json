@@ -1,0 +1,5 @@
+[
+  {"id":"smoke-001","project":"project_a_python","request":"Explain the Task API and identify the exists defect.","project_context":"Python/FastAPI Task API with GET /tasks/{id}/exists known to ignore the requested id."},
+  {"id":"smoke-002","project":"project_b_java","request":"Explain how the seeded exists defect should be corrected.","project_context":"Java/Spring Boot TaskController exposes GET /tasks/{id}/exists."},
+  {"id":"smoke-003","project":"project_c_typescript","request":"Propose a focused test for the exists endpoint defect.","project_context":"TypeScript/Express Task API exposes GET /tasks/:id/exists."}
+]
