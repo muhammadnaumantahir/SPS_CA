@@ -8,7 +8,6 @@ research, demonstration, and supervised code-change experiments.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any, Optional
@@ -22,7 +21,6 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ui.supervisor_execution import SupervisorExecutionService
-
 
 LANGUAGES = ["python", "java", "javascript", "typescript", "go", "csharp"]
 LAYERS = [
@@ -46,31 +44,25 @@ def _read_json(path: Path, default: Any) -> Any:
         return default
 
 
-def _state() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    root = REPO_ROOT
-    registry = _read_json(root / "capabilities/registry.json", {})
-    trace = _read_json(root / "experience/traces/evolution_history.json", [])
-    stage = _read_json(root / "experience/traces/stage_state.json", {"current_stage": 0})
-    return registry, trace, stage
+def _state() -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    registry = _read_json(REPO_ROOT / "capabilities/registry.json", {})
+    trace = _read_json(REPO_ROOT / "experience/traces/evolution_history.json", [])
+    stage = _read_json(REPO_ROOT / "experience/traces/stage_state.json", {"current_stage": 0})
+    return registry, trace if isinstance(trace, list) else [], stage
 
 
 def _capabilities(registry: dict[str, Any]) -> list[dict[str, Any]]:
-    caps = registry.get("capabilities", []) if isinstance(registry, dict) else []
+    caps = registry.get("capabilities", [])
     return caps if isinstance(caps, list) else []
 
 
-def _records(trace: Any) -> list[dict[str, Any]]:
-    return trace if isinstance(trace, list) else []
-
-
 def _metrics() -> dict[str, Any]:
-    registry, trace, stage = _state()
+    registry, records, stage = _state()
     caps = _capabilities(registry)
-    records = _records(trace)
     generated = sum(1 for cap in caps if cap.get("generated"))
     reused = sum(int(cap.get("reuse_count", 0) or 0) for cap in caps)
-    successful = sum(1 for record in records if record.get("result", {}).get("success") is True)
     completed = sum(1 for record in records if record.get("status") == "completed")
+    successful = sum(1 for record in records if record.get("result", {}).get("success") is True)
     return {
         "stage": int(stage.get("current_stage", 0) or 0),
         "capabilities": len(caps),
@@ -78,9 +70,7 @@ def _metrics() -> dict[str, Any]:
         "reused": reused,
         "scenarios": len(records),
         "success_rate": (successful / completed * 100.0) if completed else 0.0,
-        "rollbacks": sum(
-            1 for record in records if record.get("result", {}).get("rollback_triggered") is True
-        ),
+        "rollbacks": sum(1 for record in records if record.get("result", {}).get("rollback_triggered")),
     }
 
 
@@ -101,41 +91,35 @@ def _kpi_html(metrics: dict[str, Any]) -> str:
 
 
 def _growth_figure() -> go.Figure:
-    registry, trace, _ = _state()
-    records = _records(trace)
-    if records:
-        stages = []
-        counts = []
-        generated = []
-        cap_count = 0
-        generated_count = 0
-        for record in records:
-            stage = int(record.get("stage_after", record.get("stage_before", 0)) or 0)
-            if record.get("capability_generation", {}).get("registered"):
-                generated_count += 1
-                cap_count += 1
-            stages.append(stage)
-            counts.append(cap_count)
-            generated.append(generated_count)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=list(range(1, len(records) + 1)), y=counts, mode="lines+markers", name="Capabilities introduced"))
-        fig.add_trace(go.Scatter(x=list(range(1, len(records) + 1)), y=generated, mode="lines+markers", name="Generated capabilities"))
-        fig.update_layout(height=360, margin=dict(l=20, r=20, t=35, b=20), title="Capability growth by scenario", xaxis_title="Scenario", yaxis_title="Count", template="plotly_white")
-        return fig
-    caps = _capabilities(registry)
-    count = len(caps)
-    fig = go.Figure(go.Bar(x=["Current"], y=[count], name="Capabilities"))
-    fig.update_layout(height=360, margin=dict(l=20, r=20, t=35, b=20), title="Capability inventory", yaxis_title="Count", template="plotly_white")
+    _, records, _ = _state()
+    scenarios = []
+    capability_count = 0
+    generated_count = 0
+    counts = []
+    generated = []
+    for index, record in enumerate(records, start=1):
+        generation = record.get("capability_generation", {}) or {}
+        if generation.get("registered"):
+            capability_count += 1
+            generated_count += 1
+        scenarios.append(index)
+        counts.append(capability_count)
+        generated.append(generated_count)
+    fig = go.Figure()
+    if scenarios:
+        fig.add_trace(go.Scatter(x=scenarios, y=counts, mode="lines+markers", name="Capabilities introduced"))
+        fig.add_trace(go.Scatter(x=scenarios, y=generated, mode="lines+markers", name="Generated capabilities"))
+    else:
+        fig.add_trace(go.Bar(x=["Current"], y=[0], name="Capabilities"))
+    fig.update_layout(height=360, margin=dict(l=20, r=20, t=45, b=20), title="Capability growth by scenario", xaxis_title="Scenario", yaxis_title="Count", template="plotly_white")
     return fig
 
 
 def _reuse_figure() -> go.Figure:
     registry, _, _ = _state()
     caps = sorted(_capabilities(registry), key=lambda cap: int(cap.get("reuse_count", 0) or 0), reverse=True)[:12]
-    names = [cap.get("id", "?") for cap in caps]
-    reuse = [int(cap.get("reuse_count", 0) or 0) for cap in caps]
-    fig = go.Figure(go.Bar(x=names, y=reuse))
-    fig.update_layout(height=320, margin=dict(l=20, r=20, t=35, b=20), title="Capability reuse", xaxis_title="Capability", yaxis_title="Reuse count", template="plotly_white")
+    fig = go.Figure(go.Bar(x=[cap.get("id", "?") for cap in caps], y=[int(cap.get("reuse_count", 0) or 0) for cap in caps]))
+    fig.update_layout(height=320, margin=dict(l=20, r=20, t=45, b=20), title="Capability reuse", xaxis_title="Capability", yaxis_title="Reuse count", template="plotly_white")
     return fig
 
 
@@ -157,9 +141,9 @@ def _capability_table() -> pd.DataFrame:
 
 
 def _evolution_table() -> pd.DataFrame:
-    _, trace, _ = _state()
+    _, records, _ = _state()
     rows = []
-    for record in reversed(_records(trace)):
+    for record in reversed(records):
         generation = record.get("capability_generation", {}) or {}
         search = record.get("capability_search", {}) or {}
         result = record.get("result", {}) or {}
@@ -176,30 +160,30 @@ def _evolution_table() -> pd.DataFrame:
 
 
 def _scenario_detail(scenario_id: str) -> str:
-    _, trace, _ = _state()
-    matches = [record for record in _records(trace) if record.get("scenario_id") == scenario_id]
+    _, records, _ = _state()
+    matches = [record for record in records if record.get("scenario_id") == scenario_id.strip()]
     if not matches:
-        return "Select a scenario from the Evolution table."
+        return "Select a scenario ID from the Evolution table."
     return json.dumps(matches[-1], indent=2, ensure_ascii=False)
 
 
 def _layer_html() -> str:
-    body = []
-    for number, name in LAYERS:
-        body.append(f'<div class="layer-row"><span class="layer-num">{number:02d}</span><span class="layer-name">{name}</span></div>')
-    return "<div class='layer-list'>" + "".join(body) + "</div>"
+    items = "".join(
+        f'<div class="layer-row"><span class="layer-num">{number:02d}</span><span class="layer-name">{name}</span></div>'
+        for number, name in LAYERS
+    )
+    return f"<div class='layer-list'>{items}</div>"
 
 
 def _experiment_table() -> pd.DataFrame:
-    scenarios_path = REPO_ROOT / "evaluation/scenarios.py"
-    text = scenarios_path.read_text(encoding="utf-8") if scenarios_path.exists() else ""
     rows = []
-    for line in text.splitlines():
-        if line.strip().startswith('{"id":'):
-            rows.append({"Scenario": "catalog", "Definition": line.strip()})
-    if not rows:
-        return pd.DataFrame([{"Scenario": "S1–S25", "Definition": "See evaluation/scenarios.py"}])
-    return pd.DataFrame(rows)
+    source = REPO_ROOT / "evaluation/scenarios.py"
+    if source.exists():
+        for line in source.read_text(encoding="utf-8").splitlines():
+            text = line.strip()
+            if text.startswith('{"id":'):
+                rows.append({"Scenario": text.split('"id":', 1)[1].split(',', 1)[0].strip(' \"') , "Definition": text})
+    return pd.DataFrame(rows or [{"Scenario": "S1–S25", "Definition": "See evaluation/scenarios.py"}])
 
 
 def _guide_markdown() -> str:
@@ -208,13 +192,13 @@ def _guide_markdown() -> str:
 
 ## Google Colab — cell by cell
 
-### Cell 1 — Clone the research branch
+### Cell 1 — Clone the SPS-CA research branch
 ```python
 !git clone -b feat/sps-supervisor-loop-step1 https://github.com/muhammadnaumantahir/SPS_CA.git
 %cd /content/SPS_CA
 ```
 
-### Cell 2 — Install dependencies and Ollama
+### Cell 2 — Install Python dependencies + Ollama + Qwen
 ```python
 !bash scripts/colab_setup.sh qwen2.5-coder:7b
 ```
@@ -225,28 +209,28 @@ def _guide_markdown() -> str:
 !curl -s http://127.0.0.1:11434/api/tags
 ```
 
-### Cell 4 — Run the repository tests
+### Cell 4 — Run tests
 ```python
 !bash scripts/run_tests.sh
 ```
 
-### Cell 5 — Launch the dashboard
+### Cell 5 — Launch the web dashboard
 ```python
 from ui.web_ui import launch
 launch()
 ```
+The launcher detects Colab and enables the Gradio share link. SPS processing remains inside the Colab runtime.
 
-Colab automatically enables a Gradio share link. The SPS runtime still executes inside the Colab machine.
+### Cell 6 — Run a first scenario
+In **SPS Supervisor**, enter a request such as `add input validation to this function`, paste source code, choose the language, and click **Run SPS Supervisor**.
 
-### Cell 6 — First research experiment
-Use the **SPS Supervisor** tab. Enter a prompt such as `add input validation to this function`, paste code, then run it. Inspect the modified code, Stage transition, capability, and trace.
+### Cell 7 — Inspect growth
+Open **Capabilities**, **Growth**, and **Evolution**. Check whether a capability was reused or generated, whether the code changed, validation/governance/execution results, and the Stage transition.
 
-### Cell 7 — Capability growth experiment
-Run a request that has no existing matching capability. Inspect **Capabilities**, **Growth**, and **Evolution**. The generated capability should appear in the registry and the trace should record its WHY / WHAT / WHEN / HOW provenance.
+### Cell 8 — Repeat the same scenario
+Run the same or equivalent request again. The research dashboard should expose capability reuse and the accumulated scenario history.
 
-## Local machine
-
-### Windows
+## Local Windows
 ```powershell
 git clone -b feat/sps-supervisor-loop-step1 https://github.com/muhammadnaumantahir/SPS_CA.git
 cd SPS_CA
@@ -258,7 +242,7 @@ ollama pull qwen2.5-coder:7b
 python ui/web_ui.py
 ```
 
-### Linux / macOS
+## Local Linux / macOS
 ```bash
 git clone -b feat/sps-supervisor-loop-step1 https://github.com/muhammadnaumantahir/SPS_CA.git
 cd SPS_CA
@@ -270,11 +254,9 @@ ollama pull qwen2.5-coder:7b
 python ui/web_ui.py
 ```
 
-For local development, the dashboard launches without a public share link by default.
+## Security
 
-## Important runtime rule
-
-Keep user projects, credentials, runtime traces, and generated runtime artifacts outside source control unless they are deliberately part of a reproducible research fixture. The dashboard visualizes persisted SPS artifacts; it does not replace them.
+The Colab share link is public. Do not enter production credentials or sensitive source code into a public demo. Keep runtime secrets and user projects outside source control.
 """
 
 
@@ -300,9 +282,7 @@ def _run_supervisor(request: str, code: str, language: str, uploaded: Optional[A
         raise gr.Error("Enter a coding request first.")
     if not code.strip():
         raise gr.Error("Paste code or upload a source file.")
-
-    service = SupervisorExecutionService()
-    result = service.run_submission(
+    result = SupervisorExecutionService().run_submission(
         user_request=request,
         code=code,
         language=language,
@@ -329,11 +309,11 @@ def build_app() -> gr.Blocks:
     .hero {padding: 8px 0 12px 0;}
     .hero h1 {font-size: 34px; margin-bottom: 4px;}
     .hero p {font-size: 15px; opacity: .78;}
-    .kpi-grid {display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)); gap:10px; margin: 6px 0 16px;}
+    .kpi-grid {display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)); gap:10px; margin:6px 0 16px;}
     .kpi {border:1px solid #ddd; border-radius:14px; padding:14px; background:rgba(255,255,255,.03);}
     .kpi-label {font-size:11px; letter-spacing:.08em; opacity:.65;}
     .kpi-value {font-size:26px; font-weight:700; margin-top:4px;}
-    .layer-list {display:grid; gap:8px;}
+    .layer-list {display:grid; gap:8px; margin-top:12px;}
     .layer-row {display:flex; gap:12px; align-items:center; border:1px solid #ddd; border-radius:10px; padding:9px 11px;}
     .layer-num {font-family:monospace; opacity:.65; width:26px;}
     .layer-name {font-weight:600;}
@@ -370,7 +350,7 @@ def build_app() -> gr.Blocks:
                     with gr.Row():
                         growth_plot = gr.Plot(_growth_figure(), label="Capability Growth")
                         reuse_plot = gr.Plot(_reuse_figure(), label="Capability Reuse")
-                    gr.HTML(_layer_html())
+                    layer_view = gr.HTML(_layer_html())
 
                 with gr.Tab("🔄 Evolution"):
                     evo_table = gr.Dataframe(value=_evolution_table(), interactive=False, wrap=True)
@@ -387,7 +367,7 @@ def build_app() -> gr.Blocks:
                     gr.Markdown(_guide_markdown())
 
             run.click(_run_supervisor, [request, code, language, upload, target], [result_status, modified, result_json, kpis, growth_plot, reuse_plot, cap_table, evo_table])
-            refresh.click(_refresh_dashboard, outputs=[kpis, growth_plot, reuse_plot, cap_table, evo_table, gr.State()])
+            refresh.click(_refresh_dashboard, outputs=[kpis, growth_plot, reuse_plot, cap_table, evo_table, layer_view])
             inspect.click(_scenario_detail, inputs=scenario_id, outputs=scenario_detail)
             language.change(lambda lang: gr.Code(language=lang or "python"), inputs=language, outputs=code)
 
