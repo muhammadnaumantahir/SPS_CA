@@ -1,23 +1,24 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Version:** 0.9.0  
-**Status:** Phase 9 — Baselines  
+**Version:** 1.0.0  
+**Status:** Phase 10 — Evaluation Harness  
 **Goal:** Research prototype for governed, traceable and reversible self-programming.
 
 SPS-CA investigates whether an AI coding system can improve future performance by accumulating experience, adapting strategies, and safely developing reusable capabilities.
 
 ## Current implementation status
 
-Phases 0–8 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry, execution boundary, seed capabilities, prompt-based CLI, and three equivalent benchmark target projects. **Phase 9 adds two same-model comparison baselines and the experiment execution contract.**
+Phases 0–8 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry, execution boundary, seed capabilities, prompt-based CLI, and three equivalent benchmark target projects. **Phase 9 adds two same-model comparison baselines; Phase 10 adds the reproducible evaluation harness.**
 
 - **Baseline A:** Naive LLM — direct request + project context, no tools or learning.
 - **Baseline B:** Coding Agent — deterministic analysis/syntax/test tool boundaries, no learning or capability generation.
+- **SPS-CA:** Full ten-layer framework.
 - **Shared local model:** `qwen2.5-coder:7b` through the provider-neutral LLM interface.
-- **Shared result contract:** request, project, model, response, tool calls, retries, duration and test outcome.
-- **Experiment runner:** JSON scenarios → Baseline A and Baseline B → JSONL results for Phase 10.
-- `.github/workflows/phase9-tests.yml` verifies the baseline unit-test suite.
+- **Evaluation catalog:** S1–S25 with source-defined project/baseline distribution.
+- **Measurement:** JSONL execution records plus common success/time aggregation.
+- **Research boundary:** real Ollama experiments are run in the controlled local environment; CI verifies the harness without fabricating model results.
 
-See [`docs/PHASE_9_STATUS.md`](docs/PHASE_9_STATUS.md) for the requirement mapping and experimental contract.
+See [`docs/PHASE_9_STATUS.md`](docs/PHASE_9_STATUS.md) and [`docs/PHASE_10_STATUS.md`](docs/PHASE_10_STATUS.md) for the experiment contracts and evidence boundary.
 
 ## Architecture
 
@@ -36,7 +37,7 @@ SPS_CA/
 ├── memory/                  # Runtime conversations/experiences/memories/traces
 ├── projects/                # Equivalent benchmark target projects
 ├── baselines/               # Phase-9 comparison agents and result contract
-├── evaluation/              # Experimental runners and measurement records
+├── evaluation/              # Scenario matrix, execution harness and metrics
 ├── data/                    # Runtime database/users/sessions/exports
 ├── ui/                      # Prompt UI and future presentation layers
 ├── testing/                 # Cross-layer and research tests
@@ -55,22 +56,17 @@ projects/
 
 All three implement the same Task API so later phases can compare repair behavior across languages without changing the problem domain.
 
-## Phase 9 baselines
+## Phase 10 evaluation
 
 ```text
-baselines/
-├── baseline_a_naive_llm.py
-├── baseline_b_coding_agent.py
-├── local_llm.py
-├── runner.py
-└── tests/
-
-evaluation/baselines/
-├── experiment_runner.py
-└── sample_scenarios.json
+evaluation/
+├── scenarios.py             # 25-scenario source catalog + matrix builder
+├── phase10_runner.py        # Controlled execution harness
+├── metrics.py               # Common experiment metrics
+└── tests/                   # Harness contract tests
 ```
 
-The real-model runner is intended for the controlled experimental environment with local Ollama. CI uses deterministic fake-LLM tests so no external model service is required.
+The master protocol calls for 25 scenarios with source-defined project/baseline scope and empirical collection of success, time, reuse, regression, coverage, rollback and governance metrics. The implementation does not assert the target performance numbers until the controlled runs have actually produced evidence.
 
 ## Phase 7 CLI
 
