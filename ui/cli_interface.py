@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# Required for the documented `python ui/cli_interface.py` entrypoint.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -16,23 +15,15 @@ from capabilities.seed_registry import load_entry_point, load_seed_capabilities 
 from experience.evolution_trace import EvolutionTraceStore  # noqa: E402
 from layers.layer_02_cognitive_core import CognitiveCore  # noqa: E402
 from layers.layer_06_validation import Validator  # noqa: E402
-from layers.layer_07_governance import (  # noqa: E402
-    ChangeType,
-    DecisionStatus,
-    GovernanceGate,
-)
+from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGate  # noqa: E402
 from layers.layer_09_capability_registry import CapabilityRegistryManager  # noqa: E402
-from layers.layer_10_execution import (  # noqa: E402
-    Change,
-    ExecutionEngine,
-    ExecutionStatus,
-    FileEdit,
-)
+from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit  # noqa: E402
+from ui.supervisor_service import SupervisorScenarioService  # noqa: E402
 
 HELP_TEXT = """Commands:
   load <project_path>      Load a target project
   submit                   Submit a prompt + pasted code as a research scenario
-  submit_file <path>      Submit a prompt + local code file as a research scenario
+  submit_file <path>       Submit a prompt + local code file as a research scenario
   show project             Show current project context
   show registry            Show available capabilities
   show experience          Show recent recorded UI interactions
@@ -44,7 +35,7 @@ Any other input is treated as a natural-language coding request for a loaded pro
 
 
 class SPS_CA_Interface:
-    """Simple ChatGPT-like prompt interface for SPS-CA."""
+    """CLI presentation layer for SPS-CA and the SPS Supervisor."""
 
     def __init__(
         self,
@@ -58,9 +49,14 @@ class SPS_CA_Interface:
         self.core = CognitiveCore()
         self.registry = CapabilityRegistryManager(registry_path)
         self.execution = ExecutionEngine()
-        self.trace_store = EvolutionTraceStore(
-            history_path=trace_history_path,
-            stage_path=trace_stage_path,
+        self.trace_store = EvolutionTraceStore(history_path=trace_history_path, stage_path=trace_stage_path)
+        self.supervisor = SupervisorScenarioService(
+            trace_history_path=trace_history_path,
+            trace_stage_path=trace_stage_path,
+            registry_path=registry_path,
+            seeds_dir=str(REPO_ROOT / "capabilities" / "seeds"),
+            generated_dir=str(self.history_path.parent / "generated"),
+            evaluation_dir=str(self.history_path.parent / "evaluation" / "evolution"),
         )
         self.project_context: Optional[Dict[str, Any]] = None
         self._history = self._load_history()
@@ -112,11 +108,6 @@ class SPS_CA_Interface:
         return response
 
     def _interactive_submission(self) -> str:
-        """Collect a multi-line prompt + code submission in the CLI.
-
-        The ``__END__`` marker keeps this usable in Colab and ordinary terminals
-        without requiring a web UI or special terminal features.
-        """
         request = input("Request: ").strip()
         language = input("Language [python]: ").strip() or "python"
         print("Paste code. Enter __END__ on its own line when finished:")
@@ -126,8 +117,7 @@ class SPS_CA_Interface:
             if line == "__END__":
                 break
             lines.append(line)
-        code = "\n".join(lines)
-        return self.submit_submission(request, code, language)
+        return self.submit_submission(request, "\n".join(lines), language)
 
     def _interactive_file_submission(self, file_path: str) -> str:
         path = Path(file_path).expanduser().resolve()
@@ -139,53 +129,32 @@ class SPS_CA_Interface:
             code = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             return f"Error: file is not UTF-8 text: {path}"
-        return self.submit_submission(
-            request,
-            code,
-            language,
-            file_path=str(path),
-        )
+        return self.submit_submission(request, code, language, file_path=str(path))
 
-    def submit_submission(
-        self,
-        user_request: str,
-        code: str,
-        language: str,
-        *,
-        file_path: str = "",
-    ) -> str:
-        """Record a supervisor-facing scenario without running modification yet.
-
-        The next implementation step will consume this exact scenario object
-        and connect it to task analysis, capability search/generation, and the
-        governed modification pipeline.
-        """
-        scenario = self.trace_store.start_scenario(
-            user_request=user_request,
-            code=code,
-            language=language,
-            file_path=file_path,
-            metadata={"source": "cli_submission"},
-        )
-        self.trace_store.append_event(
-            scenario["scenario_id"],
-            "submission_received",
-            {
-                "why": "User supplied a coding task for SPS analysis.",
-                "what": "Prompt + source code captured.",
-                "how": "CLI submit/submit_file intake.",
-                "language": language,
-                "file_path": file_path,
-            },
-        )
-        return (
-            f"Scenario captured: {scenario['scenario_id']}\n"
-            f"  Stage: {scenario['stage_before']}\n"
-            f"  Language: {language}\n"
-            f"  Code length: {len(code)} characters\n"
-            "  Trace: experience/traces/evolution_history.json\n"
-            "  Status: queued for SPS task/code analysis"
-        )
+    def submit_submission(self, user_request: str, code: str, language: str, *, file_path: str = "") -> str:
+        """Run the submitted scenario through the SPS Supervisor analysis path."""
+        try:
+            result = self.supervisor.analyze_submission(
+                user_request=user_request,
+                code=code,
+                language=language,
+                file_path=file_path,
+                project_root=str(self.history_path.parent),
+            )
+            generation = result.capability_generation
+            return (
+                f"Scenario analyzed: {result.scenario_id}\n"
+                f"  Stage: {result.stage}\n"
+                f"  Language: {language}\n"
+                f"  Code length: {len(code)} characters\n"
+                f"  Capability found: {result.capability_search.get('found', False)}\n"
+                f"  Capability: {result.capability_search.get('selected') or generation.get('capability_id', 'none')}\n"
+                f"  Generation required: {generation.get('required', False)}\n"
+                f"  Trace: {self.trace_store.history_path}\n"
+                f"  Status: {generation.get('developed', False) and generation.get('registered', False) and 'capability developed' or 'analysis complete'}"
+            )
+        except Exception as exc:
+            return f"Error: {exc}"
 
     def load_project(self, project_path: str) -> str:
         root = Path(project_path).expanduser().resolve()
@@ -221,29 +190,20 @@ class SPS_CA_Interface:
             capabilities = self.registry.list_all_capabilities()
             if not capabilities:
                 return "Available capabilities: none"
-            return "\n".join(
-                ["Available capabilities:"]
-                + [f"  {cap.id}: {cap.name} [{cap.status}] v{cap.version}" for cap in capabilities]
-            )
+            return "\n".join(["Available capabilities:"] + [f"  {cap.id}: {cap.name} [{cap.status}] v{cap.version}" for cap in capabilities])
         if context_type == "experience":
             events = self._history.get("events", [])[-5:]
             if not events:
                 return "Recent interactions: none"
-            return "\n".join(
-                ["Recent interactions:"]
-                + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events]
-            )
+            return "\n".join(["Recent interactions:"] + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events])
         if context_type == "evolution":
             records = self.trace_store.list_records()[-5:]
             if not records:
                 return "Evolution history: none"
-            lines = ["Recent evolution scenarios:"]
-            for record in records:
-                lines.append(
-                    f"  {record['scenario_id']} | Stage {record['stage_before']} -> "
-                    f"{record['stage_after']} | {record['status']} | {record['user_request']}"
-                )
-            return "\n".join(lines)
+            return "\n".join(
+                ["Recent evolution scenarios:"]
+                + [f"  {record['scenario_id']} | Stage {record['stage_before']} -> {record['stage_after']} | {record['status']} | {record['user_request']}" for record in records]
+            )
         return "Unknown context. Use: project, registry, experience, evolution"
 
     def process_request(self, user_request: str) -> str:
@@ -253,90 +213,40 @@ class SPS_CA_Interface:
             project_path = self.project_context["path"]
             language = self.project_context["language"]
             self.core.receive_request(user_request, target_project=project_path, target_language=language)
-
             analysis = self.core.analyze_target_project(project_path)
             candidates = self.core.select_candidate_capabilities(analysis, user_request=user_request)
-            plan = self.core.plan_modification_strategy(
-                analysis, candidates, self.core.decompose_task(user_request)
-            )
+            plan = self.core.plan_modification_strategy(analysis, candidates, self.core.decompose_task(user_request))
             selected = self._best_candidate(plan.selected_capability_ids, user_request)
             if selected is None:
                 return "Cognitive Core: no suitable capability found."
-
             capability_fn = load_entry_point(selected)
             target_file, code = self._choose_target_file(project_path, language, user_request)
             if target_file is None:
                 return f"Analysis complete. Capability used: {selected.id}. No supported source file was found."
-
-            capability_result = capability_fn(
-                CapabilityContext(
-                    code=code,
-                    language=language,
-                    file_path=target_file,
-                    project_path=project_path,
-                    metadata={"request": user_request},
-                )
-            )
-            if not capability_result.success:
-                return f"Capability {selected.id} failed: {capability_result.error}"
-            if capability_result.modified_code is None:
-                return self._format_analysis_response(selected.id, capability_result)
-
+            result = capability_fn(CapabilityContext(code=code, language=language, file_path=target_file, project_path=project_path, metadata={"request": user_request}))
+            if not result.success:
+                return f"Capability {selected.id} failed: {result.error}"
+            if result.modified_code is None:
+                return self._format_analysis_response(selected.id, result)
             change = Change.new(
                 capability_id=selected.id,
                 description=user_request,
-                edits=[FileEdit(file_path=target_file, new_content=capability_result.modified_code)],
+                edits=[FileEdit(file_path=target_file, new_content=result.modified_code)],
                 target_language=language,
                 test_command="pytest -q",
             )
-
-            validator = Validator(project_path)
-            sandbox = validator.run_in_sandbox(
-                capability_result.modified_code, change.change_id, target_file
-            )
+            sandbox = Validator(project_path).run_in_sandbox(result.modified_code, change.change_id, target_file)
             if sandbox.status.value != "success":
-                return (
-                    f"Validation failed for {selected.id}.\n"
-                    f"  Layer 6: {sandbox.status.value}\n"
-                    f"  Change: {change.change_id}"
-                )
-
-            governance = GovernanceGate()
-            decision = governance.make_decision(
-                change.change_id,
-                self._change_type_for_capability(selected.id),
-                change.description,
-                [target_file],
-                related_capabilities=[selected.id],
-            )
+                return f"Validation failed for {selected.id}.\n  Layer 6: {sandbox.status.value}\n  Change: {change.change_id}"
+            decision = GovernanceGate().make_decision(change.change_id, self._change_type_for_capability(selected.id), change.description, [target_file], related_capabilities=[selected.id])
             if decision.decision != DecisionStatus.AUTO_APPROVED:
-                return (
-                    f"Governance requires review for {selected.id}.\n"
-                    f"  Decision: {decision.id}\n"
-                    f"  Status: {decision.decision.value}\n"
-                    f"  Reason: {decision.rationale}"
-                )
-
+                return f"Governance requires review for {selected.id}.\n  Decision: {decision.id}\n  Status: {decision.decision.value}\n  Reason: {decision.rationale}"
             execution = self.execution.execute_change(change, project_path)
-            return self.format_response(
-                execution,
-                capability_id=selected.id,
-                coverage=getattr(sandbox.metrics_after, "code_coverage_percent", None),
-                validation_status=sandbox.status.value,
-                governance_status=decision.decision.value,
-            )
-        except Exception as exc:  # UI must not terminate the REPL.
+            return self.format_response(execution, capability_id=selected.id, coverage=getattr(sandbox.metrics_after, "code_coverage_percent", None), validation_status=sandbox.status.value, governance_status=decision.decision.value)
+        except Exception as exc:
             return f"Error: {exc}"
 
-    def format_response(
-        self,
-        execution_result: Any,
-        *,
-        capability_id: str,
-        coverage: Optional[float],
-        validation_status: str,
-        governance_status: str,
-    ) -> str:
+    def format_response(self, execution_result: Any, *, capability_id: str, coverage: Optional[float], validation_status: str, governance_status: str) -> str:
         coverage_text = "not reported" if coverage is None else f"{coverage:.1f}%"
         if execution_result.status == ExecutionStatus.SUCCESS:
             return (
@@ -359,19 +269,7 @@ class SPS_CA_Interface:
 
     @staticmethod
     def _best_candidate(capability_ids: list[str], request: str):
-        priority = (
-            ("syntax", "CAP-002"),
-            ("test", "CAP-003"),
-            ("loop", "CAP-004"),
-            ("exception", "CAP-005"),
-            ("error handling", "CAP-005"),
-            ("unused", "CAP-006"),
-            ("annotation", "CAP-007"),
-            ("type", "CAP-007"),
-            ("doc", "CAP-008"),
-            ("documentation", "CAP-008"),
-            ("parse error", "CAP-009"),
-        )
+        priority = (("syntax", "CAP-002"), ("test", "CAP-003"), ("loop", "CAP-004"), ("exception", "CAP-005"), ("error handling", "CAP-005"), ("unused", "CAP-006"), ("annotation", "CAP-007"), ("type", "CAP-007"), ("doc", "CAP-008"), ("documentation", "CAP-008"), ("parse error", "CAP-009"))
         lowered = request.lower()
         for keyword, capability_id in priority:
             if keyword in lowered and capability_id in capability_ids:
@@ -387,23 +285,11 @@ class SPS_CA_Interface:
 
     @staticmethod
     def _change_type_for_capability(capability_id: str) -> ChangeType:
-        return {
-            "CAP-002": ChangeType.SYNTAX_FIX,
-            "CAP-003": ChangeType.TEST_GENERATION,
-            "CAP-004": ChangeType.REFACTORING,
-            "CAP-005": ChangeType.LOGIC_FIX,
-            "CAP-006": ChangeType.REFACTORING,
-            "CAP-007": ChangeType.REFACTORING,
-            "CAP-008": ChangeType.FEATURE_ADDITION,
-            "CAP-009": ChangeType.LOGIC_FIX,
-        }.get(capability_id, ChangeType.LOGIC_FIX)
+        return {"CAP-002": ChangeType.SYNTAX_FIX, "CAP-003": ChangeType.TEST_GENERATION, "CAP-004": ChangeType.REFACTORING, "CAP-005": ChangeType.LOGIC_FIX, "CAP-006": ChangeType.REFACTORING, "CAP-007": ChangeType.REFACTORING, "CAP-008": ChangeType.FEATURE_ADDITION, "CAP-009": ChangeType.LOGIC_FIX}.get(capability_id, ChangeType.LOGIC_FIX)
 
     @staticmethod
     def _choose_target_file(project_path: str, language: str, user_request: str) -> tuple[Optional[str], str]:
-        suffixes = {
-            "python": {".py"}, "java": {".java"}, "javascript": {".js", ".jsx"},
-            "typescript": {".ts", ".tsx"}, "go": {".go"}, "csharp": {".cs"},
-        }
+        suffixes = {"python": {".py"}, "java": {".java"}, "javascript": {".js", ".jsx"}, "typescript": {".ts", ".tsx"}, "go": {".go"}, "csharp": {".cs"}}
         requested = user_request.lower()
         candidates = []
         for path in sorted(Path(project_path).rglob("*")):
@@ -419,24 +305,11 @@ class SPS_CA_Interface:
 
     @staticmethod
     def _infer_language(path: Path) -> str:
-        return {
-            ".py": "python",
-            ".java": "java",
-            ".js": "javascript",
-            ".jsx": "javascript",
-            ".ts": "typescript",
-            ".tsx": "typescript",
-            ".go": "go",
-            ".cs": "csharp",
-        }.get(path.suffix.lower(), "unknown")
+        return {".py": "python", ".java": "java", ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript", ".go": "go", ".cs": "csharp"}.get(path.suffix.lower(), "unknown")
 
     @staticmethod
     def _format_analysis_response(capability_id: str, result: Any) -> str:
-        lines = [
-            f"✓ Analysis completed with {capability_id}.",
-            f"  Summary: {result.summary}",
-            f"  Findings: {len(result.findings)}",
-        ]
+        lines = [f"✓ Analysis completed with {capability_id}.", f"  Summary: {result.summary}", f"  Findings: {len(result.findings)}"]
         for finding in result.findings[:10]:
             lines.append(f"    - {finding.get('detail', finding.get('issue', 'finding'))}")
         return "\n".join(lines)
@@ -451,14 +324,7 @@ class SPS_CA_Interface:
             return {"version": "1.0.0", "events": []}
 
     def _record_event(self, kind: str, command: str, response: str) -> None:
-        self._history.setdefault("events", []).append(
-            {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "kind": kind,
-                "command": command,
-                "response": response,
-            }
-        )
+        self._history.setdefault("events", []).append({"timestamp": datetime.now(timezone.utc).isoformat(), "kind": kind, "command": command, "response": response})
         self.history_path.write_text(json.dumps(self._history, indent=2), encoding="utf-8")
 
 
