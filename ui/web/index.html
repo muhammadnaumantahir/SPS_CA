@@ -3,57 +3,68 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SPS-CA — Self-Programming Code Assistant</title>
+  <title>SPS-CA — Conversational Self-Programming Code Assistant</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><div class="logo">S</div><div><strong>SPS-CA</strong><span>Self-Programming Code Assistant</span></div></div>
-    <div class="top-actions"><span class="pill live"><i></i> System Online</span><span class="pill brain-pill">🧠 <b id="brainProvider">Ollama</b></span></div>
+    <div class="brand"><div class="logo">S</div><div><strong>SPS-CA</strong><span>Conversational Self-Programming Code Assistant</span></div></div>
+    <div class="top-actions"><span class="pill live"><i></i> System Online</span><span class="pill brain-pill">🧠 <b id="brainProvider">Ollama</b></span><span class="pill" id="turnCount">Turn 0</span></div>
   </header>
 
-  <main class="shell">
-    <section class="hero">
-      <div><p class="eyebrow">RESEARCH CONTROL CENTER</p><h1>Build. Reason. Verify. Evolve.</h1><p>Observe how an AI brain works with SPS-CA's ten architectural layers and reusable capabilities.</p></div>
-      <div class="hero-stat"><span>Architecture</span><strong>10 Layers</strong><small>Brain is separate</small></div>
+  <main class="shell chat-shell">
+    <section class="hero compact-hero">
+      <div><p class="eyebrow">SPS-CA WORKSPACE</p><h1>Talk to your code.</h1><p>Give SPS-CA code and a request. Then keep talking: every follow-up uses the current working code and recent conversation context.</p></div>
+      <div class="hero-stat"><span>Architecture</span><strong>10 Layers</strong><small>🧠 Brain is separate · capabilities are reusable</small></div>
     </section>
 
-    <section class="workspace">
-      <div class="card request-card">
-        <div class="card-head"><div><span class="step">01</span><div><h2>Task / Prompt</h2><p>Tell SPS-CA what you want changed.</p></div></div><button id="clearBtn" class="ghost">Clear</button></div>
-        <textarea id="request" placeholder="e.g. Add input validation to this function"></textarea>
-        <div class="row-controls"><label>Language<select id="language"><option>python</option><option>javascript</option><option>typescript</option><option>java</option><option>go</option><option>csharp</option></select></label><label>Brain model<input id="model" value="qwen2.5-coder:7b"></label><button id="runBtn" class="primary">Run SPS-CA <span>→</span></button></div>
-      </div>
+    <section class="chat-layout">
+      <aside class="side-panel">
+        <div class="card compact-card">
+          <div class="card-head"><div><h2>Session</h2><p>Your current coding conversation.</p></div><button id="newChatBtn" class="ghost">New chat</button></div>
+          <div class="session-meta"><div><span>TURNS</span><b id="sessionTurns">0</b></div><div><span>LANGUAGE</span><b id="sessionLanguage">python</b></div><div><span>WORKING FILE</span><b id="sessionFile">main.py</b></div></div>
+        </div>
+        <div class="card compact-card brain-card">
+          <div class="card-head"><div><span class="step brain-step">🧠</span><div><h2>Brain</h2><p>AI intelligence, separate from capabilities.</p></div></div><span class="status-dot">Ollama</span></div>
+          <div class="brain-grid"><div><small>ROLE</small><strong>Reasoning & Planning</strong></div><div><small>PROVIDER</small><strong id="providerText">Ollama</strong></div><div><small>MODEL</small><strong id="modelText">qwen2.5-coder:7b</strong></div><div><small>BOUNDARY</small><strong>Separate service</strong></div></div>
+          <div class="reasoning" id="reasoning"><span>Waiting for your first request…</span></div>
+        </div>
+        <div class="card compact-card"><div class="card-head"><div><h2>Capabilities</h2><p>Skills the Brain can compose.</p></div></div><div id="sideCapabilities" class="mini-caps"></div></div>
+      </aside>
 
-      <div class="card brain-card">
-        <div class="card-head"><div><span class="step brain-step">🧠</span><div><h2>Brain</h2><p>AI intelligence — not a capability.</p></div></div><span class="status-dot">Ollama</span></div>
-        <div class="brain-grid"><div><small>ROLE</small><strong>Reasoning & Planning</strong></div><div><small>PROVIDER</small><strong id="providerText">Ollama</strong></div><div><small>MODEL</small><strong id="modelText">qwen2.5-coder:7b</strong></div><div><small>BOUNDARY</small><strong>Separate service</strong></div></div>
-        <div class="reasoning" id="reasoning"><span>Waiting for a request…</span></div>
-      </div>
-    </section>
+      <section class="chat-column">
+        <div class="card chat-card">
+          <div class="chat-head"><div><h2>Conversation</h2><p>SPS-CA remembers the recent turns in this session.</p></div><span class="muted" id="pipelineState">Ready</span></div>
+          <div id="messages" class="messages">
+            <div class="welcome-message"><div class="welcome-icon">✦</div><div><strong>Hello — I’m SPS-CA.</strong><p>Paste code below, tell me what you want, and continue with feedback like “make that stricter”, “also handle null input”, or “write tests for the change”.</p></div></div>
+          </div>
+          <form id="chatForm" class="composer">
+            <textarea id="request" rows="3" placeholder="Tell SPS-CA what to do… e.g. Add input validation to this function"></textarea>
+            <div class="composer-bottom"><div class="composer-tools"><label>Language<select id="language"><option>python</option><option>javascript</option><option>typescript</option><option>java</option><option>go</option><option>csharp</option></select></label><label>Brain<input id="model" value="qwen2.5-coder:7b"></label><button type="button" id="attachCodeBtn" class="ghost">Code ▾</button></div><button id="runBtn" class="primary" type="submit">Send to SPS-CA <span>↗</span></button></div>
+          </form>
+        </div>
 
-    <section class="card code-card">
-      <div class="card-head"><div><span class="step">02</span><div><h2>Source Code</h2><p>Paste the source you want SPS-CA to reason about.</p></div></div><button id="sampleBtn" class="ghost">Load sample</button></div>
-      <textarea id="code" spellcheck="false">def add(a, b):
+        <div class="card code-dock" id="codeDock">
+          <div class="card-head"><div><span class="step">CODE</span><div><h2>Current working code</h2><p>This is the source carried from turn to turn.</p></div></div><div class="dock-actions"><button id="sampleBtn" class="ghost">Load sample</button><button id="collapseCodeBtn" class="ghost">Collapse</button></div></div>
+          <textarea id="code" spellcheck="false">def add(a, b):
     return a + b
 </textarea>
+        </div>
+      </section>
     </section>
 
-    <section class="pipeline-card">
-      <div class="section-title"><div><p class="eyebrow">LIVE ARCHITECTURE</p><h2>10-Layer SPS Pipeline</h2></div><span id="pipelineState" class="muted">Ready</span></div>
-      <div id="pipeline" class="pipeline"></div>
+    <section class="pipeline-card"><div class="section-title"><div><p class="eyebrow">OBSERVABILITY</p><h2>10-Layer SPS Pipeline</h2></div><span class="muted">Live per request</span></div><div id="pipeline" class="pipeline"></div></section>
+
+    <section class="lower-grid">
+      <div class="card result-card"><div class="card-head"><div><h2>Latest Brain Decision</h2><p>Current intent and reasoning.</p></div></div><div id="decision" class="empty">Send a request to see the Brain’s plan.</div></div>
+      <div class="card result-card"><div class="card-head"><div><h2>Latest Capability Run</h2><p>What SPS-CA executed for this turn.</p></div></div><div id="capabilities" class="cap-list"><div class="empty">No capability run yet.</div></div></div>
     </section>
 
-    <section class="results-grid">
-      <div class="card result-card"><div class="card-head"><div><h2>Brain Decision</h2><p>Why this plan was selected.</p></div></div><div id="decision" class="empty">Run a request to see the Brain's intent and ordered capability plan.</div></div>
-      <div class="card result-card"><div class="card-head"><div><h2>Capabilities</h2><p>Executable SPS skills selected by the Brain.</p></div></div><div id="capabilities" class="cap-list"></div></div>
-    </section>
+    <section class="card output-card"><div class="tabs"><button class="tab active" data-tab="output">Current Code</button><button class="tab" data-tab="diff">Latest Diff</button><button class="tab" data-tab="trace">Trace</button></div><pre id="output" class="code-output">No result yet.</pre><pre id="diff" class="code-output hidden">No diff yet.</pre><pre id="trace" class="code-output hidden">No trace yet.</pre></section>
 
-    <section class="card output-card"><div class="tabs"><button class="tab active" data-tab="output">Modified Code</button><button class="tab" data-tab="diff">Diff</button><button class="tab" data-tab="trace">Trace</button></div><pre id="output" class="code-output">No result yet.</pre><pre id="diff" class="code-output hidden">No diff yet.</pre><pre id="trace" class="code-output hidden">No trace yet.</pre></section>
-
-    <section class="card architecture-card"><div class="section-title"><div><p class="eyebrow">SYSTEM MAP</p><h2>Architecture & Capability Boundary</h2></div></div><div id="architecture" class="architecture"></div></section>
+    <section class="card architecture-card"><div class="section-title"><div><p class="eyebrow">SYSTEM MAP</p><h2>Architecture & Brain Boundary</h2></div></div><div id="architecture" class="architecture"></div></section>
   </main>
-  <footer>SPS-CA research prototype · Brain ≠ Capability · Capability Registry is a supporting subsystem</footer>
+  <footer>SPS-CA research prototype · Conversational workspace · Brain ≠ Capability</footer>
   <script src="/static/app.js"></script>
 </body>
 </html>
