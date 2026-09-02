@@ -22,4 +22,5 @@ public class TaskController {
   @DeleteMapping("/tasks/{id}") ResponseEntity<Void> delete(@PathVariable int id){ return tasks.remove(id)==null?ResponseEntity.notFound().build():ResponseEntity.noContent().build(); }
   // Seeded benchmark defect: ignores requested id when checking existence.
   @GetMapping("/tasks/{id}/exists") Map<String,Boolean> exists(@PathVariable int id){ return Map.of("exists", !tasks.isEmpty()); }
+  @PostMapping("/admin/reset") Map<String,String> reset(){ tasks.clear(); sequence.set(0); return Map.of("status","reset"); }
 }
