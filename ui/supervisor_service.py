@@ -1,9 +1,8 @@
 """Supervisor-facing SPS scenario orchestration.
 
-This service keeps research orchestration outside the CLI presentation layer.
-It connects a user prompt + source code to Layer 2 analysis, Layer 9 capability
-lookup, and Layer 8 capability-gap development while recording the decisions
-in Layer 3's persistent research trace.
+Presentation-adjacent orchestration for the research prototype. The canonical
+SPS architecture remains exactly ten layers; this service coordinates those
+layers for a submitted scenario and persists the research trace.
 """
 
 from __future__ import annotations
@@ -121,7 +120,7 @@ class SupervisorScenarioService:
                 },
             )
 
-            registry_matches = self.registry.search_capabilities(user_request)
+            registry_matches = self.registry.search_capabilities(user_request, language=language)
             core_ids = [candidate.id for candidate in candidates]
             registry_ids = [cap.id for cap in registry_matches]
             capability_ids = list(dict.fromkeys(core_ids + registry_ids))
@@ -152,7 +151,6 @@ class SupervisorScenarioService:
                 },
             )
 
-            generation: Dict[str, Any]
             if selected is None:
                 plan = self.evolution.plan_capability_for_gap(
                     task_description=user_request,
@@ -193,11 +191,7 @@ class SupervisorScenarioService:
                     },
                     **development,
                 }
-                generation_status = (
-                    "capability_developed"
-                    if development["registered"]
-                    else "capability_development_failed"
-                )
+                generation_status = "capability_developed" if development["registered"] else "capability_development_failed"
                 self.trace_store.append_event(
                     scenario_id,
                     "capability_developed" if development["registered"] else "capability_development_failed",
@@ -277,11 +271,8 @@ class SupervisorScenarioService:
         for keyword, capability_id in priority:
             if keyword in request_lower and capability_id in by_id:
                 return by_id[capability_id]
-
-        # Layer 9 may return an exact metadata match for generated capabilities.
-        # Prefer it only when the registry itself found text evidence.
         if registry_matches:
-            exact = self._best_registry_text_match(registry_matches, request_lower)
+            exact = SupervisorScenarioService._best_registry_text_match(registry_matches, request_lower)
             if exact is not None:
                 return exact
         return None
