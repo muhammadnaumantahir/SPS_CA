@@ -17,18 +17,25 @@ class TaskApiTest {
   @BeforeEach void reset() throws Exception { mvc.perform(post("/admin/reset")).andExpect(status().isOk()); }
   @Test void healthAndCrudContract() throws Exception {
     mvc.perform(get("/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));
+    mvc.perform(get("/tasks")).andExpect(status().isOk()).andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(0)));
     mvc.perform(post("/tasks").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"write tests\"}")).andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(1));
     mvc.perform(get("/tasks/1")).andExpect(status().isOk()).andExpect(jsonPath("$.title").value("write tests"));
     mvc.perform(put("/tasks/1").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"better tests\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.title").value("better tests"));
     mvc.perform(delete("/tasks/1")).andExpect(status().isNoContent());
     mvc.perform(get("/tasks/1")).andExpect(status().isNotFound());
+    mvc.perform(delete("/tasks/99")).andExpect(status().isNotFound());
   }
-  @Test void multipleIdsAreDistinct() throws Exception {
+  @Test void multipleIdsAndMissingUpdate() throws Exception {
     mvc.perform(post("/tasks").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"first\"}"));
     mvc.perform(post("/tasks").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"second\"}"));
     mvc.perform(get("/tasks/2")).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(2));
+    mvc.perform(put("/tasks/99").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"missing\"}")).andExpect(status().isNotFound());
   }
   @Test void emptyTitleRejected() throws Exception {
     mvc.perform(post("/tasks").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"\"}")).andExpect(status().isBadRequest());
+  }
+  @Test void seededExistsDefectIsPresent() throws Exception {
+    mvc.perform(post("/tasks").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"one\"}"));
+    mvc.perform(get("/tasks/999/exists")).andExpect(status().isOk()).andExpect(jsonPath("$.exists").value(true));
   }
 }
