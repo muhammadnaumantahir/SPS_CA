@@ -2,15 +2,21 @@
 ## Complete Master Development & Evaluation Plan
 ### Zero-Cost, Functional-Equivalence Edition
 
-**Version:** 4.1 (Phase 0 Implemented — Structure Realigned to Actual Codebase, Competitive Analysis Added)  
-**Date:** August 2026  
+**Version:** 4.2 (Phases 0-9 Implemented, Phase 10 Harness Implemented / Real-Model Runs Pending — Structure Realigned to Actual Codebase)  
+**Date:** September 2026  
 **Student:** Muhammad Nauman Tahir (MS240400054)  
 **Institution:** Virtual University of Pakistan  
 **Supervisor:** Dr. Muhammad Salman Bashir  
 **Timeline:** 32-36 weeks (development + evaluation) + 8-10 weeks thesis writing  
 **Development Phases:** 0-10 (11 total phases, consolidated)  
 **Budget:** $0 — see Section 9 (Zero-Cost LLM & Compute Architecture) and Appendix A  
-**Repository:** [github.com/muhammadnaumantahir/SPS_CA](https://github.com/muhammadnaumantahir/SPS_CA) — **v0.3.0, Phase 0 (Architecture Foundation) complete**
+**Repository:** [github.com/muhammadnaumantahir/SPS_CA](https://github.com/muhammadnaumantahir/SPS_CA) — **140 commits, README reports "Status: Phase 10 — Evaluation Harness"; Phases 0-8 substantially implemented and tested, Phase 9 baselines implemented, Phase 10 evaluation harness implemented with real-model experiment execution still pending controlled local Ollama runs**
+
+> **Change log (v4.1 → v4.2):**
+> - **Repository status corrected**: v4.1 documented only Phase 0 as complete. The actual repository (140 commits) has substantive implementation work through Phase 10: Layers 1-10 implemented (`PHASE1`-`PHASE5`/layer commits), Layer 8 Evolution Engine complete (`PHASE_4_COMPLETION.md`), seed capabilities CAP-001–CAP-008 implemented (`PHASE6`), a prompt-based CLI (`PHASE7`), three equivalent benchmark target projects in Python/Java/TypeScript (`PHASE8`), two comparison baselines (`PHASE9`), and a 25-scenario evaluation harness (`PHASE10`). Section 15 (Phase Overview Table) and Appendix C (File Manifest) are updated to match.
+> - **Evidence boundary clarified**: per `docs/PHASE_10_STATUS.md`, the Phase 10 harness itself is implemented and CI-tested, but the actual 25-scenario experiment runs against the local `qwen2.5-coder:7b` model have not yet been executed/recorded — this is the one genuinely open item blocking thesis evaluation data.
+> - **Repository housekeeping**: consolidated stray root-level completion reports (`PHASE_3_COMPLETION.md`, `PHASE_4_COMPLETION.md`) into `docs/` alongside the existing `docs/PHASE_5_STATUS.md`–`docs/PHASE_10_STATUS.md` series for a single consistent per-phase status location. Removed a duplicate, timestamp-named copy of this master document that had been committed under `docs/`.
+> - **Appendix C rewritten** against the actual current top-level tree, including `baselines/`, `evaluation/`, `sandbox/`, `scripts/`, and the `docs/PHASE_N_STATUS.md` series, none of which existed at the v4.1 (Phase-0-only) snapshot.
 
 > **Change log (v4.0 → v4.1):**
 > - **Phase 0 marked complete** and re-documented against the actual repository (45 commits, tag `v0.3.0`) instead of the originally planned layout.
@@ -2464,19 +2470,21 @@ DELIVERABLES (R10.1 - R10.10):
 
 | Phase | Title | Duration | Dependencies | Deliverables (R#.#) | Status |
 |-------|-------|----------|--------------|-------------------|--------|
-| 0 | Project Setup | Weeks 1-2 | — | R0.1-R0.5 | ✅ **Complete** (repo v0.3.0, 45 commits) |
-| 1 | Layers 1-2 (`layers/layer_01_software_dna/`, `layers/layer_02_cognitive_core/`) | Weeks 3-4 | Phase 0 | R1.1-R1.8 | Not started |
-| 2 | Layers 3-5 | Weeks 5-6 | Phase 1 | R2.1-R2.8 | Not started |
-| 3 | Layers 6-7 | Weeks 7-8 | Phase 2 | R3.1-R3.8 | Not started |
-| 4 | Layer 8 | Weeks 9-10 | Phase 3 | R4.1-R4.8 | Not started |
-| 5 | Layers 9-10 | Weeks 11-12 | Phase 4 | R5.1-R5.8 | Not started |
-| 6 | Seed Capabilities | Weeks 13-14 | Phase 5 | R6.1-R6.8 | Not started |
-| 7 | User Interface | Weeks 15-16 | Phase 6 | R7.1-R7.5 | Not started |
-| 8 | Target Projects | Weeks 17-18 | Phase 7 | R8.1-R8.5 | Not started |
-| 9 | Baselines | Weeks 19-20 | Phase 8 | R9.1-R9.5 | Not started |
-| 10 | Evaluation | Weeks 21-22+ | Phase 9 | R10.1-R10.10 | Not started |
+| 0 | Project Setup | Weeks 1-2 | — | R0.1-R0.5 | ✅ **Complete** — architecture foundation, `layers/`, `models/`, `coding/`, `execution/`, `governance/`, `validation/` boundaries |
+| 1 | Layers 1-2 (`layers/layer_01_software_dna/`, `layers/layer_02_cognitive_core/`) | Weeks 3-4 | Phase 0 | R1.1-R1.8 | ✅ **Complete** (`PHASE1` commit) |
+| 2 | Layers 3-5 (Experience, Meta-Learning, Adaptation) | Weeks 5-6 | Phase 1 | R2.1-R2.8 | ✅ **Complete** (`PHASE2` commit) |
+| 3 | Layers 6-7 (Validation & V&V, Governance) | Weeks 7-8 | Phase 2 | R3.1-R3.8 | ✅ **Complete** (`PHASE3`/`PHASE3-FIX` commits; see `docs/PHASE_3_STATUS.md`) |
+| 4 | Layer 8 (Evolution Engine) | Weeks 9-10 | Phase 3 | R4.1-R4.8 | ✅ **Complete** (see `docs/PHASE_4_STATUS.md`) |
+| 5 | Layers 9-10 (Capability Registry, Execution) | Weeks 11-12 | Phase 4 | R5.1-R5.8 | ✅ **Substantially implemented** — Layer 10 data model/execution engine, Layer 9 registry schema, regression tests present; full system-wide E2E evaluation deferred to Phase 10 (see `docs/PHASE_5_STATUS.md`) |
+| 6 | Seed Capabilities (CAP-001–CAP-008) | Weeks 13-14 | Phase 5 | R6.1-R6.8 | ✅ **Implemented**; CI verification pending (see `docs/PHASE_6_STATUS.md`) |
+| 7 | User Interface (Prompt-based CLI) | Weeks 15-16 | Phase 6 | R7.1-R7.5 | ✅ **Implemented**; CI verification pending/available via GitHub Actions (see `docs/PHASE_7_STATUS.md`) |
+| 8 | Target Projects (Python/Java/TypeScript) | Weeks 17-18 | Phase 7 | R8.1-R8.5 | ✅ **Implemented**; CI-tracked (see `docs/PHASE_8_STATUS.md`) |
+| 9 | Baselines (A: Naive LLM, B: Coding Agent) | Weeks 19-20 | Phase 8 | R9.1-R9.5 | ✅ **Implemented**; CI-tracked (see `docs/PHASE_9_STATUS.md`) |
+| 10 | Evaluation (25-scenario harness) | Weeks 21-22+ | Phase 9 | R10.1-R10.10 | 🟡 **Harness implemented, CI-tested** (`evaluation/scenarios.py`, `phase10_runner.py`, `metrics.py`); **real-model 25-scenario experiment execution against local `qwen2.5-coder:7b` not yet run** (see `docs/PHASE_10_STATUS.md`) |
 
 **Note:** Phase 1 onward, wherever a phase spec references `core/layer_N_*.py`, substitute the as-built path `layers/layer_0N_name/` (see Phase 0 above and Section 6.1 for the full mapping).
+
+**Overall as-built status:** Phases 0-9 have working, tested code in the repository. Phase 10's evaluation *infrastructure* is complete; what remains before thesis evaluation data exists is actually executing the 25 scenarios against the local model and recording results — everything upstream of that is in place.
 
 **Total Development Time:** ~18-20 weeks (Phases 0-9)  
 **Evaluation Time:** ~4-6 weeks (Phase 10)  
@@ -3147,31 +3155,37 @@ All tools are free, open-source, locally-run.
 
 ---
 
-## Appendix C: File Manifest (As-Built, Post-Phase 0)
+## Appendix C: File Manifest (As-Built, Post-Phase 9 / Phase 10 Harness)
 
-Top-level repository entries, `muhammadnaumantahir/SPS_CA` @ v0.3.0:
+Top-level repository entries, `muhammadnaumantahir/SPS_CA` (140 commits):
 
-| Path | Purpose | Planned in v4.0? |
+| Path | Purpose | Status |
 |------|---------|-------------------|
-| `README.md` | Project overview, architecture summary, setup quick-start | Yes |
-| `REQUIREMENTS.md` | Hardware/software/model/runtime/research requirements (authoritative) | **New in Phase 0** |
-| `SETUP.md` | Full installation & verification procedure | **New in Phase 0** |
-| `SETUP_AND_PUSH.sh` | Setup/bootstrap + git push helper script | **New in Phase 0** |
-| `requirements.txt`, `setup.py`, `.gitignore`, `Dockerfile` | Standard Python project scaffolding | Yes |
-| `core/` | Orchestration, shared state, event contracts across layers | Redefined (was flat layer files in v4.0) |
-| `layers/layer_01_software_dna/` … `layer_10_execution/` | One package per SPS layer, own implementation + tests | Redefined (was `core/layer_N_*.py`) |
-| `models/` | Provider-neutral model/LLM abstraction (Ollama today) | **New in Phase 0** |
-| `coding/` | Repository intelligence, AST/context analysis, controlled code modification, local Git ops | **New in Phase 0** |
-| `capabilities/` | Capability lifecycle, lineage, seed + generated capabilities, registry | Yes |
-| `execution/`, `governance/`, `validation/` | Standalone infrastructure supporting the same-named SPS layers | Redefined/expanded |
-| `memory/`, `data/` | Runtime conversations/experiences/traces/sessions/exports (not committed as source) | **New in Phase 0** |
-| `projects/` | User target projects, isolated from SPS source | Yes |
-| `experience/logs/` | Task logs and metrics | Yes |
-| `ui/` | UI and visualization | Yes |
-| `testing/` | Cross-layer, integration, system, scenario, baseline/benchmark tests | Renamed from `tests/` |
-| `evaluation/` | Evaluation results and checklists | Yes |
-| `analytics/` | Capability growth/genealogy datasets, metrics, evolution history | **New in Phase 0** |
-| `docs/architecture/SPS_CA_ARCHITECTURE_V2.md` | Authoritative architecture contract | **New in Phase 0** |
+| `README.md` | Project overview, architecture summary, setup quick-start, current status banner | Maintained through Phase 10 |
+| `REQUIREMENTS.md` | Hardware/software/model/runtime/research requirements (authoritative) | Complete |
+| `SETUP.md` | Full installation & verification procedure | Complete |
+| `SETUP_AND_PUSH.sh` | Setup/bootstrap + git push helper script | Complete |
+| `requirements.txt`, `setup.py`, `pytest.ini`, `.gitignore`, `Dockerfile` | Standard Python project scaffolding | Complete |
+| `core/` | Orchestration, shared state, event contracts across layers | Complete |
+| `layers/layer_01_software_dna/` … `layer_10_execution/` | One package per SPS layer, own implementation + tests | **All 10 layers implemented** (Phases 1-5) |
+| `models/` (`base/`, `ollama/`, `openai/`, `anthropic/`, `qwen/`, `registry/`) | Provider-neutral model/LLM abstraction, `qwen2.5-coder:7b` default | Complete |
+| `coding/` | Repository intelligence, AST/context analysis, controlled code modification, local Git ops | Complete |
+| `capabilities/` (`seeds/`, `generated/`, `lineage/`, `registry.json`, `seed_registry.py`) | Capability lifecycle, lineage, CAP-001–CAP-008 seed capabilities + generated (`cap_009`) | Complete (Phase 6) |
+| `execution/`, `governance/` (`dna_rules.json`, `decisions/`), `validation/` | Standalone infrastructure supporting the same-named SPS layers | Complete |
+| `memory/`, `data/` | Runtime conversations/experiences/traces/sessions/exports (not committed as source, `.gitkeep` only) | Complete (Phase 0) |
+| `projects/project_a_python/`, `project_b_java/`, `project_c_typescript/` | Three equivalent benchmark target projects (FastAPI / Spring Boot / Express) with matched seeded defects | Complete (Phase 8) |
+| `baselines/` (`baseline_a_naive_llm.py`, `baseline_b_coding_agent.py`, `local_llm.py`, `runner.py`) | Baseline A (naive LLM) and Baseline B (tool-augmented agent) comparison implementations | Complete (Phase 9) |
+| `evaluation/` (`scenarios.py`, `phase10_runner.py`, `metrics.py`, `checklists/`, subfolders for `baselines/`, `evolution/`, `regression/`, `rollback/`, `sandbox/`) | 25-scenario catalog, execution harness, metric aggregation | Harness complete; real-model runs pending (Phase 10) |
+| `experience/logs/` | Task logs and metrics | Complete |
+| `ui/` (`cli_interface.py`) | Prompt-based CLI (`load`, `show`, `help`, `quit`) | Complete (Phase 7) |
+| `testing/` | Cross-layer, integration, system, scenario, baseline/benchmark tests | Complete |
+| `analytics/` | Capability growth/genealogy datasets, metrics, evolution history | Complete |
+| `sandbox/` | Sandboxed execution support for validation/evolution | Complete |
+| `scripts/` (`colab_setup.sh`, `demo_evolution_cycle.py`, `model_smoke_test.py`, `run_tests.sh`) | Reproducibility and demo scripts | Complete |
+| `docs/architecture/SPS_CA_ARCHITECTURE_V2.md` | Authoritative architecture contract | Complete (Phase 0) |
+| `docs/SPS_CA_Master_Document.md` | This document (canonical copy, versioned in-repo) | Updated to v4.2 |
+| `docs/PHASE_3_STATUS.md` … `docs/PHASE_10_STATUS.md` | Per-phase implementation/status notes for Phases 3-10, one file per phase | Consolidated into a single naming convention in v4.2 (previously `PHASE_3_COMPLETION.md`/`PHASE_4_COMPLETION.md` sat inconsistently at repo root) |
+| `.github/workflows/` | CI workflows for Phase 6-10 test suites | Complete |
 
 ---
 
