@@ -1,7 +1,7 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Version:** 0.5.0  
-**Status:** Phase 5 — Capability Registry + Execution implemented  
+**Version:** 0.6.0  
+**Status:** Phase 6 — Initial Capability Implementation  
 **Goal:** Research prototype for governed, traceable and reversible self-programming.
 
 SPS-CA investigates whether an AI coding system can improve future performance by accumulating experience, adapting strategies, and safely developing reusable capabilities.
@@ -20,13 +20,19 @@ Self-modification must never bypass governance or validation.
 
 ## Current implementation status
 
-Phases 0–4 were implemented before Phase 5. Phase 5 now adds the operational capability registry/execution boundary:
+Phases 0–5 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry and execution boundary. **Phase 6 implements the eight seed capabilities as reusable executable components.**
 
-- **Layer 9:** capability metadata, querying, lifecycle state, provenance, reuse tracking and JSON persistence.
-- **Layer 10:** validated change application, test execution, execution logging, rollback with hash verification, regression monitoring and a Layer 9 registry hook.
-- **Canonical registry:** `capabilities/registry.json` is migrated to the Layer 9 structured schema and contains the generated `CAP-009` capability from Phase 4.
+- **CAP-001:** high-confidence bug pattern detection.
+- **CAP-002:** conservative syntax-error repair.
+- **CAP-003:** executable pytest smoke-test generation where behavior is statically inferable.
+- **CAP-004:** safe identity-append loop optimization.
+- **CAP-005:** risky-call/error-handling pattern detection.
+- **CAP-006:** conservative unused-literal assignment removal.
+- **CAP-007:** safe parameter annotation inference from literal defaults.
+- **CAP-008:** conservative documentation stub generation.
+- **CAP-009:** generated Phase-4 parse-error capability remains registered alongside the seed set.
 
-The Layer 10 test suite covers successful changes, new-file creation, failed-test rollback, exact restoration, execution logging, success-ratio metrics, monitoring and registry-usage reporting.
+Each seed uses the shared `CapabilityContext` / `CapabilityResult` interface and has its own metadata and README documentation. The canonical registry now indexes CAP-001 through CAP-009.
 
 ## Architecture
 
@@ -93,8 +99,6 @@ Generated capabilities retain provenance, triggering task/experience identifiers
 
 SPS-CA uses a provider-neutral model interface. The initial local provider is Ollama. Future adapters can support OpenAI, Anthropic and additional local/cloud providers without changing the SPS layers.
 
-For the current 16 GB RAM / Intel HD 620 / i7 7th Gen office machine, start with `qwen2.5-coder:7b`. Qwen3-Coder is a separate model and can be used later on stronger hardware.
-
 **Never commit API keys or model secrets.**
 
 ## Setup
@@ -107,17 +111,18 @@ Quick start after cloning:
 
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\activate
+# Windows: .venv\\Scripts\\activate
 # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 ollama pull qwen2.5-coder:7b
 pytest -q
 ```
 
-To run Layer 10 specifically:
+To run the seed-capability suite:
 
 ```bash
-pytest layers/layer_10_execution/tests/ -v
+pytest capabilities/tests/test_seed_capabilities.py -v
+pytest capabilities/tests/test_seed_registry.py -v
 ```
 
 ## Development rules
@@ -142,4 +147,4 @@ Primary evidence should include repeat-task performance, capability reuse, failu
 
 ## Status
 
-**Phase 5 implementation is in place.** Layer 9 owns the capability index and reuse history; Layer 10 owns controlled application, post-change testing, rollback and execution metrics. System-wide end-to-end evaluation across all target projects remains part of the later testing/evaluation phases.
+**Phase 6 capability implementation is in place.** The behavioral suite has been strengthened and a CI workflow is included, but the repository's Actions API currently reports no workflow runs, so remote CI/coverage execution has not been independently verified yet. Full system-wide evaluation remains part of the later testing/evaluation phases.
