@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SPS-CA — Self-Programming Code Assistant</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="logo">S</div><div><strong>SPS-CA</strong><span>Self-Programming Code Assistant</span></div></div>
+    <div class="top-actions"><span class="pill live"><i></i> System Online</span><span class="pill brain-pill">🧠 <b id="brainProvider">Ollama</b></span></div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div><p class="eyebrow">RESEARCH CONTROL CENTER</p><h1>Build. Reason. Verify. Evolve.</h1><p>Observe how an AI brain works with SPS-CA's ten architectural layers and reusable capabilities.</p></div>
+      <div class="hero-stat"><span>Architecture</span><strong>10 Layers</strong><small>Brain is separate</small></div>
+    </section>
+
+    <section class="workspace">
+      <div class="card request-card">
+        <div class="card-head"><div><span class="step">01</span><div><h2>Task / Prompt</h2><p>Tell SPS-CA what you want changed.</p></div></div><button id="clearBtn" class="ghost">Clear</button></div>
+        <textarea id="request" placeholder="e.g. Add input validation to this function"></textarea>
+        <div class="row-controls"><label>Language<select id="language"><option>python</option><option>javascript</option><option>typescript</option><option>java</option><option>go</option><option>csharp</option></select></label><label>Brain model<input id="model" value="qwen2.5-coder:7b"></label><button id="runBtn" class="primary">Run SPS-CA <span>→</span></button></div>
+      </div>
+
+      <div class="card brain-card">
+        <div class="card-head"><div><span class="step brain-step">🧠</span><div><h2>Brain</h2><p>AI intelligence — not a capability.</p></div></div><span class="status-dot">Ollama</span></div>
+        <div class="brain-grid"><div><small>ROLE</small><strong>Reasoning & Planning</strong></div><div><small>PROVIDER</small><strong id="providerText">Ollama</strong></div><div><small>MODEL</small><strong id="modelText">qwen2.5-coder:7b</strong></div><div><small>BOUNDARY</small><strong>Separate service</strong></div></div>
+        <div class="reasoning" id="reasoning"><span>Waiting for a request…</span></div>
+      </div>
+    </section>
+
+    <section class="card code-card">
+      <div class="card-head"><div><span class="step">02</span><div><h2>Source Code</h2><p>Paste the source you want SPS-CA to reason about.</p></div></div><button id="sampleBtn" class="ghost">Load sample</button></div>
+      <textarea id="code" spellcheck="false">def add(a, b):
+    return a + b
+</textarea>
+    </section>
+
+    <section class="pipeline-card">
+      <div class="section-title"><div><p class="eyebrow">LIVE ARCHITECTURE</p><h2>10-Layer SPS Pipeline</h2></div><span id="pipelineState" class="muted">Ready</span></div>
+      <div id="pipeline" class="pipeline"></div>
+    </section>
+
+    <section class="results-grid">
+      <div class="card result-card"><div class="card-head"><div><h2>Brain Decision</h2><p>Why this plan was selected.</p></div></div><div id="decision" class="empty">Run a request to see the Brain's intent and ordered capability plan.</div></div>
+      <div class="card result-card"><div class="card-head"><div><h2>Capabilities</h2><p>Executable SPS skills selected by the Brain.</p></div></div><div id="capabilities" class="cap-list"></div></div>
+    </section>
+
+    <section class="card output-card"><div class="tabs"><button class="tab active" data-tab="output">Modified Code</button><button class="tab" data-tab="diff">Diff</button><button class="tab" data-tab="trace">Trace</button></div><pre id="output" class="code-output">No result yet.</pre><pre id="diff" class="code-output hidden">No diff yet.</pre><pre id="trace" class="code-output hidden">No trace yet.</pre></section>
+
+    <section class="card architecture-card"><div class="section-title"><div><p class="eyebrow">SYSTEM MAP</p><h2>Architecture & Capability Boundary</h2></div></div><div id="architecture" class="architecture"></div></section>
+  </main>
+  <footer>SPS-CA research prototype · Brain ≠ Capability · Capability Registry is a supporting subsystem</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
