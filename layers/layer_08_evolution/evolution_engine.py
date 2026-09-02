@@ -1,14 +1,9 @@
-"""Layer 8: Evolution Engine -- the core self-programming mechanism.
-
-Per the architecture contract, Evolution proposes and develops new capabilities
-from repeated limitations. The supervisor-facing path also supports an
-immediate capability gap: once Layers 2/9 determine that no suitable capability
-exists, Layer 8 plans, generates, tests, and registers a new capability.
-"""
+"""Layer 8: Evolution Engine -- the core self-programming mechanism."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,13 +14,7 @@ from layers.layer_03_experience.experience_log import ExperienceLog
 from layers.layer_07_governance.governance import GovernanceGate
 from layers.layer_07_governance.models import ChangeType, DecisionStatus
 
-from .models import (
-    CapabilityPlan,
-    EvolutionRecord,
-    EvolutionTrigger,
-    GeneratedCapabilityFiles,
-    TestRunResult,
-)
+from .models import CapabilityPlan, EvolutionRecord, EvolutionTrigger, GeneratedCapabilityFiles, TestRunResult
 
 DEFAULT_MIN_OCCURRENCES = 3
 DEFAULT_GENERATED_DIR = "capabilities/generated"
@@ -34,7 +23,6 @@ DEFAULT_REGISTRY_PATH = "capabilities/registry.json"
 DEFAULT_EVALUATION_DIR = "evaluation/evolution"
 DEFAULT_COVERAGE_THRESHOLD = 80.0
 FIRST_GENERATED_NUMBER = 9
-
 _COVERAGE_TOTAL_RE = re.compile(r"TOTAL\s+.*?(\d+)%\s*$", re.MULTILINE)
 
 
@@ -43,8 +31,7 @@ class EvolutionError(Exception):
 
 
 def _slugify(text: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
-    return slug or "capability"
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_") or "capability"
 
 
 def _module_name(capability_id: str) -> str:
@@ -71,44 +58,43 @@ class EvolutionEngine:
         for pattern, count in patterns.items():
             if count < min_occurrences:
                 continue
-            task_ids = [task.id for task in experience_log.tasks if task.is_failure and task.failure_category == pattern]
-            triggers.append(EvolutionTrigger(pattern=pattern, occurrence_count=count, trigger_task_ids=task_ids))
-        triggers.sort(key=lambda trigger: trigger.occurrence_count, reverse=True)
+            ids = [task.id for task in experience_log.tasks if task.is_failure and task.failure_category == pattern]
+            triggers.append(EvolutionTrigger(pattern=pattern, occurrence_count=count, trigger_task_ids=ids))
+        triggers.sort(key=lambda item: item.occurrence_count, reverse=True)
         return triggers
 
     def plan_new_capability(self, trigger: EvolutionTrigger, capability_id: Optional[str] = None, supported_languages: Optional[List[str]] = None) -> CapabilityPlan:
         capability_id = capability_id or self.next_capability_id()
-        slug = _slugify(trigger.pattern)
-        languages = supported_languages or ["python"]
         return CapabilityPlan(
             capability_id=capability_id,
             name=f"{trigger.pattern.strip().title()} Handler",
             description=(f"Generated from {trigger.occurrence_count} repeated '{trigger.pattern}' failures "
                          f"(tasks: {', '.join(trigger.trigger_task_ids) if trigger.trigger_task_ids else 'n/a'})."),
             entry_point=f"capabilities.generated.{_module_name(capability_id)}.capability.run",
-            supported_languages=languages,
+            supported_languages=supported_languages or ["python"],
             trigger_pattern=trigger.pattern,
             trigger_task_ids=list(trigger.trigger_task_ids),
             test_case_names=[
-                f"test_{slug}_modifies_supported_input",
-                f"test_{slug}_fails_gracefully_on_empty_input",
-                f"test_{slug}_no_ops_on_unsupported_language",
+                f"test_{_slugify(trigger.pattern)}_modifies_supported_input",
+                f"test_{_slugify(trigger.pattern)}_fails_gracefully_on_empty_input",
+                f"test_{_slugify(trigger.pattern)}_no_ops_on_unsupported_language",
             ],
         )
 
     def plan_capability_for_gap(self, task_description: str, language: str, reason: str, task_id: Optional[str] = None) -> CapabilityPlan:
         from .gap_planner import CapabilityGapPlanner
-        planner = CapabilityGapPlanner(seeds_dir=str(self.seeds_dir), generated_dir=str(self.generated_dir))
-        return planner.plan(task_description=task_description, language=language, reason=reason, task_id=task_id)
+        return CapabilityGapPlanner(seeds_dir=str(self.seeds_dir), generated_dir=str(self.generated_dir)).plan(
+            task_description=task_description, language=language, reason=reason, task_id=task_id
+        )
 
     def next_capability_id(self) -> str:
         used_numbers = set()
-        for metadata_dir in (self.seeds_dir, self.generated_dir):
-            if not metadata_dir.exists():
+        for directory in (self.seeds_dir, self.generated_dir):
+            if not directory.exists():
                 continue
-            for path in metadata_dir.glob("*/metadata.json"):
+            for metadata_path in directory.glob("*/metadata.json"):
                 try:
-                    data = json.loads(path.read_text(encoding="utf-8"))
+                    data = json.loads(metadata_path.read_text(encoding="utf-8"))
                 except (OSError, json.JSONDecodeError):
                     continue
                 number = self._capability_number(data.get("id", ""))
@@ -127,46 +113,35 @@ class EvolutionEngine:
     @staticmethod
     def _generated_capability_source(plan: CapabilityPlan) -> str:
         trigger = plan.trigger_pattern
-        supported = repr(plan.supported_languages)
-        trigger_repr = repr(trigger)
-        common = f'''"""{plan.capability_id}: generated by Layer 8 (Evolution).\n\nTrigger: {trigger}\nPurpose: {plan.description}\n"""\n\nfrom __future__ import annotations\n\nfrom capabilities.base import CapabilityContext, CapabilityResult\n\nSUPPORTED_LANGUAGES = {supported}\nTRIGGER_PATTERN = {trigger_repr}\n\n'''
+        common = f'''"""{plan.capability_id}: generated by Layer 8 (Evolution).\n\nTrigger: {trigger}\nPurpose: {plan.description}\n"""\n\nfrom __future__ import annotations\n\nfrom capabilities.base import CapabilityContext, CapabilityResult\n\nSUPPORTED_LANGUAGES = {plan.supported_languages!r}\nTRIGGER_PATTERN = {trigger!r}\n\n'''
 
         if trigger == "input_validation":
-            body = '''def run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    lines = context.code.splitlines()\n    for index, line in enumerate(lines):\n        marker = line.strip()\n        if marker.startswith("def ") and "(" in marker and marker.endswith(":"):\n            inside = marker.split("(", 1)[1].rsplit(")", 1)[0]\n            parameter = inside.split(",", 1)[0].strip().split(":", 1)[0].strip().split("=", 1)[0].strip()\n            if parameter:\n                indent = line[: len(line) - len(line.lstrip())] + "    "\n                guard = f"{indent}if {parameter} is None:\\n{indent}    raise ValueError('input validation failed: {parameter} is required')"\n                lines.insert(index + 1, guard)\n                return CapabilityResult.ok(summary="Added input validation.", modified_code="\\n".join(lines), findings=[{"issue": "input-validation-added", "parameter": parameter}])\n    return CapabilityResult.fail(error="No safe function parameter was found to validate.")\n'''
-            return common + body
+            return common + '''def run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    lines = context.code.splitlines()\n    for index, line in enumerate(lines):\n        marker = line.strip()\n        if marker.startswith("def ") and "(" in marker and marker.endswith(":"):\n            inside = marker.split("(", 1)[1].rsplit(")", 1)[0]\n            parameter = inside.split(",", 1)[0].strip().split(":", 1)[0].strip().split("=", 1)[0].strip()\n            if parameter:\n                indent = line[: len(line) - len(line.lstrip())] + "    "\n                guard = f"{indent}if {parameter} is None:\\n{indent}    raise ValueError('input validation failed: {parameter} is required')"\n                lines.insert(index + 1, guard)\n                return CapabilityResult.ok(summary="Added input validation.", modified_code="\\n".join(lines), findings=[{"issue": "input-validation-added", "parameter": parameter}])\n    return CapabilityResult.fail(error="No safe function parameter was found to validate.")\n'''
 
         if trigger == "sql_parameterization":
-            body = '''import re\n\ndef run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    pattern = re.compile(r'cursor\\.execute\\(f(["\\\'])(.*?)\\1\\)')\n    match = pattern.search(context.code)\n    if not match:\n        return CapabilityResult.fail(error="No safely parameterizable cursor.execute f-string was found.")\n    query = match.group(2)\n    variables = re.findall(r'\\{\\s*([A-Za-z_]\\w*)\\s*\\}', query)\n    if len(variables) != 1:\n        return CapabilityResult.fail(error="Expected exactly one SQL interpolation variable.")\n    variable = variables[0]\n    parameterized = re.sub(r'\\{\\s*' + re.escape(variable) + r'\\s*\\}', '%s', query)\n    replacement = f'cursor.execute("{parameterized}", ({variable},))'\n    updated = context.code[:match.start()] + replacement + context.code[match.end():]\n    return CapabilityResult.ok(summary="Parameterized SQL interpolation.", modified_code=updated, findings=[{"issue": "sql-parameterized", "parameter": variable}])\n'''
-            return common + body
+            return common + '''import re\n\ndef run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    pattern = re.compile(r'cursor\\.execute\\(f(["\\\'])(.*?)\\1\\)')\n    match = pattern.search(context.code)\n    if not match:\n        return CapabilityResult.fail(error="No safely parameterizable cursor.execute f-string was found.")\n    query = match.group(2)\n    variables = re.findall(r'\\{\\s*([A-Za-z_]\\w*)\\s*\\}', query)\n    if len(variables) != 1:\n        return CapabilityResult.fail(error="Expected exactly one SQL interpolation variable.")\n    variable = variables[0]\n    parameterized = re.sub(r'\\{\\s*' + re.escape(variable) + r'\\s*\\}', '%s', query)\n    replacement = f'cursor.execute("{parameterized}", ({variable},))'\n    updated = context.code[:match.start()] + replacement + context.code[match.end():]\n    return CapabilityResult.ok(summary="Parameterized SQL interpolation.", modified_code=updated, findings=[{"issue": "sql-parameterized", "parameter": variable}])\n'''
 
         if trigger == "logging":
-            body = '''import re\n\ndef run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    lines = context.code.splitlines()\n    for index, line in enumerate(lines):\n        match = re.match(r'^(\\s*)def\\s+(\\w+)\\s*\\(', line)\n        if match:\n            prefix = "import logging\\nlogger = logging.getLogger(__name__)\\n\\n" if "import logging" not in context.code else ""\n            log_line = f"{match.group(1)}    logger.info('{match.group(2)} called')"\n            updated = prefix + "\\n".join(lines[:index + 1] + [log_line] + lines[index + 1:])\n            return CapabilityResult.ok(summary="Added function-call logging.", modified_code=updated, findings=[{"issue": "request-logging-added", "function": match.group(2)}])\n    return CapabilityResult.fail(error="No function was found to instrument.")\n'''
-            return common + body
+            return common + '''import re\n\ndef run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    lines = context.code.splitlines()\n    for index, line in enumerate(lines):\n        match = re.match(r'^(\\s*)def\\s+(\\w+)\\s*\\(', line)\n        if match:\n            prefix = "import logging\\nlogger = logging.getLogger(__name__)\\n\\n" if "import logging" not in context.code else ""\n            log_line = f"{match.group(1)}    logger.info('{match.group(2)} called')"\n            updated = prefix + "\\n".join(lines[:index + 1] + [log_line] + lines[index + 1:])\n            return CapabilityResult.ok(summary="Added function-call logging.", modified_code=updated, findings=[{"issue": "request-logging-added", "function": match.group(2)}])\n    return CapabilityResult.fail(error="No function was found to instrument.")\n'''
 
-        # Unknown triggers still need a safe, observable transformation. Keep
-        # this generated module intentionally small so its three quality-gate
-        # tests can provide complete coverage for the generic evolution path.
-        body = '''def run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    updated = context.code.rstrip() + f"\\n\\n# Layer 8 generated capability: {TRIGGER_PATTERN}\\n"\n    return CapabilityResult.ok(summary=f"Generated {TRIGGER_PATTERN} marker transformation.", modified_code=updated, findings=[{"issue": "generated-transform", "trigger": TRIGGER_PATTERN}])\n'''
-        return common + body
+        return common + '''def run(context: CapabilityContext) -> CapabilityResult:\n    if context.language not in SUPPORTED_LANGUAGES:\n        return CapabilityResult.ok(summary=f"{TRIGGER_PATTERN} capability does not support '{context.language}'.")\n    if not context.code or not context.code.strip():\n        return CapabilityResult.fail(error="No code provided to modify.")\n    updated = context.code.rstrip() + f"\\n\\n# Layer 8 generated capability: {TRIGGER_PATTERN}\\n"\n    return CapabilityResult.ok(summary=f"Generated {TRIGGER_PATTERN} marker transformation.", modified_code=updated, findings=[{"issue": "generated-transform", "trigger": TRIGGER_PATTERN}])\n'''
 
     def generate_capability_code(self, plan: CapabilityPlan) -> GeneratedCapabilityFiles:
-        """Generate an executable capability plus tests and provenance metadata."""
         module = _module_name(plan.capability_id)
         primary_language = plan.supported_languages[0]
         trigger = plan.trigger_pattern
-        test_names = plan.test_case_names or [
+        names = plan.test_case_names or [
             f"test_{_slugify(trigger)}_modifies_supported_input",
             f"test_{_slugify(trigger)}_fails_gracefully_on_empty_input",
             f"test_{_slugify(trigger)}_no_ops_on_unsupported_language",
         ]
-        capability_code = self._generated_capability_source(plan)
         examples = {
             "input_validation": "def calculate(age):\n    return age + 10\n",
             "sql_parameterization": 'cursor.execute(f"select * from users where id={user_id}")\n',
             "logging": "def process(value):\n    return value * 2\n",
         }
         supported_example = examples.get(trigger, "def process(value):\n    return value\n")
-        tests_code = f'''"""Tests for {plan.capability_id}."""\n\nfrom capabilities.base import CapabilityContext\nfrom capabilities.generated.{module}.capability import run\n\n\ndef {test_names[0]}():\n    result = run(CapabilityContext(code={supported_example!r}, language={primary_language!r}))\n    assert result.success\n    assert result.modified_code\n    assert result.modified_code != {supported_example!r}\n    assert result.findings\n\n\ndef {test_names[1]}():\n    result = run(CapabilityContext(code="", language={primary_language!r}))\n    assert not result.success\n\n\ndef {test_names[2]}():\n    result = run(CapabilityContext(code="some code", language="__unsupported__"))\n    assert result.success\n    assert result.modified_code is None\n'''
+        tests_code = f'''"""Tests for {plan.capability_id}."""\n\nfrom pathlib import Path\nimport importlib.util\nimport os\nimport sys\n\nREPO_ROOT = os.environ.get("SPS_CA_REPO_ROOT")\nif REPO_ROOT and REPO_ROOT not in sys.path:\n    sys.path.insert(0, REPO_ROOT)\n\n_MODULE_PATH = Path(__file__).with_name("capability.py")\n_SPEC = importlib.util.spec_from_file_location("generated_capability_under_test", _MODULE_PATH)\n_MODULE = importlib.util.module_from_spec(_SPEC)\n_SPEC.loader.exec_module(_MODULE)\nrun = _MODULE.run\n\n\ndef {names[0]}():\n    result = run(_MODULE.CapabilityContext(code={supported_example!r}, language={primary_language!r}))\n    assert result.success\n    assert result.modified_code\n    assert result.modified_code != {supported_example!r}\n    assert result.findings\n\n\ndef {names[1]}():\n    result = run(_MODULE.CapabilityContext(code="", language={primary_language!r}))\n    assert not result.success\n\n\ndef {names[2]}():\n    result = run(_MODULE.CapabilityContext(code="some code", language="__unsupported__"))\n    assert result.success\n    assert result.modified_code is None\n'''
         metadata = {
             "id": plan.capability_id,
             "name": plan.name,
@@ -186,7 +161,7 @@ class EvolutionEngine:
             "provenance": plan.provenance,
         }
         readme = f"# {plan.capability_id}: {plan.name}\n\n{plan.description}\n\nGenerated by Layer 8 (Evolution) after a capability gap was detected.\n"
-        return GeneratedCapabilityFiles(capability_code=capability_code, tests_code=tests_code, metadata=metadata, readme=readme)
+        return GeneratedCapabilityFiles(capability_code=self._generated_capability_source(plan), tests_code=tests_code, metadata=metadata, readme=readme)
 
     def implement_capability(self, plan: CapabilityPlan, files: GeneratedCapabilityFiles) -> Path:
         module_dir = self.generated_dir / _module_name(plan.capability_id)
@@ -196,24 +171,26 @@ class EvolutionEngine:
         (module_dir / "tests.py").write_text(files.tests_code, encoding="utf-8")
         (module_dir / "metadata.json").write_text(json.dumps(files.metadata, indent=2) + "\n", encoding="utf-8")
         (module_dir / "README.md").write_text(files.readme, encoding="utf-8")
-        init_path = self.generated_dir / "__init__.py"
-        if not init_path.exists():
-            init_path.write_text("", encoding="utf-8")
+        if not (self.generated_dir / "__init__.py").exists():
+            self.generated_dir.mkdir(parents=True, exist_ok=True)
+            (self.generated_dir / "__init__.py").write_text("", encoding="utf-8")
         return module_dir
 
     def test_capability(self, capability_id: str, project_root: str = ".") -> TestRunResult:
-        module = _module_name(capability_id)
-        module_dir = self.generated_dir / module
+        module_dir = self.generated_dir / _module_name(capability_id)
         tests_path = module_dir / "tests.py"
         if not tests_path.exists():
             raise EvolutionError(f"No generated tests found for {capability_id}: {tests_path}")
-        cov_target = f"capabilities.generated.{module}.capability"
+        cov_target = str((module_dir / "capability.py").resolve())
+        env = os.environ.copy()
+        env["SPS_CA_REPO_ROOT"] = str(Path(__file__).resolve().parents[2])
         completed = subprocess.run(
             [sys.executable, "-m", "pytest", str(tests_path), "-v", f"--cov={cov_target}", "--cov-report=term-missing"],
             cwd=project_root,
             capture_output=True,
             text=True,
             timeout=120,
+            env=env,
         )
         output = completed.stdout + completed.stderr
         return TestRunResult(
@@ -248,13 +225,18 @@ class EvolutionEngine:
     def develop_capability_for_gap(self, plan: CapabilityPlan, *, project_root: str = ".", governance_decision_status: Optional[DecisionStatus] = None) -> Dict[str, Any]:
         files = self.generate_capability_code(plan)
         module_dir = self.implement_capability(plan, files)
-        test_result = self.test_capability(plan.capability_id, project_root=project_root)
-        registered = self.register_capability(plan, files, test_result, governance_decision_status=governance_decision_status)
+        result = self.test_capability(plan.capability_id, project_root=project_root)
+        registered = self.register_capability(plan, files, result, governance_decision_status=governance_decision_status)
         return {
             "capability_id": plan.capability_id,
             "module_dir": str(module_dir),
             "implemented": True,
-            "test_result": {"passed": test_result.passed, "tests_run": test_result.tests_run, "tests_failed": test_result.tests_failed, "coverage_percent": test_result.coverage_percent},
+            "test_result": {
+                "passed": result.passed,
+                "tests_run": result.tests_run,
+                "tests_failed": result.tests_failed,
+                "coverage_percent": result.coverage_percent,
+            },
             "registered": registered,
         }
 
