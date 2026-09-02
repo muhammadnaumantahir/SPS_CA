@@ -40,15 +40,15 @@ launch()
 
 In Colab the launcher detects the notebook environment and enables a Gradio share link. SPS processing still happens inside the Colab runtime.
 
-### Cell 6 — Run the first supervisor scenario
-Open **SPS Supervisor** and provide:
+### Cell 6 — Run the first SPS-CA scenario
+Open **SPS-CA** and provide:
 
 1. A task/prompt, for example: `add input validation to this function`
 2. A programming language
 3. Pasted code or an uploaded source file
 4. An optional target project directory
 
-Click **Run SPS Supervisor**.
+Click **Run SPS-CA**.
 
 Review the execution summary and modified code before treating the scenario as successful.
 
@@ -114,7 +114,7 @@ python ui/web_ui.py
 
 ## Dashboard sections
 
-### SPS Supervisor
+### SPS-CA
 The main research workspace for prompt + code submission and governed modification.
 
 ### Capabilities
