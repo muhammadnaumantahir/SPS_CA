@@ -233,13 +233,18 @@ class Handler(BaseHTTPRequestHandler):
         print(f"[SPS-CA] {fmt % args}")
 
 
+class ReusableHTTPServer(ThreadingHTTPServer):
+    """Allow address reuse so the server can restart on the same port."""
+    allow_reuse_address = True
+
+
 def main() -> None:
     host, port = "127.0.0.1", 8080
     print(f"SPS-CA dashboard: http://{host}:{port}")
     print("Conversational coding mode: enabled")
     print("Brain: provider-neutral; Ollama is the default provider")
     print("Tabs: Chat | Capabilities | Growth | Guide")
-    ThreadingHTTPServer((host, port), Handler).serve_forever()
+    ReusableHTTPServer((host, port), Handler).serve_forever()
 
 
 if __name__ == "__main__":
