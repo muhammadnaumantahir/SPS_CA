@@ -36,6 +36,7 @@ def _literal_for_parameter(
     arg: ast.arg,
     default: ast.expr | None,
     *,
+    position: int = 0,
     string_mode: bool = False,
     arithmetic_mode: bool = False,
     passthrough_mode: bool = False,
@@ -45,7 +46,7 @@ def _literal_for_parameter(
     if string_mode:
         return "'x'"
     if arithmetic_mode or passthrough_mode:
-        return "2" if arithmetic_mode else "0"
+        return str(2 + position) if arithmetic_mode else "0"
     if arg.annotation is not None:
         name = ast.unparse(arg.annotation)
         if name in {"int", "float"}:
@@ -71,12 +72,13 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
     )
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + list(node.args.defaults)
     args = []
-    for arg, default in zip(node.args.args, defaults):
+    for position, (arg, default) in enumerate(zip(node.args.args, defaults)):
         if arg.arg in {"self", "cls"}:
             return None
         value = _literal_for_parameter(
             arg,
             default,
+            position=position,
             string_mode=string_mode,
             arithmetic_mode=arithmetic_mode,
             passthrough_mode=passthrough_mode,
@@ -91,11 +93,7 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
     if string_mode:
         try:
             local_values = {arg.arg: "x" for arg in node.args.args}
-            expected = eval(
-                compile(ast.Expression(return_expr), "<cap003>", "eval"),
-                {"__builtins__": {}},
-                local_values,
-            )
+            expected = eval(compile(ast.Expression(return_expr), "<cap003>", "eval"), {"__builtins__": {}}, local_values)
             return f"assert {call} == {expected!r}"
         except Exception:
             return None
@@ -105,11 +103,7 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
                 arg.arg: ast.literal_eval(ast.parse(value, mode="eval").body)
                 for arg, value in zip(node.args.args, args)
             }
-            expected = eval(
-                compile(ast.Expression(return_expr), "<cap003>", "eval"),
-                {"__builtins__": {}},
-                local_values,
-            )
+            expected = eval(compile(ast.Expression(return_expr), "<cap003>", "eval"), {"__builtins__": {}}, local_values)
             return f"assert {call} == {expected!r}"
         except Exception:
             return None
@@ -117,8 +111,6 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
         source_name = return_expr.id
         source_index = [arg.arg for arg in node.args.args].index(source_name)
         return f"assert {call} == {args[source_index]}"
-    if not node.args.args:
-        return f"assert {call} is not None"
     return f"assert {call} is not None"
 
 
