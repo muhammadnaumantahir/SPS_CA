@@ -13,6 +13,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install -r layers/layer_02_cognitive_core/requirements.txt
-      - run: python -m pip install pytest
+      - run: python -m pip install requests pytest
       - run: python -m pytest -q baselines/tests
