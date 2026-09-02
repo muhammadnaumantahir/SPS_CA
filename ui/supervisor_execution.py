@@ -1,16 +1,10 @@
-"""End-to-end supervisor scenario execution without a web UI.
-
-This is presentation-independent orchestration. It consumes the decision made
-by the supervisor scenario service, resolves the selected/generated capability,
-then routes the proposed user-code modification through Layer 6 Validation,
-Layer 7 Governance, and Layer 10 Execution. Research details are persisted by
-Layer 3's evolution trace store.
-"""
+"""End-to-end supervisor scenario execution without a web UI."""
 
 from __future__ import annotations
 
-import importlib
 import hashlib
+import importlib
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -40,9 +34,8 @@ class SupervisorExecutionService:
         workspace_root: str = "data/supervisor_workspaces",
     ) -> None:
         self.registry_path = registry_path
-        self.seeds_dir = seeds_dir
-        self.generated_dir = generated_dir
         self.workspace_root = Path(workspace_root)
+        self.repo_root = Path(__file__).resolve().parents[1]
         self.trace_store = EvolutionTraceStore(trace_history_path, trace_stage_path)
         self.analysis_service = SupervisorScenarioService(
             trace_history_path=trace_history_path,
@@ -62,50 +55,29 @@ class SupervisorExecutionService:
         file_path: str = "",
         target_project: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Run one scenario through capability selection/growth and code execution.
-
-        When ``target_project`` is omitted, a persistent supervisor workspace is
-        created under ``data/supervisor_workspaces/<scenario_id>`` so the original
-        submitted text remains untouched while the resulting code is still a
-        concrete file artifact the supervisor can inspect.
-        """
         analysis: SupervisorAnalysisResult = self.analysis_service.analyze_submission(
             user_request=user_request,
             code=code,
             language=language,
             file_path=file_path,
-            project_root=str(Path(__file__).resolve().parents[1]),
+            project_root=str(self.repo_root),
         )
         scenario_id = analysis.scenario_id
         generation = analysis.capability_generation
         cap_id = analysis.capability_search.get("selected") or generation.get("capability_id")
         if not cap_id:
-            self.trace_store.complete_scenario(
-                scenario_id,
-                status="failed",
-                result={"success": False, "error": "No capability was selected or generated."},
-            )
-            return {"scenario_id": scenario_id, "success": False, "error": "No capability available."}
+            return self._fail(scenario_id, "No capability was selected or generated.")
 
         registry = CapabilityRegistryManager(self.registry_path)
-        capability = registry.get_capability(cap_id)
-        if capability is None and generation.get("required"):
-            # Layer 8 registration may have normalized a legacy registry file;
-            # reload Layer 9 before declaring that the generated capability is missing.
+        if generation.get("required"):
+            self._canonicalize_generated_registration(generation, registry)
             registry = CapabilityRegistryManager(self.registry_path)
-            capability = registry.get_capability(cap_id)
+        capability = registry.get_capability(cap_id)
         if capability is None:
-            self.trace_store.complete_scenario(
-                scenario_id,
-                status="failed",
-                result={"success": False, "error": f"Capability {cap_id} is not registered."},
-            )
-            return {"scenario_id": scenario_id, "success": False, "error": f"Capability {cap_id} not registered."}
+            return self._fail(scenario_id, f"Capability {cap_id} is not registered.")
 
-        entry_point = capability.entry_point
-        module_name, _, function_name = entry_point.rpartition(".")
-        capability_module = importlib.import_module(module_name)
-        capability_fn = getattr(capability_module, function_name)
+        module_name, _, function_name = capability.entry_point.rpartition(".")
+        capability_fn = getattr(importlib.import_module(module_name), function_name)
 
         workspace, relative_file = self._prepare_workspace(
             scenario_id=scenario_id,
@@ -128,10 +100,10 @@ class SupervisorExecutionService:
             self.trace_store.complete_scenario(
                 scenario_id,
                 status="modification_failed",
-                modification={"capability_id": cap_id, "summary": capability_result.summary},
+                modification=self._modification_record(cap_id, relative_file, original, original, capability_result),
                 result={"success": False, "error": capability_result.error or "Capability produced no modification."},
             )
-            return {"scenario_id": scenario_id, "success": False, "error": capability_result.error or "No modification produced."}
+            return {"scenario_id": scenario_id, "success": False, "capability_id": cap_id, "error": capability_result.error or "No modification produced."}
 
         modified = capability_result.modified_code
         change = Change.new(
@@ -143,34 +115,22 @@ class SupervisorExecutionService:
         )
 
         validator = Validator(str(workspace))
-        validation = validator.run_in_sandbox(
-            modified,
-            change.change_id,
-            relative_file,
-        )
-        validation_status = validation.status.value
+        validation = validator.run_in_sandbox(modified, change.change_id, relative_file)
         if validation.status.value != "success":
             self.trace_store.complete_scenario(
                 scenario_id,
                 status="validation_failed",
                 modification=self._modification_record(cap_id, relative_file, original, modified, capability_result),
                 validation={
-                    "status": validation_status,
+                    "status": validation.status.value,
                     "exit_code": getattr(validation, "exit_code", None),
                     "exception": getattr(validation, "exception", None),
                 },
                 result={"success": False, "error": "Layer 6 rejected the proposed modification."},
             )
-            return {
-                "scenario_id": scenario_id,
-                "success": False,
-                "capability_id": cap_id,
-                "validation": validation_status,
-                "modified_code": modified,
-            }
+            return {"scenario_id": scenario_id, "success": False, "capability_id": cap_id, "validation": validation.status.value, "modified_code": modified}
 
-        governance = GovernanceGate()
-        decision = governance.make_decision(
+        decision = GovernanceGate().make_decision(
             change.change_id,
             self._change_type(generation, user_request),
             user_request,
@@ -182,22 +142,11 @@ class SupervisorExecutionService:
                 scenario_id,
                 status="governance_pending",
                 modification=self._modification_record(cap_id, relative_file, original, modified, capability_result),
-                validation={"status": validation_status},
-                governance={
-                    "decision_id": decision.id,
-                    "decision": decision.decision.value,
-                    "rationale": decision.rationale,
-                },
+                validation={"status": validation.status.value},
+                governance={"decision_id": decision.id, "decision": decision.decision.value, "rationale": decision.rationale},
                 result={"success": False, "error": "Layer 7 requires human review before execution."},
             )
-            return {
-                "scenario_id": scenario_id,
-                "success": False,
-                "capability_id": cap_id,
-                "validation": validation_status,
-                "governance": decision.decision.value,
-                "modified_code": modified,
-            }
+            return {"scenario_id": scenario_id, "success": False, "capability_id": cap_id, "governance": decision.decision.value, "modified_code": modified}
 
         execution = ExecutionEngine(
             snapshot_dir=str(workspace / ".sps_snapshots"),
@@ -206,22 +155,17 @@ class SupervisorExecutionService:
         ).execute_change(change, str(workspace))
 
         stage_after = analysis.stage + (1 if generation.get("required") and generation.get("registered") else 0)
-        final_status = "completed" if execution.status == ExecutionStatus.SUCCESS else "execution_failed"
         self.trace_store.complete_scenario(
             scenario_id,
             stage_after=stage_after,
-            status=final_status,
+            status="completed" if execution.status == ExecutionStatus.SUCCESS else "execution_failed",
             modification=self._modification_record(cap_id, relative_file, original, modified, capability_result),
             validation={
-                "status": validation_status,
+                "status": validation.status.value,
                 "metrics_before": getattr(validation.metrics_before, "__dict__", {}),
                 "metrics_after": getattr(validation.metrics_after, "__dict__", {}),
             },
-            governance={
-                "decision_id": decision.id,
-                "decision": decision.decision.value,
-                "rationale": decision.rationale,
-            },
+            governance={"decision_id": decision.id, "decision": decision.decision.value, "rationale": decision.rationale},
             result={
                 "success": execution.status == ExecutionStatus.SUCCESS,
                 "status": execution.status.value,
@@ -234,12 +178,6 @@ class SupervisorExecutionService:
                 "workspace": str(workspace),
             },
         )
-        registry.record_usage(
-            cap_id,
-            success=execution.status == ExecutionStatus.SUCCESS,
-            execution_time_ms=execution.execution_time_ms,
-            notes=execution.error_message or "Supervisor scenario execution completed.",
-        )
         return {
             "scenario_id": scenario_id,
             "stage_before": analysis.stage,
@@ -247,22 +185,27 @@ class SupervisorExecutionService:
             "success": execution.status == ExecutionStatus.SUCCESS,
             "capability_id": cap_id,
             "generated": bool(generation.get("required")),
-            "validation": validation_status,
+            "validation": validation.status.value,
             "governance": decision.decision.value,
             "execution": execution.status.value,
             "modified_code": modified,
             "workspace": str(workspace),
         }
 
-    def _prepare_workspace(
-        self,
-        *,
-        scenario_id: str,
-        code: str,
-        language: str,
-        file_path: str,
-        target_project: Optional[str],
-    ) -> tuple[Path, str]:
+    def _canonicalize_generated_registration(self, generation: Dict[str, Any], registry: CapabilityRegistryManager) -> None:
+        if not generation.get("required") or not generation.get("capability_id"):
+            return
+        module_dir = Path(generation.get("module_dir") or (self.repo_root / self.analysis_service.gap_planner.generated_dir / generation["capability_id"].lower().replace("-", "_")))
+        metadata_path = module_dir / "metadata.json"
+        if not metadata_path.exists():
+            return
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if generation.get("test_result", {}).get("coverage_percent") is not None:
+            metadata["test_coverage"] = generation["test_result"]["coverage_percent"]
+        registered = registry.register_from_dict(metadata)
+        generation["registered"] = registered or registry.get_capability(generation["capability_id"]) is not None
+
+    def _prepare_workspace(self, *, scenario_id: str, code: str, language: str, file_path: str, target_project: Optional[str]) -> tuple[Path, str]:
         if target_project:
             workspace = Path(target_project).expanduser().resolve()
             if not workspace.is_dir():
@@ -281,8 +224,7 @@ class SupervisorExecutionService:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(code, encoding="utf-8")
         if language.lower() == "python":
-            smoke = workspace / "test_sps_submission.py"
-            smoke.write_text(
+            (workspace / "test_sps_submission.py").write_text(
                 "from pathlib import Path\n\n"
                 f"def test_submitted_source_compiles():\n"
                 f"    source = Path({relative_file!r}).read_text(encoding='utf-8')\n"
@@ -293,29 +235,17 @@ class SupervisorExecutionService:
 
     @staticmethod
     def _default_filename(language: str) -> str:
-        return {
-            "python": "submitted.py",
-            "java": "Submitted.java",
-            "javascript": "submitted.js",
-            "typescript": "submitted.ts",
-            "go": "submitted.go",
-            "csharp": "Submitted.cs",
-        }.get(language.lower(), "submitted.txt")
+        return {"python": "submitted.py", "java": "Submitted.java", "javascript": "submitted.js", "typescript": "submitted.ts", "go": "submitted.go", "csharp": "Submitted.cs"}.get(language.lower(), "submitted.txt")
 
     @staticmethod
     def _test_command(language: str, relative_file: str) -> str:
-        if language.lower() == "python":
-            return f"python -m py_compile {relative_file!r}"
-        return "pytest -q"
+        return f"python -m py_compile {relative_file!r}" if language.lower() == "python" else "pytest -q"
 
     @staticmethod
     def _change_type(generation: Dict[str, Any], request: str) -> ChangeType:
         if generation.get("required"):
             return ChangeType.FEATURE_ADDITION
-        request_lower = request.lower()
-        if "syntax" in request_lower or "fix" in request_lower:
-            return ChangeType.LOGIC_FIX
-        return ChangeType.FEATURE_ADDITION
+        return ChangeType.LOGIC_FIX if "fix" in request.lower() or "syntax" in request.lower() else ChangeType.FEATURE_ADDITION
 
     @staticmethod
     def _modification_record(capability_id: str, file_path: str, original: str, modified: str, result: Any) -> Dict[str, Any]:
@@ -330,3 +260,7 @@ class SupervisorExecutionService:
             "modified_length": len(modified),
             "changed": original != modified,
         }
+
+    def _fail(self, scenario_id: str, error: str) -> Dict[str, Any]:
+        self.trace_store.complete_scenario(scenario_id, status="failed", result={"success": False, "error": error})
+        return {"scenario_id": scenario_id, "success": False, "error": error}
