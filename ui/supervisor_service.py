@@ -191,7 +191,7 @@ class SupervisorScenarioService:
                     },
                     **development,
                 }
-                generation_status = "capability_developed" if development["registered"] else "capability_development_failed"
+                generation_status = "capability_planned"
                 self.trace_store.append_event(
                     scenario_id,
                     "capability_developed" if development["registered"] else "capability_development_failed",
