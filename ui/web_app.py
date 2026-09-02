@@ -22,6 +22,7 @@ from layers.architecture import architecture_manifest  # noqa: E402
 
 REGISTRY_PATH = str(ROOT / "capabilities" / "registry.json")
 EXPERIENCE_PATH = str(ROOT / "experience" / "logs" / "experience_log.json")
+FEEDBACK_PATH = str(ROOT / "experience" / "logs" / "feedback_log.json")
 
 
 def service_for(model: str = "") -> SpsAssistantService:
@@ -34,6 +35,64 @@ def service_for(model: str = "") -> SpsAssistantService:
 
 def capability_catalog() -> list[dict[str, Any]]:
     return service_for().capability_catalog()
+
+
+def _load_feedback_log() -> list[dict[str, Any]]:
+    path = Path(FEEDBACK_PATH)
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _save_feedback_log(entries: list[dict[str, Any]]) -> None:
+    path = Path(FEEDBACK_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(entries, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _get_growth_data() -> dict[str, Any]:
+    """Build growth statistics from capabilities and experience."""
+    catalog = capability_catalog()
+    total = len(catalog)
+    seeds = sum(1 for c in catalog if not c.get("generated", False))
+    generated = total - seeds
+
+    feedback = _load_feedback_log()
+    disagreements = sum(1 for f in feedback if f.get("feedback") == "disagree")
+
+    experience_path = Path(EXPERIENCE_PATH)
+    tasks = []
+    if experience_path.exists():
+        try:
+            exp = json.loads(experience_path.read_text(encoding="utf-8"))
+            tasks = exp.get("tasks", [])
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    total_tasks = len(tasks)
+    successes = sum(1 for t in tasks if t.get("status") == "success")
+    success_rate = f"{successes / total_tasks * 100:.0f}%" if total_tasks > 0 else "—"
+
+    timeline = []
+    for f in feedback[-20:]:
+        timeline.append({
+            "event": f"User {f.get('feedback', 'unknown')}",
+            "timestamp": f.get("timestamp", ""),
+            "description": f"Turn {f.get('turn_id', '?')} — {f.get('request', '')[:80]}",
+        })
+
+    return {
+        "total_capabilities": total,
+        "seed_capabilities": seeds,
+        "generated_capabilities": generated,
+        "total_disagreements": disagreements,
+        "total_tasks": total_tasks,
+        "success_rate": success_rate,
+        "timeline": timeline,
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -68,15 +127,23 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/capabilities":
             self._send(200, {"capabilities": capability_catalog()})
             return
+        if self.path == "/api/growth":
+            self._send(200, _get_growth_data())
+            return
         self._send(404, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path not in {"/api/chat", "/api/plan", "/api/run"}:
+        if self.path not in {"/api/chat", "/api/plan", "/api/run", "/api/feedback"}:
             self._send(404, {"error": "not found"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             data = json.loads(self.rfile.read(length) or b"{}")
+
+            if self.path == "/api/feedback":
+                self._handle_feedback(data)
+                return
+
             request = str(data.get("request", "")).strip()
             code = str(data.get("code", ""))
             language = str(data.get("language", "python"))
@@ -107,6 +174,61 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._send(500, {"error": f"SPS-CA request failed: {exc}"})
 
+    def _handle_feedback(self, data: dict[str, Any]) -> None:
+        """Handle agree/disagree feedback. Disagrees trigger evolution analysis."""
+        from datetime import datetime, timezone
+
+        turn_id = data.get("turn_id", 0)
+        feedback = data.get("feedback", "agree")
+        request_text = data.get("request", "")
+        capability_id = data.get("capability_id", "")
+
+        entry = {
+            "turn_id": turn_id,
+            "feedback": feedback,
+            "request": request_text,
+            "capability_id": capability_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        log = _load_feedback_log()
+        log.append(entry)
+        _save_feedback_log(log)
+
+        evolution_result = None
+        if feedback == "disagree":
+            # Record as a failure in experience for evolution tracking
+            service = service_for()
+            service._record_experience(
+                request=request_text,
+                language=data.get("language", "python"),
+                selected_capability=capability_id,
+                success=False,
+                outcome=f"User disagreed with the result for {capability_id}",
+                elapsed=0.0,
+                failure_category="UserDisagreement",
+            )
+            # Count disagreements for this capability
+            disagree_count = sum(
+                1 for f in log
+                if f.get("feedback") == "disagree" and f.get("capability_id") == capability_id
+            )
+            evolution_result = {
+                "disagreement_count": disagree_count,
+                "threshold": 3,
+                "capability_id": capability_id,
+            }
+            if disagree_count >= 3:
+                evolution_result["message"] = (
+                    f"3+ disagreements on {capability_id} — evolution will generate a new capability."
+                )
+
+        self._send(200, {
+            "status": "recorded",
+            "feedback": feedback,
+            "evolution": evolution_result,
+        })
+
     def log_message(self, fmt: str, *args: Any) -> None:
         print(f"[SPS-CA] {fmt % args}")
 
@@ -116,6 +238,7 @@ def main() -> None:
     print(f"SPS-CA dashboard: http://{host}:{port}")
     print("Conversational coding mode: enabled")
     print("Brain: provider-neutral; Ollama is the default provider")
+    print("Tabs: Chat | Capabilities | Growth | Guide")
     ThreadingHTTPServer((host, port), Handler).serve_forever()
 
 

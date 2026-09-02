@@ -1,70 +1,253 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SPS-CA — Conversational Self-Programming Code Assistant</title>
+  <title>SPS-CA — Self-Programming Code Assistant</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Top Navigation Bar -->
   <header class="topbar">
-    <div class="brand"><div class="logo">S</div><div><strong>SPS-CA</strong><span>Conversational Self-Programming Code Assistant</span></div></div>
-    <div class="top-actions"><span class="pill live"><i></i> System Online</span><span class="pill brain-pill">🧠 <b id="brainProvider">Ollama</b></span><span class="pill" id="turnCount">Turn 0</span></div>
+    <div class="brand">
+      <div class="logo">S</div>
+      <div><strong>SPS-CA</strong><span>Self-Programming Code Assistant</span></div>
+    </div>
+    <nav class="top-nav">
+      <button class="nav-btn active" data-view="chat" onclick="switchView('chat')">
+        <span class="nav-icon">&#x1F4AC;</span> Chat
+      </button>
+      <button class="nav-btn" data-view="capabilities" onclick="switchView('capabilities')">
+        <span class="nav-icon">&#x1F9E0;</span> Capabilities
+      </button>
+      <button class="nav-btn" data-view="growth" onclick="switchView('growth')">
+        <span class="nav-icon">&#x1F4C8;</span> Growth
+      </button>
+      <button class="nav-btn" data-view="guide" onclick="switchView('guide')">
+        <span class="nav-icon">&#x1F4D6;</span> Guide
+      </button>
+    </nav>
+    <div class="top-actions">
+      <span class="pill live"><i></i> Online</span>
+      <span class="pill brain-pill">🧠 <b id="brainProvider">Ollama</b></span>
+      <span class="pill" id="turnCount">Turn 0</span>
+    </div>
   </header>
 
-  <main class="shell chat-shell">
-    <section class="hero compact-hero">
-      <div><p class="eyebrow">SPS-CA WORKSPACE</p><h1>Talk to your code.</h1><p>Give SPS-CA code and a request. Then keep talking: every follow-up uses the current working code and recent conversation context.</p></div>
-      <div class="hero-stat"><span>Architecture</span><strong>10 Layers</strong><small>🧠 Brain is separate · capabilities are reusable</small></div>
-    </section>
+  <!-- Main Content Area -->
+  <main class="main-content">
 
-    <section class="chat-layout">
-      <aside class="side-panel">
-        <div class="card compact-card">
-          <div class="card-head"><div><h2>Session</h2><p>Your current coding conversation.</p></div><button id="newChatBtn" class="ghost">New chat</button></div>
-          <div class="session-meta"><div><span>TURNS</span><b id="sessionTurns">0</b></div><div><span>LANGUAGE</span><b id="sessionLanguage">python</b></div><div><span>WORKING FILE</span><b id="sessionFile">main.py</b></div></div>
-        </div>
-        <div class="card compact-card brain-card">
-          <div class="card-head"><div><span class="step brain-step">🧠</span><div><h2>Brain</h2><p>AI intelligence, separate from capabilities.</p></div></div><span class="status-dot">Ollama</span></div>
-          <div class="brain-grid"><div><small>ROLE</small><strong>Reasoning & Planning</strong></div><div><small>PROVIDER</small><strong id="providerText">Ollama</strong></div><div><small>MODEL</small><strong id="modelText">qwen2.5-coder:7b</strong></div><div><small>BOUNDARY</small><strong>Separate service</strong></div></div>
-          <div class="reasoning" id="reasoning"><span>Waiting for your first request…</span></div>
-        </div>
-        <div class="card compact-card"><div class="card-head"><div><h2>Capabilities</h2><p>Skills the Brain can compose.</p></div></div><div id="sideCapabilities" class="mini-caps"></div></div>
-      </aside>
-
-      <section class="chat-column">
-        <div class="card chat-card">
-          <div class="chat-head"><div><h2>Conversation</h2><p>SPS-CA remembers the recent turns in this session.</p></div><span class="muted" id="pipelineState">Ready</span></div>
-          <div id="messages" class="messages">
-            <div class="welcome-message"><div class="welcome-icon">✦</div><div><strong>Hello — I’m SPS-CA.</strong><p>Paste code below, tell me what you want, and continue with feedback like “make that stricter”, “also handle null input”, or “write tests for the change”.</p></div></div>
+    <!-- ===== CHAT VIEW ===== -->
+    <section id="view-chat" class="view active">
+      <div class="chat-layout">
+        <!-- Left Sidebar -->
+        <aside class="side-panel">
+          <div class="card compact-card">
+            <div class="card-head">
+              <div><h2>Session</h2><p>Your current conversation.</p></div>
+              <button id="newChatBtn" class="ghost-sm">New</button>
+            </div>
+            <div class="session-meta">
+              <div><span>TURNS</span><b id="sessionTurns">0</b></div>
+              <div><span>LANG</span><b id="sessionLanguage">python</b></div>
+              <div><span>FILE</span><b id="sessionFile">main.py</b></div>
+            </div>
           </div>
-          <form id="chatForm" class="composer">
-            <textarea id="request" rows="3" placeholder="Tell SPS-CA what to do… e.g. Add input validation to this function"></textarea>
-            <div class="composer-bottom"><div class="composer-tools"><label>Language<select id="language"><option>python</option><option>javascript</option><option>typescript</option><option>java</option><option>go</option><option>csharp</option></select></label><label>Brain<input id="model" value="qwen2.5-coder:7b"></label><button type="button" id="attachCodeBtn" class="ghost">Code ▾</button></div><button id="runBtn" class="primary" type="submit">Send to SPS-CA <span>↗</span></button></div>
-          </form>
-        </div>
 
-        <div class="card code-dock" id="codeDock">
-          <div class="card-head"><div><span class="step">CODE</span><div><h2>Current working code</h2><p>This is the source carried from turn to turn.</p></div></div><div class="dock-actions"><button id="sampleBtn" class="ghost">Load sample</button><button id="collapseCodeBtn" class="ghost">Collapse</button></div></div>
-          <textarea id="code" spellcheck="false">def add(a, b):
+          <div class="card compact-card brain-card">
+            <div class="card-head">
+              <div><span class="step-icon brain-icon">🧠</span><div><h2>Brain</h2><p>AI reasoning service.</p></div></div>
+              <span class="status-badge">Active</span>
+            </div>
+            <div class="brain-info">
+              <div class="info-row"><small>PROVIDER</small><strong id="providerText">Ollama</strong></div>
+              <div class="info-row"><small>MODEL</small><strong id="modelText">qwen2.5-coder:7b</strong></div>
+            </div>
+            <div class="reasoning-box" id="reasoning">
+              <span class="muted-text">Waiting for your first request…</span>
+            </div>
+          </div>
+
+          <div class="card compact-card">
+            <div class="card-head"><div><h2>Pipeline</h2><p>10-layer architecture status.</p></div></div>
+            <div id="miniPipeline" class="mini-pipeline"></div>
+          </div>
+        </aside>
+
+        <!-- Main Chat Column -->
+        <section class="chat-column">
+          <div class="card chat-card">
+            <div class="chat-head">
+              <div><h2>Conversation</h2><p>Give code and a request. SPS-CA processes through 10 layers.</p></div>
+              <span class="muted-text" id="pipelineState">Ready</span>
+            </div>
+
+            <div id="messages" class="messages">
+              <div class="welcome-msg">
+                <div class="welcome-icon">✦</div>
+                <div>
+                  <strong>Hello — I'm SPS-CA.</strong>
+                  <p>Paste code below, tell me what you want. Every response has an <strong>Agree / Disagree</strong> button — if you disagree, SPS-CA creates a new capability to handle that pattern better next time.</p>
+                </div>
+              </div>
+            </div>
+
+            <form id="chatForm" class="composer">
+              <textarea id="request" rows="2" placeholder="Tell SPS-CA what to do… e.g. Add input validation to this function"></textarea>
+              <div class="composer-bottom">
+                <div class="composer-tools">
+                  <label>Language<select id="language">
+                    <option>python</option><option>javascript</option><option>typescript</option>
+                    <option>java</option><option>go</option><option>csharp</option>
+                  </select></label>
+                  <label>Model<input id="model" value="qwen2.5-coder:7b"></label>
+                  <button type="button" id="attachCodeBtn" class="ghost-sm">Code ▾</button>
+                </div>
+                <button id="runBtn" class="primary-btn" type="submit">Send <span>&#x2197;</span></button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Code Editor -->
+          <div class="card code-dock" id="codeDock">
+            <div class="card-head">
+              <div><span class="step-icon">CODE</span><div><h2>Working Code</h2><p>Carried across turns.</p></div></div>
+              <div class="dock-actions">
+                <button id="sampleBtn" class="ghost-sm">Sample</button>
+                <button id="collapseCodeBtn" class="ghost-sm">Collapse</button>
+              </div>
+            </div>
+            <textarea id="code" spellcheck="false">def add(a, b):
     return a + b
 </textarea>
+          </div>
+
+          <!-- Output Tabs -->
+          <div class="card output-card">
+            <div class="tabs">
+              <button class="tab active" data-tab="output">Result</button>
+              <button class="tab" data-tab="diff">Diff</button>
+              <button class="tab" data-tab="trace">Trace</button>
+            </div>
+            <pre id="output" class="code-output">No result yet.</pre>
+            <pre id="diff" class="code-output hidden">No diff yet.</pre>
+            <pre id="trace" class="code-output hidden">No trace yet.</pre>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===== CAPABILITIES VIEW ===== -->
+    <section id="view-capabilities" class="view">
+      <div class="view-header">
+        <h1>Capabilities</h1>
+        <p>Executable SPS skills — seeded at Stage 0, grown through evolution. Click any capability for details.</p>
+      </div>
+      <div id="capsGrid" class="caps-grid"></div>
+    </section>
+
+    <!-- ===== GROWTH VIEW ===== -->
+    <section id="view-growth" class="view">
+      <div class="view-header">
+        <h1>Capability Growth</h1>
+        <p>Track how SPS-CA evolves over time. Each disagreement or repeated failure can generate new capabilities.</p>
+      </div>
+      <div class="growth-stats" id="growthStats"></div>
+      <div class="growth-timeline" id="growthTimeline"></div>
+    </section>
+
+    <!-- ===== USER GUIDE VIEW ===== -->
+    <section id="view-guide" class="view">
+      <div class="view-header">
+        <h1>User Guide</h1>
+        <p>How SPS-CA works, what each layer does, and how to use it effectively.</p>
+      </div>
+      <div class="guide-content">
+        <div class="guide-card">
+          <h3>&#x1F3AF; Getting Started</h3>
+          <ol>
+            <li><strong>Paste your code</strong> in the code editor (or click "Sample" for an example)</li>
+            <li><strong>Type a request</strong> — "Add input validation", "Fix the bug", "Generate tests"</li>
+            <li><strong>Click Send</strong> — SPS-CA processes through 10 layers with Brain reasoning</li>
+            <li><strong>Review the result</strong> — check the modified code and diff</li>
+            <li><strong>Agree or Disagree</strong> — if you disagree, SPS-CA creates a new capability for that pattern</li>
+          </ol>
         </div>
-      </section>
+
+        <div class="guide-card">
+          <h3>&#x1F9E0; The Brain (AI)</h3>
+          <p>The Brain is a separate AI intelligence service — <strong>not a layer and not a capability</strong>. It provides:</p>
+          <ul>
+            <li>Reasoning about your request and code context</li>
+            <li>Planning which capabilities to apply</li>
+            <li>Code generation and debugging</li>
+            <li>Failure analysis and strategy selection</li>
+          </ul>
+          <p>By default, the Brain uses <strong>Ollama</strong> with <code>qwen2.5-coder:7b</code>. You can change the model in the settings.</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>&#x1F3D7; 10-Layer Architecture</h3>
+          <div class="guide-layers">
+            <div class="guide-layer"><span class="gl-num">L1</span><div><strong>Software DNA</strong><p>Immutable constraints and safety rules.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L2</span><div><strong>Governance</strong><p>Decision gates, risk assessment, approve/reject.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L3</span><div><strong>Cognitive Core</strong><p>Reasoning, planning — interfaces with the Brain.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L4</span><div><strong>Knowledge Core</strong><p>Structured domain knowledge.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L5</span><div><strong>Experience Core</strong><p>Historical memory, task history, feedback.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L6</span><div><strong>Meta-Learning</strong><p>Strategy improvement from experience.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L7</span><div><strong>Adaptation</strong><p>Context-aware behavior adjustment.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L8</span><div><strong>Evolution</strong><p>Creates new capabilities from failure patterns.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L9</span><div><strong>Verification & Validation</strong><p>Sandboxed testing, regression detection.</p></div></div>
+            <div class="guide-layer"><span class="gl-num">L10</span><div><strong>Execution</strong><p>Applies changes, monitors, rollback.</p></div></div>
+          </div>
+        </div>
+
+        <div class="guide-card">
+          <h3>&#x1F504; Agree / Disagree Flow</h3>
+          <p>Every SPS-CA response includes two buttons:</p>
+          <ul>
+            <li><strong>👍 Agree</strong> — The result is good. SPS-CA records this as a success in experience.</li>
+            <li><strong>👎 Disagree</strong> — The result is not satisfactory. This triggers the <strong>Evolution Core (L8)</strong> to analyze the failure pattern and potentially create a new capability.</li>
+          </ul>
+          <p>After 3+ disagreements on the same pattern, SPS-CA generates a new capability, validates it, and adds it to the registry.</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>&#x1F4E6; Capabilities</h3>
+          <p>Capabilities are executable SPS skills, registered and versioned:</p>
+          <ul>
+            <li><strong>CAP-001</strong> Simple Bug Detection</li>
+            <li><strong>CAP-002</strong> Syntax Error Fix</li>
+            <li><strong>CAP-003</strong> Unit Test Generation</li>
+            <li><strong>CAP-004</strong> Loop Optimization</li>
+            <li><strong>CAP-005</strong> Error Handling Pattern</li>
+            <li><strong>CAP-006</strong> Unused Variable Removal</li>
+            <li><strong>CAP-007</strong> Type Annotation Addition</li>
+            <li><strong>CAP-008</strong> Documentation Generation</li>
+            <li><strong>CAP-009</strong> Natural Language Code Modification</li>
+          </ul>
+          <p>Generated capabilities (CAP-010+) are created through the Evolution Core when repeated failures are detected.</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>&#x2699; Supported Languages</h3>
+          <p>SPS-CA analyzes code in any of these languages via tree-sitter:</p>
+          <div class="lang-chips">
+            <span class="lang-chip">Python</span>
+            <span class="lang-chip">JavaScript</span>
+            <span class="lang-chip">TypeScript</span>
+            <span class="lang-chip">Java</span>
+            <span class="lang-chip">Go</span>
+            <span class="lang-chip">C#</span>
+          </div>
+        </div>
+      </div>
     </section>
-
-    <section class="pipeline-card"><div class="section-title"><div><p class="eyebrow">OBSERVABILITY</p><h2>10-Layer SPS Pipeline</h2></div><span class="muted">Live per request</span></div><div id="pipeline" class="pipeline"></div></section>
-
-    <section class="lower-grid">
-      <div class="card result-card"><div class="card-head"><div><h2>Latest Brain Decision</h2><p>Current intent and reasoning.</p></div></div><div id="decision" class="empty">Send a request to see the Brain’s plan.</div></div>
-      <div class="card result-card"><div class="card-head"><div><h2>Latest Capability Run</h2><p>What SPS-CA executed for this turn.</p></div></div><div id="capabilities" class="cap-list"><div class="empty">No capability run yet.</div></div></div>
-    </section>
-
-    <section class="card output-card"><div class="tabs"><button class="tab active" data-tab="output">Current Code</button><button class="tab" data-tab="diff">Latest Diff</button><button class="tab" data-tab="trace">Trace</button></div><pre id="output" class="code-output">No result yet.</pre><pre id="diff" class="code-output hidden">No diff yet.</pre><pre id="trace" class="code-output hidden">No trace yet.</pre></section>
-
-    <section class="card architecture-card"><div class="section-title"><div><p class="eyebrow">SYSTEM MAP</p><h2>Architecture & Brain Boundary</h2></div></div><div id="architecture" class="architecture"></div></section>
   </main>
-  <footer>SPS-CA research prototype · Conversational workspace · Brain ≠ Capability</footer>
+
+  <footer>SPS-CA research prototype · 10-layer self-programming architecture · Brain ≠ Capability</footer>
   <script src="/static/app.js"></script>
 </body>
 </html>
