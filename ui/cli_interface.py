@@ -13,6 +13,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from capabilities.base import CapabilityContext  # noqa: E402
 from capabilities.seed_registry import load_entry_point, load_seed_capabilities  # noqa: E402
+from experience.evolution_trace import EvolutionTraceStore  # noqa: E402
 from layers.layer_02_cognitive_core import CognitiveCore  # noqa: E402
 from layers.layer_06_validation import Validator  # noqa: E402
 from layers.layer_07_governance import (  # noqa: E402
@@ -30,13 +31,16 @@ from layers.layer_10_execution import (  # noqa: E402
 
 HELP_TEXT = """Commands:
   load <project_path>      Load a target project
+  submit                   Submit a prompt + pasted code as a research scenario
+  submit_file <path>      Submit a prompt + local code file as a research scenario
   show project             Show current project context
   show registry            Show available capabilities
   show experience          Show recent recorded UI interactions
+  show evolution           Show recent Stage 0..N evolution records
   help                     Show this help
   quit                     Exit SPS-CA
 
-Any other input is treated as a natural-language coding request."""
+Any other input is treated as a natural-language coding request for a loaded project."""
 
 
 class SPS_CA_Interface:
@@ -46,12 +50,18 @@ class SPS_CA_Interface:
         self,
         history_path: str | Path = "ui/session_history.json",
         registry_path: str = "capabilities/registry.json",
+        trace_history_path: str | Path = "experience/traces/evolution_history.json",
+        trace_stage_path: str | Path = "experience/traces/stage_state.json",
     ) -> None:
         self.history_path = Path(history_path)
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.core = CognitiveCore()
         self.registry = CapabilityRegistryManager(registry_path)
         self.execution = ExecutionEngine()
+        self.trace_store = EvolutionTraceStore(
+            history_path=trace_history_path,
+            stage_path=trace_stage_path,
+        )
         self.project_context: Optional[Dict[str, Any]] = None
         self._history = self._load_history()
 
@@ -81,6 +91,14 @@ class SPS_CA_Interface:
             response = HELP_TEXT
             self._record_event("help", command, response)
             return response
+        if lowered == "submit":
+            response = self._interactive_submission()
+            self._record_event("submit", command, response)
+            return response
+        if lowered.startswith("submit_file "):
+            response = self._interactive_file_submission(command[12:].strip())
+            self._record_event("submit_file", command, response)
+            return response
         if lowered.startswith("load "):
             response = self.load_project(command[5:].strip())
             self._record_event("load", command, response)
@@ -92,6 +110,82 @@ class SPS_CA_Interface:
         response = self.process_request(command)
         self._record_event("request", command, response)
         return response
+
+    def _interactive_submission(self) -> str:
+        """Collect a multi-line prompt + code submission in the CLI.
+
+        The ``__END__`` marker keeps this usable in Colab and ordinary terminals
+        without requiring a web UI or special terminal features.
+        """
+        request = input("Request: ").strip()
+        language = input("Language [python]: ").strip() or "python"
+        print("Paste code. Enter __END__ on its own line when finished:")
+        lines: list[str] = []
+        while True:
+            line = input()
+            if line == "__END__":
+                break
+            lines.append(line)
+        code = "\n".join(lines)
+        return self.submit_submission(request, code, language)
+
+    def _interactive_file_submission(self, file_path: str) -> str:
+        path = Path(file_path).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            return f"Error: code file does not exist: {file_path}"
+        request = input("Request: ").strip()
+        language = input(f"Language [{self._infer_language(path)}]: ").strip() or self._infer_language(path)
+        try:
+            code = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return f"Error: file is not UTF-8 text: {path}"
+        return self.submit_submission(
+            request,
+            code,
+            language,
+            file_path=str(path),
+        )
+
+    def submit_submission(
+        self,
+        user_request: str,
+        code: str,
+        language: str,
+        *,
+        file_path: str = "",
+    ) -> str:
+        """Record a supervisor-facing scenario without running modification yet.
+
+        The next implementation step will consume this exact scenario object
+        and connect it to task analysis, capability search/generation, and the
+        governed modification pipeline.
+        """
+        scenario = self.trace_store.start_scenario(
+            user_request=user_request,
+            code=code,
+            language=language,
+            file_path=file_path,
+            metadata={"source": "cli_submission"},
+        )
+        self.trace_store.append_event(
+            scenario["scenario_id"],
+            "submission_received",
+            {
+                "why": "User supplied a coding task for SPS analysis.",
+                "what": "Prompt + source code captured.",
+                "how": "CLI submit/submit_file intake.",
+                "language": language,
+                "file_path": file_path,
+            },
+        )
+        return (
+            f"Scenario captured: {scenario['scenario_id']}\n"
+            f"  Stage: {scenario['stage_before']}\n"
+            f"  Language: {language}\n"
+            f"  Code length: {len(code)} characters\n"
+            "  Trace: experience/traces/evolution_history.json\n"
+            "  Status: queued for SPS task/code analysis"
+        )
 
     def load_project(self, project_path: str) -> str:
         root = Path(project_path).expanduser().resolve()
@@ -139,7 +233,18 @@ class SPS_CA_Interface:
                 ["Recent interactions:"]
                 + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events]
             )
-        return "Unknown context. Use: project, registry, experience"
+        if context_type == "evolution":
+            records = self.trace_store.list_records()[-5:]
+            if not records:
+                return "Evolution history: none"
+            lines = ["Recent evolution scenarios:"]
+            for record in records:
+                lines.append(
+                    f"  {record['scenario_id']} | Stage {record['stage_before']} -> "
+                    f"{record['stage_after']} | {record['status']} | {record['user_request']}"
+                )
+            return "\n".join(lines)
+        return "Unknown context. Use: project, registry, experience, evolution"
 
     def process_request(self, user_request: str) -> str:
         if not self.project_context:
@@ -311,6 +416,19 @@ class SPS_CA_Interface:
         candidates.sort(key=lambda item: (-item[0], str(item[1])))
         target = candidates[0][1]
         return str(target.relative_to(Path(project_path))).replace("\\", "/"), target.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _infer_language(path: Path) -> str:
+        return {
+            ".py": "python",
+            ".java": "java",
+            ".js": "javascript",
+            ".jsx": "javascript",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+            ".go": "go",
+            ".cs": "csharp",
+        }.get(path.suffix.lower(), "unknown")
 
     @staticmethod
     def _format_analysis_response(capability_id: str, result: Any) -> str:
