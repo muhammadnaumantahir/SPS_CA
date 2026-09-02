@@ -1,17 +1,13 @@
-import pytest
-
 from capabilities.base import CapabilityContext
 from capabilities.seed_registry import list_seed_metadata_paths, load_entry_point, load_seed_capabilities
 
 
 class TestSeedRegistry:
     def test_discovers_all_seeds(self):
-        paths = list_seed_metadata_paths()
-        assert len(paths) == 10
+        assert len(list_seed_metadata_paths()) == 10
 
     def test_loads_capability_templates_in_pipeline_number_order(self):
-        caps = load_seed_capabilities()
-        ids = sorted(c.id for c in caps)
+        ids = [c.id for c in load_seed_capabilities()]
         assert ids == [f"CAP-{i:03d}" for i in range(1, 10)] + ["CAP-011"]
 
     def test_all_seeds_are_active_origin_seed(self):
@@ -22,25 +18,19 @@ class TestSeedRegistry:
 
     def test_all_entry_points_resolve_and_are_callable(self):
         for cap in load_seed_capabilities():
-            fn = load_entry_point(cap)
-            assert callable(fn)
+            assert callable(load_entry_point(cap))
 
-    def test_all_non_brain_seed_entry_points_run_on_trivial_python(self):
+    def test_non_brain_non_llm_seeds_run_on_trivial_python(self):
         code = "def f(x):\n    return x\n"
         for cap in load_seed_capabilities():
-            if cap.id == "CAP-001":
+            if cap.id in {"CAP-001", "CAP-011"}:
                 continue
-            fn = load_entry_point(cap)
-            ctx = CapabilityContext(code=code, language="python", file_path="f.py")
-            result = fn(ctx)
+            result = load_entry_point(cap)(CapabilityContext(code=code, language="python", file_path="f.py"))
             assert result.success is True
 
-    def test_unsupported_language_does_not_raise_for_non_brain_seeds(self):
-        code = "x"
+    def test_unsupported_language_does_not_raise_for_non_llm_seeds(self):
         for cap in load_seed_capabilities():
-            if cap.id == "CAP-001":
+            if cap.id in {"CAP-001", "CAP-011"}:
                 continue
-            fn = load_entry_point(cap)
-            ctx = CapabilityContext(code=code, language="cobol", file_path="f.cob")
-            result = fn(ctx)
+            result = load_entry_point(cap)(CapabilityContext(code="x", language="cobol", file_path="f.cob"))
             assert result.success is True
