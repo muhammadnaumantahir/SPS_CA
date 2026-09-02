@@ -8,20 +8,24 @@ The architecture has **exactly ten layers**. The **Brain is not a layer and is n
 
 ## 2. Canonical ten-layer model
 
-| Layer | Public name | Responsibility |
-|---|---|---|
-| L1 | **Software DNA layer** | Identity, invariants, constraints and seed-system rules |
-| L2 | **Governance layer** | Policy, risk, approval/rejection and audit decisions |
-| L3 | **Cognitive core** | Prompt understanding, reasoning, planning and code context |
-| L4 | **Knowledge core** | Structured knowledge about code, capabilities, patterns and system state |
-| L5 | **Experience core** | Persistent outcomes, failures, successes, traces and lessons |
-| L6 | **Meta-learning core** | Learns which strategies/capabilities work under which conditions |
-| L7 | **Adaptation core** | Adjusts strategy and capability composition to current context |
-| L8 | **Evolution core** | Designs, generates and improves SPS capabilities |
-| L9 | **Verification & Validation** | Syntax, tests, regression, sandbox and evidence checks |
-| L10 | **Execution layer** | Controlled application of approved changes and tool operations |
+| # | Public name | Core purpose | Optional sub-components |
+|---|---|---|---|
+| L1 | **Software DNA layer** | Acts as the absolute source of truth, defining constraints and meta-rules that all evolution must obey. | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
+| L2 | **Governance layer** | Executive gatekeeper that authorizes proposed changes against the Software DNA before deployment. | Authorization, Evolution Approval, Compliance Checking, Risk Management |
+| L3 | **Cognitive core** | Synthesizes goals and system state into tactical decisions, reasoning, and plans. | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
+| L4 | **Knowledge core** | Manages structured, evolving domain knowledge. | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
+| L5 | **Experience core** | Collects and stores feedback and runtime signals as historical memory. | Memory, Feedback, Monitoring, Learning Engine |
+| L6 | **Meta-learning core** | Evaluates and improves the system's own learning process. | Learning Evaluation, Strategy Optimization, Learning Improvement |
+| L7 | **Adaptation core** | Shifts behavior instantly by context, without modifying source code. | Context Awareness, Personalization, Capability Activation, Strategy Selection |
+| L8 | **Evolution core** | The engine of genuine structural self-growth. | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation |
+| L9 | **Verification & Validation** | Screens new or mutated code in a sandbox before it reaches production. | Testing, Simulation, Safety Validation, Performance Validation |
+| L10 | **Execution layer** | Translates validated decisions into real, observable action. | Action Executor, Services, APIs, User Interaction |
 
-The canonical vocabulary is implemented in `layers/architecture.py`. Existing Python package paths are kept stable where necessary for compatibility; package names are implementation details and must not redefine the research-layer names.
+The canonical vocabulary is implemented in `layers/architecture.py` and exposed to the web dashboard/API.
+
+### Sub-components are modular
+
+The sub-components above are recommended architectural building blocks, not a requirement that every SPS-CA deployment implement all of them at once. A sub-component may be added, replaced, deferred, or omitted while the parent layer retains its core responsibility.
 
 ## 3. Brain boundary
 
@@ -52,26 +56,13 @@ The Brain can:
 - analyze failures and propose recovery strategies;
 - support Evolution when repeated limitations justify a new capability.
 
-The Brain does **not** execute code, approve its own changes, bypass Validation, or become `CAP-001`.
+The Brain does **not** execute code, approve its own changes, bypass Verification & Validation, or become `CAP-001`.
 
 ## 4. Capability boundary
 
 Capabilities are executable SPS skills. They are independent of the Brain and are registered/versioned separately.
 
-Stage 0 contains the initial seeded capabilities, for example:
-
-- CAP-001 — Simple Bug Detection
-- CAP-002 — Syntax Error Fix
-- CAP-003 — Unit Test Generation
-- CAP-004 — Loop Optimization
-- CAP-005 — Error Handling Pattern
-- CAP-006 — Unused Variable Removal
-- CAP-007 — Type Annotation Addition
-- CAP-008 — Documentation Generation
-- CAP-010 — generated Parse Error Handler (existing evolution artifact)
-- CAP-011 — Natural Language Code Modification
-
-The exact portfolio may grow as SPS-CA evolves. The Brain chooses from active capabilities; it does not replace the capability registry.
+Stage 0 contains the initial seeded capabilities. The exact portfolio may grow as SPS-CA evolves.
 
 `capabilities/` and its registry/lineage services are supporting infrastructure, not an eleventh architectural layer.
 
@@ -173,4 +164,4 @@ The central research question becomes measurable:
 
 ## 9. Safety boundary
 
-Generated SPS capabilities and SPS self-modifications must never bypass Validation or Governance. Runtime user projects, credentials and model secrets remain outside source control.
+Generated SPS capabilities and SPS self-modifications must never bypass Verification & Validation or Governance. Runtime user projects, credentials and model secrets remain outside source control.
