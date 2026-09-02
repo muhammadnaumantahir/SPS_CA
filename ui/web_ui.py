@@ -18,9 +18,9 @@ if str(REPO_ROOT) not in sys.path:
 
 import gradio as gr
 
-from layers.layer_09_capability_registry import CapabilityRegistryManager
 from experience.evolution_trace import EvolutionTraceStore
-from .supervisor_execution import SupervisorExecutionService
+from layers.layer_09_capability_registry import CapabilityRegistryManager
+from ui.supervisor_execution import SupervisorExecutionService
 
 
 def _read_uploaded_file(uploaded: Any) -> tuple[str, str]:
@@ -72,13 +72,13 @@ def _run_supervisor(
     result_text = json.dumps(result, indent=2, default=str)
     modified = result.get("modified_code", code)
     summary = (
-        f"Scenario: {result.get('scenario_id', '-') }\n"
-        f"Stage: {result.get('stage_before', '-') } → {result.get('stage_after', '-') }\n"
-        f"Capability: {result.get('capability_id', '-') }\n"
+        f"Scenario: {result.get('scenario_id', '-')}\n"
+        f"Stage: {result.get('stage_before', '-')} → {result.get('stage_after', '-')}\n"
+        f"Capability: {result.get('capability_id', '-')}\n"
         f"Generated: {result.get('generated', False)}\n"
-        f"Validation: {result.get('validation', '-') }\n"
-        f"Governance: {result.get('governance', '-') }\n"
-        f"Execution: {result.get('execution', '-') }\n"
+        f"Validation: {result.get('validation', '-')}\n"
+        f"Governance: {result.get('governance', '-')}\n"
+        f"Execution: {result.get('execution', '-')}\n"
         f"Success: {result.get('success', False)}"
     )
 
@@ -103,7 +103,11 @@ def _run_supervisor(
         except OSError:
             stage = ""
 
-    return summary, modified, result_text, json.dumps(trace, indent=2), json.dumps(registry, indent=2) + (f"\n\nStage state:\n{stage}" if stage else "")
+    registry_text = json.dumps(registry, indent=2)
+    if stage:
+        registry_text += f"\n\nStage state:\n{stage}"
+
+    return summary, modified, result_text, json.dumps(trace, indent=2), registry_text
 
 
 def build_app() -> gr.Blocks:
@@ -155,10 +159,6 @@ The interface is only the presentation layer. The ten SPS layers remain unchange
             trace = gr.Code(label="Evolution History", language="json", lines=16)
             registry = gr.Code(label="Capability Registry", language="json", lines=16)
 
-        def language_changed(lang: str):
-            return gr.Code(language=lang or "python")
-
-        language.change(language_changed, inputs=language, outputs=code)
         run.click(
             _run_supervisor,
             inputs=[request, code, language, upload, target_project],
@@ -168,12 +168,24 @@ The interface is only the presentation layer. The ten SPS layers remain unchange
     return app
 
 
+def _running_in_colab() -> bool:
+    try:
+        import google.colab  # type: ignore  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def launch(*, share: Optional[bool] = None, auth: Optional[Any] = None, debug: bool = False):
-    """Launch the SPS-CA web UI; Colab can use the generated share link."""
+    """Launch the SPS-CA web UI.
+
+    In Google Colab, a share link is enabled by default because the notebook's
+    localhost server is not directly reachable from the user's browser.
+    Locally, sharing remains opt-in.
+    """
     app = build_app()
     if share is None:
-        # Gradio's notebook/Colab behavior can create a share link automatically.
-        share = os.getenv("GRADIO_SHARE", "").lower() in {"1", "true", "yes"}
+        share = True if _running_in_colab() else False
     return app.launch(share=share, auth=auth, debug=debug)
 
 
