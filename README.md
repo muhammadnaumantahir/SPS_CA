@@ -1,7 +1,7 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Version:** 0.3.0  
-**Status:** Architecture Foundation  
+**Version:** 0.5.0  
+**Status:** Phase 5 — Capability Registry + Execution implemented  
 **Goal:** Research prototype for governed, traceable and reversible self-programming.
 
 SPS-CA investigates whether an AI coding system can improve future performance by accumulating experience, adapting strategies, and safely developing reusable capabilities.
@@ -17,6 +17,16 @@ SPS-CA adds persistent experience, meta-learning, adaptation, governed evolution
 `Task → Cognition → Context → Adaptation → Governance → Execution → Validation → Experience → Evolution → Reuse`
 
 Self-modification must never bypass governance or validation.
+
+## Current implementation status
+
+Phases 0–4 were implemented before Phase 5. Phase 5 now adds the operational capability registry/execution boundary:
+
+- **Layer 9:** capability metadata, querying, lifecycle state, provenance, reuse tracking and JSON persistence.
+- **Layer 10:** validated change application, test execution, execution logging, rollback with hash verification, regression monitoring and a Layer 9 registry hook.
+- **Canonical registry:** `capabilities/registry.json` is migrated to the Layer 9 structured schema and contains the generated `CAP-009` capability from Phase 4.
+
+The Layer 10 test suite covers successful changes, new-file creation, failed-test rollback, exact restoration, execution logging, success-ratio metrics, monitoring and registry-usage reporting.
 
 ## Architecture
 
@@ -72,14 +82,12 @@ Validation
       ↓
 Capability Registry
       ↓
+Execution
+      ↓
 Reuse / Measurement
 ```
 
-Generated capabilities retain provenance, parent capabilities, triggering task/experience IDs, proposal IDs, model/provider metadata, validation evidence, versions and activation history. This supports future capability genealogy and growth graphs.
-
-## UI and analytics vision
-
-The future dashboard will expose project/session state and explainable system evolution, including capability growth, genealogy, task-to-capability relationships, versions, validation evidence, provider performance, rollback statistics and event traces. Analytics is derived from events and persisted metadata; the UI is not the source of truth.
+Generated capabilities retain provenance, triggering task/experience identifiers, versions, validation evidence and activation history. This supports future capability genealogy and growth graphs.
 
 ## Model strategy
 
@@ -106,11 +114,17 @@ ollama pull qwen2.5-coder:7b
 pytest -q
 ```
 
+To run Layer 10 specifically:
+
+```bash
+pytest layers/layer_10_execution/tests/ -v
+```
+
 ## Development rules
 
 1. Each SPS layer keeps its own implementation and layer-local tests.
-2. Cross-layer communication uses explicit interfaces/events.
-3. User code and runtime data stay outside SPS source control.
+2. Cross-layer communication uses explicit interfaces/events or injected service boundaries.
+3. User code and runtime execution snapshots stay outside SPS source control.
 4. Generated capabilities require provenance and versioning.
 5. Evolution proposals pass Governance and Validation before activation.
 6. Research scenarios and baselines remain reproducible and separate from runtime code.
@@ -128,4 +142,4 @@ Primary evidence should include repeat-task performance, capability reuse, failu
 
 ## Status
 
-The repository is the architecture foundation. The ten layers will be implemented incrementally, with separate layer code, tests, model adapters, runtime data boundaries, analytics and UI support.
+**Phase 5 implementation is in place.** Layer 9 owns the capability index and reuse history; Layer 10 owns controlled application, post-change testing, rollback and execution metrics. System-wide end-to-end evaluation across all target projects remains part of the later testing/evaluation phases.
