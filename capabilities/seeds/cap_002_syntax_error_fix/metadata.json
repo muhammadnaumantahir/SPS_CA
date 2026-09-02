@@ -1,22 +1,12 @@
 {
-  "id": "CAP-002",
+  "id": "CAP-003",
   "name": "Syntax Error Fix",
   "version": "0.1.0",
   "description": "Attempts to parse the given source and, for a small set of common syntax mistakes, propose a corrected version.",
   "entry_point": "capabilities.seeds.cap_002_syntax_error_fix.capability.run",
   "origin": "seed",
   "status": "active",
-  "target_languages": [
-    "python",
-    "java",
-    "javascript",
-    "typescript",
-    "go",
-    "csharp"
-  ],
+  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
   "parent_capability_id": null,
-  "tags": [
-    "repair",
-    "syntax"
-  ]
+  "tags": ["repair", "syntax"]
 }
