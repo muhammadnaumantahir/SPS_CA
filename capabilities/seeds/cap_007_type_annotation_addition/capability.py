@@ -8,6 +8,7 @@ static evidence.
 from __future__ import annotations
 
 import ast
+import re
 
 from capabilities.base import CapabilityContext, CapabilityResult
 
@@ -48,29 +49,34 @@ def run(context: CapabilityContext) -> CapabilityResult:
             if arg.arg in {"self", "cls"} or arg.annotation is not None:
                 continue
             inferred = _infer_type_from_default(default) if default is not None else None
-            findings.append({
-                "line": node.lineno,
-                "issue": "missing-parameter-annotation",
-                "detail": f"Parameter '{arg.arg}' of '{node.name}' has no type annotation."
-                + (f" Inferred type: {inferred}." if inferred else ""),
-                "inferred_type": inferred,
-            })
+            findings.append(
+                {
+                    "line": node.lineno,
+                    "issue": "missing-parameter-annotation",
+                    "detail": f"Parameter '{arg.arg}' of '{node.name}' has no type annotation."
+                    + (f" Inferred type: {inferred}." if inferred else ""),
+                    "inferred_type": inferred,
+                }
+            )
             if inferred and context.parameters.get("apply", False):
                 line_index = node.lineno - 1
                 original_line = lines[line_index]
-                marker = f"{arg.arg}"
-                replacement = f"{arg.arg}: {inferred}"
-                if marker in original_line and replacement not in original_line:
-                    lines[line_index] = original_line.replace(marker, replacement, 1)
+                pattern = rf"\b{re.escape(arg.arg)}\s*=\s*"
+                replacement = f"{arg.arg}: {inferred} = "
+                updated_line, replacements = re.subn(pattern, replacement, original_line, count=1)
+                if replacements:
+                    lines[line_index] = updated_line
                     edits.append(arg.arg)
 
         if node.returns is None:
-            findings.append({
-                "line": node.lineno,
-                "issue": "missing-return-annotation",
-                "detail": f"Function '{node.name}' has no return type annotation.",
-                "inferred_type": None,
-            })
+            findings.append(
+                {
+                    "line": node.lineno,
+                    "issue": "missing-return-annotation",
+                    "detail": f"Function '{node.name}' has no return type annotation.",
+                    "inferred_type": None,
+                }
+            )
 
     if not findings:
         return CapabilityResult.ok(summary="No missing annotations found by CAP-007's current rule set.")
