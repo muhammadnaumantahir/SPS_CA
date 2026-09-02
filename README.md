@@ -1,89 +1,124 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Goal:** Research prototype for governed, traceable and reversible self-programming.
+**Goal:** Research a governed, traceable and reversible Self-Programming Software (SPS) framework expressed as a coding assistant.
 
-SPS-CA investigates whether an AI coding system can improve future performance by accumulating experience, adapting strategies, and safely developing reusable capabilities.
+SPS-CA is designed around **10 architectural layers** plus a separate, replaceable **AI Brain**. The Brain is not a layer and is not a capability. Ollama is the default local Brain provider; future model providers can be swapped through `models/` without changing SPS capabilities.
 
-## What's implemented
-
-The ten-layer SPS foundation, the validation/governance/evolution pipeline, the capability registry, the execution boundary, eight seed capabilities, a prompt-based CLI, and three equivalent benchmark target projects (Python, Java, TypeScript) are all implemented. Two same-model comparison baselines and a reproducible 25-scenario evaluation harness complete the picture.
-
-- **Baseline A:** Naive LLM — direct request + project context, no tools or learning.
-- **Baseline B:** Coding Agent — deterministic analysis/syntax/test tool boundaries, no learning or capability generation.
-- **SPS-CA:** Full ten-layer framework.
-- **Shared local model:** `qwen2.5-coder:7b` through the provider-neutral LLM interface.
-- **Evaluation catalog:** S1–S25 with defined project/baseline distribution.
-- **Measurement:** JSONL execution records plus common success/time aggregation.
-- **Research boundary:** real Ollama experiments are run in a controlled local environment; CI verifies the harness without fabricating model results.
-
-See [`docs/MASTER_DOCUMENT.md`](docs/MASTER_DOCUMENT.md) for the full research and evaluation design, and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the module/layer reference.
-
-## Architecture
-
-The ten SPS layers are first-class packages under `layers/`. Cross-layer orchestration is under `core/`. Supporting subsystems are deliberately separated.
+## The SPS-CA model
 
 ```text
-SPS_CA/
-├── core/                    # Orchestration, state, events, interfaces
-├── layers/                  # Ten SPS layers; each owns its implementation
-├── models/                  # Provider/model abstraction
-├── coding/                  # Repository intelligence and code manipulation
-├── capabilities/            # Capability lifecycle and lineage
-├── execution/               # Controlled execution infrastructure
-├── governance/              # Policy/risk/approval infrastructure
-├── validation/              # Verification infrastructure
-├── memory/                  # Runtime conversations/experiences/memories/traces
-├── projects/                # Equivalent benchmark target projects
-├── baselines/               # Comparison agents and result contract
-├── evaluation/              # Scenario matrix, execution harness and metrics
-├── data/                    # Runtime database/users/sessions/exports
-├── ui/                      # Prompt UI and future presentation layers
-├── testing/                 # Cross-layer and research tests
-├── analytics/               # Metrics, graphs, growth and evolution datasets
-└── docs/                    # Architecture, research and experiment docs
+User request + code
+       ↓
+L1  Software DNA layer
+       ↓
+L2  Governance layer
+       ↓
+L3  Cognitive core  ←── Brain (Ollama / other AI model)
+       ↓
+L4  Knowledge core
+       ↓
+L5  Experience core
+       ↓
+L6  Meta-learning core
+       ↓
+L7  Adaptation core
+       ↓
+L8  Evolution core
+       ↓
+Capabilities (seeded + generated)
+       ↓
+L9  Verification & Validation
+       ↓
+L10 Execution layer
+       ↓
+Experience / learning / evolution feedback
 ```
 
-## Target projects
+A layer is an architectural responsibility. A capability is an executable skill. The Brain is the intelligence service that reasons over context and helps the layers select, compose, generate or improve capabilities.
 
-```text
-projects/
-├── project_a_python/        # FastAPI + pytest
-├── project_b_java/          # Spring Boot + JUnit/MockMvc
-└── project_c_typescript/    # Express + Vitest/Supertest
-```
+## Canonical ten layers
 
-All three implement the same Task API so repair behavior can be compared across languages without changing the problem domain.
+| Layer | Name |
+|---|---|
+| 1 | **Software DNA layer** |
+| 2 | **Governance layer** |
+| 3 | **Cognitive core** |
+| 4 | **Knowledge core** |
+| 5 | **Experience core** |
+| 6 | **Meta-learning core** |
+| 7 | **Adaptation core** |
+| 8 | **Evolution core** |
+| 9 | **Verification & Validation** |
+| 10 | **Execution layer** |
+
+## Brain
+
+`brain/` contains the provider-neutral SPS-CA Brain. It currently delegates to the existing `models/` provider abstraction and defaults to Ollama. The Brain is responsible for reasoning, prompt analysis, planning, code understanding, debugging and strategy analysis. It can select capabilities from the registry, but it is never itself registered as a `CAP-NNN`.
+
+## Capabilities
+
+`capabilities/` contains executable SPS skills with metadata, tests, versioning and lineage. Stage 0 starts with seeded coding capabilities such as bug detection, syntax repair, test generation, optimization, error handling, refactoring, type annotation, documentation and explicit code modification. Evolution may add generated capabilities after validation and governance.
+
+The Capability Registry is a supporting subsystem, not an eleventh architectural layer.
 
 ## Evaluation
 
+The research implementation keeps three progressively stronger conditions:
+
+- **Baseline A:** same-model naive coding assistant.
+- **Baseline B:** same-model tool-augmented coding assistant without SPS learning/evolution.
+- **SPS-CA Stage 0+:** ten-layer framework with fixed capabilities, then experience-informed adaptation and generated/reused capabilities.
+
+The repository contains controlled projects and a 25-scenario evaluation harness. The important evidence is not simply that an LLM can write code, but whether SPS-CA can improve strategy selection, reuse experience, safely evolve capabilities and demonstrate measurable gains under repeated scenarios.
+
+## Repository structure
+
 ```text
-evaluation/
-├── scenarios.py             # 25-scenario source catalog + matrix builder
-├── experiment_runner.py        # Controlled execution harness
-├── metrics.py               # Common experiment metrics
-└── tests/                   # Harness contract tests
+SPS_CA/
+├── brain/                   # Separate AI Brain service
+├── layers/                  # Canonical ten-layer architecture
+├── core/                    # Cross-layer orchestration/state/events
+├── models/                  # Provider/model abstraction (Ollama default)
+├── capabilities/            # Seed/generated skills + registry + lineage
+├── coding/                  # Repository/code intelligence
+├── validation/              # Verification infrastructure
+├── governance/              # Governance infrastructure
+├── execution/               # Controlled execution infrastructure
+├── memory/                  # Runtime experience/memory/traces
+├── projects/                # Controlled benchmark projects
+├── baselines/               # Comparison agents
+├── evaluation/              # Scenarios, runner and metrics
+├── analytics/               # Evidence and growth analytics
+├── ui/                      # CLI + advanced web dashboard
+└── docs/                    # Research and architecture documentation
 ```
 
-The evaluation design calls for 25 scenarios with defined project/baseline scope and empirical collection of success, time, reuse, regression, coverage, rollback and governance metrics. The implementation does not assert target performance numbers until controlled runs have actually produced evidence.
-
-## CLI
+## Run the CLI
 
 ```bash
 python ui/cli_interface.py
 ```
 
-Commands include `load`, `show project`, `show registry`, `show experience`, `help`, and `quit`.
+## Run the advanced dashboard
 
-## Setup
+```bash
+python ui/web_app.py
+```
 
-See [`SETUP.md`](SETUP.md) for installation (Colab or local) and [`REQUIREMENTS.md`](REQUIREMENTS.md) for hardware/software requirements.
+Then open `http://127.0.0.1:8080`.
+
+The dashboard exposes the Brain boundary, live ten-layer status, capability decisions, reasoning summary, modified source, diff and trace. Browser execution is a preview boundary; project mutation remains controlled by the Execution layer.
+
+## Setup and experiments
+
+See `SETUP.md`, `REQUIREMENTS.md`, `docs/ARCHITECTURE.md` and `docs/MASTER_DOCUMENT.md` for installation, research design and the evaluation protocol.
 
 ## Development rules
 
-1. Each SPS layer keeps its own implementation and layer-local tests.
-2. Cross-layer communication uses explicit interfaces/events or injected service boundaries.
-3. User code and runtime execution snapshots stay outside SPS source control.
-4. Generated capabilities require provenance and versioning.
-5. Evolution proposals pass Governance and Validation before activation.
-6. Research scenarios, target projects and baselines remain reproducible and separate from runtime code.
-7. Every implementation area requires tests and verification.
+1. Keep the ten public layer names stable.
+2. Never model the Brain as a capability or an eleventh layer.
+3. Keep model providers behind `models/` and the Brain interface.
+4. Keep capabilities independently versioned, tested and traceable.
+5. Evolution proposals must pass Verification & Validation and Governance before activation.
+6. Keep user/runtime data and secrets out of source control.
+7. Preserve baseline/SPS experimental separation so results remain reproducible.
