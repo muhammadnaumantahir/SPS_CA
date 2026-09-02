@@ -1,8 +1,7 @@
 """Shared conversational coding-assistant service for SPS-CA.
 
-This module keeps request/session orchestration out of the web UI and CLI.
-The Brain remains a separate AI service; capabilities remain executable SPS
-skills; experience is persisted as evidence for later learning layers.
+The web UI and CLI use this service so Brain planning, capability execution,
+Knowledge context and Experience recording follow one backend path.
 """
 
 from __future__ import annotations
@@ -15,14 +14,13 @@ from brain import Brain, BrainError
 from capabilities.base import CapabilityContext
 from capabilities.seed_registry import load_entry_point
 from layers.architecture import architecture_manifest
+from layers.knowledge_core import KnowledgeCore
 from layers.layer_03_experience import ExperienceLog, Task
 from layers.layer_09_capability_registry import CapabilityRegistryManager
 
 
 @dataclass
 class AssistantTurn:
-    """Structured result returned to every SPS-CA interface."""
-
     intent: str = ""
     reasoning: str = ""
     assistant_message: str = ""
@@ -58,7 +56,7 @@ class AssistantTurn:
 
 
 class SpsAssistantService:
-    """Orchestrates a conversational coding turn using the SPS boundaries."""
+    """Orchestrate one conversational coding turn across SPS boundaries."""
 
     def __init__(
         self,
@@ -72,6 +70,7 @@ class SpsAssistantService:
         self.registry = CapabilityRegistryManager(registry_path)
         self.experience = ExperienceLog.load_from_json(experience_path)
         self.experience_path = experience_path
+        self.knowledge = KnowledgeCore()
         self.brain = Brain(provider=provider, model=model, timeout_seconds=timeout_seconds)
         self.timeout_seconds = timeout_seconds
 
@@ -103,17 +102,38 @@ class SpsAssistantService:
         history = list(conversation or [])[-12:]
         base = self._base_layers()
         try:
+            catalog = self.capability_catalog()
+            knowledge = self.knowledge.build_snapshot(
+                language=language,
+                file_path=filename,
+                capabilities=catalog,
+                facts={"conversation_turns": len(history), "working_source_chars": len(code)},
+            )
+            if not self.knowledge.validate(knowledge):
+                raise BrainError("Knowledge core rejected the current knowledge snapshot.")
+
+            recent_experience = [
+                task.to_dict() for task in self.experience.tasks[-8:]
+            ]
             plan = self.brain.plan(
                 request=request,
                 code=code,
                 language=language,
                 file_path=filename,
-                capability_catalog=self.capability_catalog(),
+                capability_catalog=catalog,
                 conversation=history,
+                knowledge_context={
+                    "language": knowledge.language,
+                    "file_path": knowledge.file_path,
+                    "symbols": list(knowledge.symbols),
+                    "capabilities": list(knowledge.capabilities),
+                    "facts": knowledge.facts,
+                },
+                experience_context=recent_experience,
             )
+
             current = code
             results: list[dict[str, Any]] = []
-
             for step in plan.steps:
                 template = next(
                     (cap for cap in self.registry.list_all_capabilities() if cap.id == step["capability_id"]),
@@ -140,17 +160,15 @@ class SpsAssistantService:
                         },
                     )
                 )
-                results.append(
-                    {
-                        "id": template.id,
-                        "capability_id": template.id,
-                        "name": template.name,
-                        "status": "completed" if result.success else "failed",
-                        "summary": result.summary,
-                        "error": result.error,
-                        "reason": step.get("reason", ""),
-                    }
-                )
+                results.append({
+                    "id": template.id,
+                    "capability_id": template.id,
+                    "name": template.name,
+                    "status": "completed" if result.success else "failed",
+                    "summary": result.summary,
+                    "error": result.error,
+                    "reason": step.get("reason", ""),
+                })
                 if not result.success:
                     break
                 if result.modified_code is not None:
@@ -165,7 +183,6 @@ class SpsAssistantService:
                 {"role": "user", "content": request},
                 {"role": "assistant", "content": assistant_message},
             ]
-
             self._record_experience(
                 request=request,
                 language=language,
@@ -174,7 +191,6 @@ class SpsAssistantService:
                 outcome=assistant_message,
                 elapsed=perf_counter() - start,
             )
-            layers = self._completed_layers(base, results, changed)
             return AssistantTurn(
                 intent=plan.intent,
                 reasoning=plan.reasoning,
@@ -184,7 +200,7 @@ class SpsAssistantService:
                 output_code=current,
                 original_code=original,
                 diff=self._diff(original, current, filename),
-                layers=layers,
+                layers=self._completed_layers(base, results, changed),
                 brain={"provider": plan.provider, "model": plan.model},
                 conversation=updated_conversation,
                 success=success,
@@ -214,40 +230,24 @@ class SpsAssistantService:
                 elapsed_ms=(perf_counter() - start) * 1000.0,
             )
 
-    def _record_experience(
-        self,
-        *,
-        request: str,
-        language: str,
-        selected_capability: str,
-        success: bool,
-        outcome: str,
-        elapsed: float,
-        failure_category: Optional[str] = None,
-    ) -> None:
+    def _record_experience(self, *, request: str, language: str, selected_capability: str, success: bool,
+                           outcome: str, elapsed: float, failure_category: Optional[str] = None) -> None:
         next_id = f"chat_{len(self.experience.tasks) + 1:05d}"
-        self.experience.add_task(
-            Task(
-                id=next_id,
-                user_request=request,
-                target_project="web-chat",
-                target_language=language,
-                status="success" if success else "failure",
-                selected_capability=selected_capability,
-                outcome=outcome,
-                failure_category=failure_category,
-                time_taken_seconds=elapsed,
-            )
-        )
+        self.experience.add_task(Task(
+            id=next_id,
+            user_request=request,
+            target_project="chat",
+            target_language=language,
+            status="success" if success else "failure",
+            selected_capability=selected_capability,
+            outcome=outcome,
+            failure_category=failure_category,
+            time_taken_seconds=elapsed,
+        ))
         self.experience.save_to_json(self.experience_path)
 
     @staticmethod
-    def _assistant_message(
-        intent: str,
-        reasoning: str,
-        results: list[dict[str, Any]],
-        changed: bool,
-    ) -> str:
+    def _assistant_message(intent: str, reasoning: str, results: list[dict[str, Any]], changed: bool) -> str:
         failed = next((r for r in results if r["status"] == "failed"), None)
         if failed:
             return f"I analyzed the request but {failed['name']} could not complete it. {failed.get('error') or ''}".strip()
@@ -261,15 +261,10 @@ class SpsAssistantService:
     @staticmethod
     def _diff(before: str, after: str, filename: str) -> str:
         import difflib
-
-        return "".join(
-            difflib.unified_diff(
-                before.splitlines(keepends=True),
-                after.splitlines(keepends=True),
-                fromfile=f"a/{filename}",
-                tofile=f"b/{filename}",
-            )
-        )
+        return "".join(difflib.unified_diff(
+            before.splitlines(keepends=True), after.splitlines(keepends=True),
+            fromfile=f"a/{filename}", tofile=f"b/{filename}",
+        ))
 
     @staticmethod
     def _base_layers() -> list[dict[str, Any]]:
@@ -291,7 +286,7 @@ class SpsAssistantService:
         }
         for layer in base:
             layer["status"] = status[layer["number"]]
-        if results and any(r["status"] == "failed" for r in results):
+        if results and any(item["status"] == "failed" for item in results):
             base[8]["status"] = "verification blocked by capability failure"
         return base
 
