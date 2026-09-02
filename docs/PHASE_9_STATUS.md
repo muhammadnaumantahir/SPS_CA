@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Phase 9 isolates the SPS-CA framework contribution by comparing it with two same-model internal baselines. The master plan defines Baseline A as a naive LLM and Baseline B as a tool-augmented coding agent without learning or capability generation. fileciteturn73file0
+Phase 9 isolates the SPS-CA framework contribution by comparing it with two same-model internal baselines. The master plan defines Baseline A as a naive LLM and Baseline B as a tool-augmented coding agent without learning or capability generation.
 
 ## R9.1 — Baseline A
 
@@ -16,7 +16,7 @@ Phase 9 isolates the SPS-CA framework contribution by comparing it with two same
 
 ## R9.3 — Same local LLM
 
-`baselines/local_llm.py` creates the baseline callable through the existing provider-neutral `LLMInterface`. The default model is `qwen2.5-coder:7b`, matching the master plan's experimental baseline model. fileciteturn73file2
+`baselines/local_llm.py` creates the baseline callable through the existing provider-neutral `LLMInterface`. The default model is `qwen2.5-coder:7b`, matching the master plan's experimental baseline model.
 
 ## R9.4 — Common interface
 
@@ -28,7 +28,7 @@ Both baselines return `BaselineResult` objects from `baselines/runner.py`. The r
 
 ## Planned evaluation scale
 
-The master plan calls for 25 scenarios × 3 projects for each of Baseline A, Baseline B and SPS-CA, totaling 225 executions. fileciteturn73file1
+The master plan calls for 25 scenarios × 3 projects for each of Baseline A, Baseline B and SPS-CA, totaling 225 executions.
 
 ## Verification
 
