@@ -1,7 +1,8 @@
 """Shared conversational coding-assistant service for SPS-CA.
 
-The web UI and CLI use this service so Brain planning, capability execution,
-Knowledge context and Experience recording follow one backend path.
+The web UI and CLI use this service so Brain planning, Knowledge context,
+Experience recording, Meta-learning evidence, Adaptation and capability
+execution follow one backend path.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from capabilities.seed_registry import load_entry_point
 from layers.architecture import architecture_manifest
 from layers.knowledge_core import KnowledgeCore
 from layers.layer_03_experience import ExperienceLog, Task
+from layers.layer_04_meta_learning import MetaLearner
+from layers.layer_05_adaptation import Adaptation
 from layers.layer_09_capability_registry import CapabilityRegistryManager
 
 
@@ -32,6 +35,7 @@ class AssistantTurn:
     layers: list[dict[str, Any]] = field(default_factory=list)
     brain: dict[str, str] = field(default_factory=dict)
     conversation: list[dict[str, str]] = field(default_factory=list)
+    learning_context: dict[str, Any] = field(default_factory=dict)
     success: bool = False
     error: Optional[str] = None
     elapsed_ms: float = 0.0
@@ -49,6 +53,7 @@ class AssistantTurn:
             "layers": self.layers,
             "brain": self.brain,
             "conversation": self.conversation,
+            "learning_context": self.learning_context,
             "success": self.success,
             "error": self.error,
             "elapsed_ms": round(self.elapsed_ms, 2),
@@ -71,6 +76,8 @@ class SpsAssistantService:
         self.experience = ExperienceLog.load_from_json(experience_path)
         self.experience_path = experience_path
         self.knowledge = KnowledgeCore()
+        self.meta_learning = MetaLearner()
+        self.adaptation = Adaptation()
         self.brain = Brain(provider=provider, model=model, timeout_seconds=timeout_seconds)
         self.timeout_seconds = timeout_seconds
 
@@ -112,9 +119,34 @@ class SpsAssistantService:
             if not self.knowledge.validate(knowledge):
                 raise BrainError("Knowledge core rejected the current knowledge snapshot.")
 
-            recent_experience = [
-                task.to_dict() for task in self.experience.tasks[-8:]
+            recent_tasks = self.experience.tasks[-8:]
+            current_task = Task(
+                id="current-turn",
+                user_request=request,
+                target_project="chat",
+                target_language=language,
+                status="partial",
+            )
+            reusable = []
+            for past_task in reversed(recent_tasks):
+                if self.adaptation.can_reuse_capability(current_task, past_task):
+                    reusable.append(past_task.selected_capability)
+            reusable = list(dict.fromkeys(reusable))
+
+            failure_patterns = self.meta_learning.analyze_failure_patterns(self.experience)
+            recent_failure_capabilities = [
+                task.selected_capability
+                for task in recent_tasks
+                if task.is_failure and task.selected_capability
             ]
+            learning_context = {
+                "failure_patterns": failure_patterns,
+                "reusable_capabilities": reusable,
+                "recent_failed_capabilities": recent_failure_capabilities,
+                "experience_count": len(self.experience.tasks),
+            }
+            recent_experience = [task.to_dict() for task in recent_tasks]
+
             plan = self.brain.plan(
                 request=request,
                 code=code,
@@ -129,7 +161,7 @@ class SpsAssistantService:
                     "capabilities": list(knowledge.capabilities),
                     "facts": knowledge.facts,
                 },
-                experience_context=recent_experience,
+                experience_context=recent_experience + [{"type": "learning_context", **learning_context}],
             )
 
             current = code
@@ -142,21 +174,34 @@ class SpsAssistantService:
                 if template is None or template.status != "active":
                     raise BrainError(f"Brain selected unavailable capability: {step['capability_id']}")
 
+                capability_params: dict[str, Any] = {
+                    "llm_provider": self.brain.llm.provider,
+                    "llm_model": self.brain.model,
+                    "llm_timeout_seconds": self.timeout_seconds,
+                    "language": language,
+                    "timeout_seconds": self.timeout_seconds,
+                }
+                adapted_params, adaptation_record = self.adaptation.adapt_and_record(
+                    record_id=f"adapt_{len(self.experience.tasks) + len(results) + 1:05d}",
+                    base_capability_id=template.id,
+                    capability_params=capability_params,
+                    task_context={"target_language": language, "complex": len(code) > 4000},
+                    target_code=current,
+                )
+                capability_params.update(adapted_params)
+
                 result = load_entry_point(template)(
                     CapabilityContext(
                         code=current,
                         language=language,
                         file_path=filename,
                         project_path="",
-                        parameters={
-                            "llm_provider": self.brain.llm.provider,
-                            "llm_model": self.brain.model,
-                            "llm_timeout_seconds": self.timeout_seconds,
-                        },
+                        parameters=capability_params,
                         metadata={
                             "request": request,
                             "brain_reason": step.get("reason", ""),
                             "conversation": history,
+                            "adaptation": adaptation_record.to_dict(),
                         },
                     )
                 )
@@ -168,6 +213,7 @@ class SpsAssistantService:
                     "summary": result.summary,
                     "error": result.error,
                     "reason": step.get("reason", ""),
+                    "adaptation": adaptation_record.to_dict(),
                 })
                 if not result.success:
                     break
@@ -178,11 +224,7 @@ class SpsAssistantService:
             success = all(item["status"] == "completed" for item in results) if results else True
             selected = results[-1]["id"] if results else ""
             assistant_message = self._assistant_message(plan.intent, plan.reasoning, results, changed)
-            updated_conversation = [
-                *history,
-                {"role": "user", "content": request},
-                {"role": "assistant", "content": assistant_message},
-            ]
+            updated_conversation = [*history, {"role": "user", "content": request}, {"role": "assistant", "content": assistant_message}]
             self._record_experience(
                 request=request,
                 language=language,
@@ -203,6 +245,7 @@ class SpsAssistantService:
                 layers=self._completed_layers(base, results, changed),
                 brain={"provider": plan.provider, "model": plan.model},
                 conversation=updated_conversation,
+                learning_context=learning_context,
                 success=success,
                 error=(results[-1]["error"] if results and not success else None),
                 elapsed_ms=(perf_counter() - start) * 1000.0,
@@ -278,10 +321,10 @@ class SpsAssistantService:
             3: "reasoned by Brain",
             4: "knowledge context used",
             5: "experience recorded",
-            6: "learning evidence available",
-            7: "adaptation context evaluated",
+            6: "learning evidence evaluated",
+            7: "adaptation evaluated",
             8: "evolution opportunity evaluated",
-            9: "verification preview complete" if changed else "verification ready",
+            9: "validation preview available" if changed else "validation ready",
             10: "execution boundary ready",
         }
         for layer in base:
