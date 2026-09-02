@@ -49,44 +49,44 @@ def test_load_project_detects_language_and_records_history(tmp_path: Path):
     assert ui.project_context is not None
     assert ui.project_context["language"] == "python"
     saved = json.loads(history.read_text(encoding="utf-8"))
-    assert saved["events"][0]["command"] == "load"
+    assert saved["events"][0]["command"] == f"load {project}"
 
 
-def test_show_registry_lists_renumbered_capabilities(tmp_path: Path):
+def test_show_registry_lists_real_capabilities(tmp_path: Path):
     ui = SPS_CA_Interface(history_path=tmp_path / "history.json")
     response = ui.handle_command("show registry")
     assert "CAP-001" in response
-    assert "Prompt Processing" in response
+    assert "Simple Bug Detection" in response
+    assert "Prompt Processing" not in response
     assert "CAP-011" in response
 
 
-def test_process_request_always_starts_with_cap001_and_uses_brain_plan(tmp_path: Path):
+def test_process_request_uses_brain_plan_without_prompt_capability(tmp_path: Path):
     project = make_project(tmp_path)
     brain = FakeBrain({
         "intent": "fix syntax",
-        "steps": [{"capability_id": "CAP-003", "reason": "the source has a syntax error"}],
+        "reasoning": "The source has a syntax error.",
+        "steps": [{"capability_id": "CAP-002", "reason": "the source has a syntax error"}],
     })
     ui = SPS_CA_Interface(history_path=tmp_path / "history.json", llm_provider=brain)
     ui.load_project(str(project))
 
     response = ui.process_request("fix the syntax error in app.py")
 
-    assert "CAP-001 Prompt Processing" in response
-    assert "Ollama brain" in response
-    assert "CAP-003 Syntax Error Fix" in response
-    assert "Validation" in response
-    assert "Governance" in response
-    assert "Execution" in response
+    assert "Brain:" in response
+    assert "CAP-002" in response
+    assert "CAP-001 Prompt Processing" not in response
 
 
 def test_process_request_does_not_override_brain_with_keyword_rules(tmp_path: Path):
     project = make_project(tmp_path)
     brain = FakeBrain({
-        "intent": "run a syntax repair",
-        "steps": [{"capability_id": "CAP-003", "reason": "brain selected syntax repair"}],
+        "intent": "perform syntax repair",
+        "reasoning": "Brain-selected syntax repair.",
+        "steps": [{"capability_id": "CAP-002", "reason": "brain selected syntax repair"}],
     })
     ui = SPS_CA_Interface(history_path=tmp_path / "history.json", llm_provider=brain)
     ui.load_project(str(project))
     response = ui.process_request("please fix this bug")
-    assert "CAP-001 Prompt Processing" in response
-    assert "CAP-003 Syntax Error Fix" in response
+    assert "CAP-002" in response
+    assert "CAP-001 Prompt Processing" not in response

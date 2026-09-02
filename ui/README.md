@@ -1,28 +1,36 @@
 # SPS-CA UI
 
-SPS-CA now has two interfaces:
+## Conversational web interface
 
-## Advanced web dashboard
+Run:
 
 ```bash
 python ui/web_app.py
 ```
 
-Open `http://127.0.0.1:8080`.
+Then open `http://127.0.0.1:8080`.
 
-The dashboard is designed for both everyday coding-assistant use and thesis demonstration. It exposes:
+The top page is a coding-assistant chat. A session keeps:
 
-- task/prompt workspace;
-- source-code editor;
-- separate Brain/provider/model panel;
-- live ten-layer status;
-- Brain intent and reasoning summary;
-- ordered capability selection/execution;
-- modified source and unified diff;
-- raw JSON trace;
-- architecture map showing that Brain and Capability Registry are separate from the ten layers.
+- the current working source;
+- recent user/assistant messages;
+- Brain reasoning and selected capabilities;
+- latest code diff and trace.
 
-The browser API uses the real provider abstraction and capability registry. Its run endpoint is a controlled preview and does not silently mutate the browser user's local filesystem. Controlled project mutation belongs to the Execution layer.
+A user can provide feedback in a later message without restarting the task. For example:
+
+```text
+User: Add input validation.
+SPS-CA: Done.
+User: Also reject negative values.
+SPS-CA: [reasons over the current code + prior turn]
+User: Now add tests.
+SPS-CA: [selects the testing capability]
+```
+
+The browser calls `/api/chat`, and the backend delegates the turn to `core/assistant_service.py`. The service builds Knowledge and Experience context, asks the separate Brain for a plan, executes active capabilities, returns the new working source, and records the turn as Experience evidence.
+
+The UI also exposes the ten-layer architecture, optional sub-components, Brain boundary, capability registry, capability results, code/diff/trace and layer status. The UI is not the decision-maker.
 
 ## CLI
 
@@ -32,6 +40,24 @@ python ui/cli_interface.py
 
 The CLI supports project loading, architecture inspection, Brain status, capability registry inspection, experience history and natural-language coding requests.
 
-## Design rule
+## Design boundary
 
-The UI is an observability/presentation layer. It must not become the decision-maker for SPS-CA. Brain planning, capabilities, Validation, Governance and Execution remain backend responsibilities.
+```text
+UI
+ ↓
+core/assistant_service.py
+ ↓
+Cognitive core ↔ Brain
+ ↓
+Knowledge / Experience / Meta-learning / Adaptation / Evolution context
+ ↓
+Capabilities
+ ↓
+Verification & Validation
+ ↓
+Governance
+ ↓
+Execution
+```
+
+The browser does not silently mutate a user's local filesystem. Controlled project mutation remains an Execution-layer responsibility.
