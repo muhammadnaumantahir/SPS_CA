@@ -1,7 +1,7 @@
 """Layer 9: Capability Registry Manager.
 
-Owns capability discovery, registration, reuse tracking, and persistence for
-both seed and Layer 8-generated capabilities.
+Owns capability discovery, registration, reuse tracking, lifecycle state, and
+persistence for both seed and Layer 8-generated capabilities.
 """
 
 from __future__ import annotations
@@ -41,9 +41,8 @@ class CapabilityRegistryManager:
             return
         try:
             data = json.loads(self.registry_path.read_text(encoding="utf-8"))
-            # Layer 8 in older revisions persisted generated entries as a
-            # CAP-id -> metadata mapping. Accept that legacy shape and
-            # normalize it into the canonical Layer 9 registry structure.
+            # Accept the legacy Layer 8 CAP-id -> metadata mapping and normalize
+            # it into the canonical Layer 9 registry representation in memory.
             if "capabilities" not in data and any(str(key).startswith("CAP-") for key in data):
                 raw_caps = []
                 for metadata in data.values():
@@ -56,14 +55,20 @@ class CapabilityRegistryManager:
                     item.setdefault("origin", "capability_evolution")
                     item.setdefault("status", "active")
                     item.setdefault("test_coverage", 0.0)
-                    item.setdefault("extra_metadata", {})
+                    item.setdefault("documentation_path", "")
+                    item.setdefault("metadata_path", "")
                     item["extra_metadata"] = {
                         **dict(item.get("extra_metadata") or {}),
                         "provenance": item.get("provenance", {}),
                         "tags": item.get("tags", []),
                     }
                     raw_caps.append(item)
-                data = {"capabilities": raw_caps, "usage_history": [], "last_updated": datetime.utcnow().isoformat()}
+                data = {
+                    "version": "1.0.0",
+                    "capabilities": raw_caps,
+                    "usage_history": [],
+                    "last_updated": datetime.utcnow().isoformat(),
+                }
             self.registry_data = CapabilityRegistryData.from_dict(data)
             self.capabilities_by_id = {cap.id: cap for cap in self.registry_data.capabilities}
         except Exception as exc:  # noqa: BLE001
@@ -103,8 +108,6 @@ class CapabilityRegistryManager:
             "tags": normalized.get("tags", []),
         }
         capability = CapabilityMetadata.from_dict(normalized)
-        if capability.id in self.capabilities_by_id:
-            return False
         return self.register(capability)
 
     def get_capability(self, capability_id: str) -> Optional[CapabilityMetadata]:
@@ -150,7 +153,7 @@ class CapabilityRegistryManager:
 
     def search_capabilities(self, request: str, language: Optional[str] = None) -> List[CapabilityMetadata]:
         """Return active capabilities with meaningful request-text evidence."""
-        tokens = {token for token in request.lower().split() if len(token) > 3}
+        tokens = {token for token in request.lower().split() if len(token) >= 3}
         results = []
         for capability in self.registry_data.capabilities:
             if capability.status != "active":
@@ -172,6 +175,55 @@ class CapabilityRegistryManager:
                 results.append((score, capability))
         results.sort(key=lambda item: (-item[0], -item[1].reuse_count, item[1].id))
         return [capability for _, capability in results]
+
+    def get_top_capabilities(self, count: int = 10, by: str = "reuse_count") -> List[CapabilityMetadata]:
+        """Return the highest-ranked active capabilities by a supported metric."""
+        valid_metrics = {
+            "id": lambda c: c.id,
+            "reuse_count": lambda c: c.reuse_count,
+            "test_coverage": lambda c: c.test_coverage,
+            "created_date": lambda c: c.created_date,
+            "name": lambda c: c.name,
+        }
+        key = valid_metrics.get(by, valid_metrics["reuse_count"])
+        capabilities = [c for c in self.registry_data.capabilities if c.status == "active"]
+        capabilities.sort(key=key, reverse=True)
+        return capabilities[: max(0, count)]
+
+    def deprecate_capability(self, capability_id: str) -> bool:
+        capability = self.capabilities_by_id.get(capability_id)
+        if not capability:
+            return False
+        capability.status = "deprecated"
+        capability.last_modified = datetime.utcnow().isoformat()
+        self._save_to_disk()
+        return True
+
+    def activate_capability(self, capability_id: str) -> bool:
+        capability = self.capabilities_by_id.get(capability_id)
+        if not capability:
+            return False
+        capability.status = "active"
+        capability.last_modified = datetime.utcnow().isoformat()
+        self._save_to_disk()
+        return True
+
+    def get_statistics(self) -> Dict[str, Any]:
+        capabilities = self.registry_data.capabilities
+        total = len(capabilities)
+        total_reuses = sum(cap.reuse_count for cap in capabilities)
+        total_coverage = sum(cap.test_coverage for cap in capabilities)
+        return {
+            "total_capabilities": total,
+            "seed_capabilities": sum(1 for cap in capabilities if not cap.generated),
+            "generated_capabilities": sum(1 for cap in capabilities if cap.generated),
+            "total_reuses": total_reuses,
+            "average_reuse_count": (total_reuses / total) if total else 0.0,
+            "average_test_coverage": (total_coverage / total) if total else 0.0,
+            "active_count": sum(1 for cap in capabilities if cap.status == "active"),
+            "deprecated_count": sum(1 for cap in capabilities if cap.status == "deprecated"),
+            "experimental_count": sum(1 for cap in capabilities if cap.status == "experimental"),
+        }
 
     def query_by_type(self, task_type: str) -> List[CapabilityMetadata]:
         return [cap for cap in self.registry_data.capabilities if cap.type.value == task_type or cap.type == task_type]
