@@ -18,8 +18,6 @@ if str(REPO_ROOT) not in sys.path:
 
 import gradio as gr
 
-from experience.evolution_trace import EvolutionTraceStore
-from layers.layer_09_capability_registry import CapabilityRegistryManager
 from ui.supervisor_execution import SupervisorExecutionService
 
 
