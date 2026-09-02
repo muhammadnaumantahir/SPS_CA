@@ -8,6 +8,7 @@ static evidence.
 from __future__ import annotations
 
 import ast
+import re
 
 from capabilities.base import CapabilityContext, CapabilityResult
 
@@ -58,10 +59,13 @@ def run(context: CapabilityContext) -> CapabilityResult:
             if inferred and context.parameters.get("apply", False):
                 line_index = node.lineno - 1
                 original_line = lines[line_index]
-                marker = f"{arg.arg}"
-                replacement = f"{arg.arg}: {inferred}"
-                if marker in original_line and replacement not in original_line:
-                    lines[line_index] = original_line.replace(marker, replacement, 1)
+                # Match "<name> = " (allowing existing whitespace around "=")
+                # so the annotated form keeps PEP 8 spacing: "name: type = value".
+                pattern = re.compile(rf"(?<!\w){re.escape(arg.arg)}\s*=(?!=)\s*")
+                replacement = f"{arg.arg}: {inferred} = "
+                new_line, count = pattern.subn(replacement, original_line, count=1)
+                if count and new_line != original_line:
+                    lines[line_index] = new_line
                     edits.append(arg.arg)
 
         if node.returns is None:

@@ -2,7 +2,10 @@
 
 Generates executable pytest smoke tests for simple, statically understandable
 function shapes. Inputs are inferred from defaults, annotations, or a narrow
-string-concatenation pattern. Ambiguous signatures are left untouched.
+string-concatenation pattern where possible; parameters with no such hint fall
+back to safe sequential placeholder numbers, which is sound because the
+generated assertion either evaluates the return expression against those same
+values or degrades to a generic "result is not None" smoke check.
 """
 
 from __future__ import annotations
@@ -53,12 +56,19 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
     string_mode = bool(return_expr is not None and _is_string_concat(return_expr))
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + list(node.args.defaults)
     args = []
+    # Sequential placeholder numbers for parameters with no default, annotation, or
+    # string hint to go on. Safe to use here: the assertion this feeds is either an
+    # exact eval of the return expression against these same values (arithmetic /
+    # constant-return cases below) or a generic "is not None" smoke check, neither
+    # of which depends on the placeholder being semantically meaningful.
+    numeric_placeholder = 2
     for arg, default in zip(node.args.args, defaults):
         if arg.arg in {"self", "cls"}:
             return None
         value = _literal_for_parameter(arg, default, string_mode=string_mode)
         if value is None:
-            return None
+            value = str(numeric_placeholder)
+            numeric_placeholder += 1
         args.append(value)
 
     call = f"{node.name}({', '.join(args)})"
