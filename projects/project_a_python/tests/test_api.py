@@ -1,7 +1,17 @@
+import pytest
 from fastapi.testclient import TestClient
 from app import app
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    app.router.routes[-1] if False else None
+    from app import tasks
+    tasks.clear()
+    import app as module
+    module.next_id = 1
+    yield
 
 
 def test_health_and_crud_contract():
@@ -16,7 +26,7 @@ def test_health_and_crud_contract():
 
 
 def test_multiple_ids_are_distinct():
-    first = client.post('/tasks', json={'title': 'first'}).json()
+    client.post('/tasks', json={'title': 'first'})
     second = client.post('/tasks', json={'title': 'second'}).json()
     assert client.get(f"/tasks/{second['id']}").json()['id'] == second['id']
 
