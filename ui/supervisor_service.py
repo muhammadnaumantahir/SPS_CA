@@ -1,18 +1,11 @@
-"""Deprecated compatibility import for the SPS-CA scenario service.
+"""Legacy compatibility shim for older SPS-CA integrations.
 
-Use :mod:`ui.sps_service` for all new code. This shim remains temporarily so
-older integrations do not fail during the naming cleanup.
+New code should import :mod:`ui.sps_service` directly.
 """
 
 from .sps_service import SPSAnalysisResult, SPSScenarioService
 
-# Backward-compatible aliases for existing callers.
 SupervisorAnalysisResult = SPSAnalysisResult
 SupervisorScenarioService = SPSScenarioService
 
-__all__ = [
-    "SPSAnalysisResult",
-    "SPSScenarioService",
-    "SupervisorAnalysisResult",
-    "SupervisorScenarioService",
-]
+__all__ = ["SPSAnalysisResult", "SPSScenarioService", "SupervisorAnalysisResult", "SupervisorScenarioService"]
