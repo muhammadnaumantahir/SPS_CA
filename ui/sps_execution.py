@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
