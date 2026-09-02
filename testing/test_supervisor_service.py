@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from ui.supervisor_service import SupervisorScenarioService
+from ui.sps_service import SPSScenarioService
 
 
 def make_service(tmp_path):
-    return SupervisorScenarioService(
+    return SPSScenarioService(
         trace_history_path=tmp_path / "evolution_history.json",
         trace_stage_path=tmp_path / "stage.json",
         registry_path="capabilities/registry.json",
