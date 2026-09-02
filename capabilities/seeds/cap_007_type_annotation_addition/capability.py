@@ -1,10 +1,8 @@
 """CAP-007: Type Annotation Addition.
 
-Structure-only seed capability. Finds function parameters with no type
-annotation and, where a default value's literal type is obvious (str,
-int, float, bool), proposes that annotation. Parameters without a
-sufficiently obvious inferred type are reported as needing annotation but
-are not guessed at.
+Adds parameter annotations only when the type can be inferred safely from a
+literal default value. It never guesses types for parameters without reliable
+static evidence.
 """
 
 from __future__ import annotations
@@ -14,13 +12,6 @@ import ast
 from capabilities.base import CapabilityContext, CapabilityResult
 
 _SUPPORTED = {"python"}
-
-_LITERAL_TYPE_MAP = {
-    str: "str",
-    bool: "bool",  # checked before int, since bool is an int subclass
-    int: "int",
-    float: "float",
-}
 
 
 def _infer_type_from_default(default: ast.expr):
@@ -39,56 +30,58 @@ def _infer_type_from_default(default: ast.expr):
 
 def run(context: CapabilityContext) -> CapabilityResult:
     if context.language not in _SUPPORTED:
-        return CapabilityResult.ok(
-            summary=f"CAP-007 has no rule set yet for language '{context.language}'",
-        )
-
+        return CapabilityResult.ok(summary=f"CAP-007 has no rule set yet for language '{context.language}'")
     try:
         tree = ast.parse(context.code)
     except SyntaxError as exc:
         return CapabilityResult.fail(error=f"Could not parse source: {exc}")
 
     findings = []
+    edits = []
+    lines = context.code.splitlines()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        args = node.args
-        positional = args.args
-        defaults = args.defaults
-        offset = len(positional) - len(defaults)
-
-        for i, arg in enumerate(positional):
-            if arg.arg == "self" or arg.arg == "cls":
+        positional = node.args.args
+        defaults = [None] * (len(positional) - len(node.args.defaults)) + list(node.args.defaults)
+        for arg, default in zip(positional, defaults):
+            if arg.arg in {"self", "cls"} or arg.annotation is not None:
                 continue
-            if arg.annotation is not None:
-                continue
-            default_index = i - offset
-            inferred = None
-            if default_index >= 0:
-                inferred = _infer_type_from_default(defaults[default_index])
-            findings.append(
-                {
-                    "line": node.lineno,
-                    "issue": "missing-parameter-annotation",
-                    "detail": f"Parameter '{arg.arg}' of '{node.name}' has no type "
-                    "annotation."
-                    + (f" Inferred type: {inferred}." if inferred else ""),
-                    "inferred_type": inferred,
-                }
-            )
+            inferred = _infer_type_from_default(default) if default is not None else None
+            findings.append({
+                "line": node.lineno,
+                "issue": "missing-parameter-annotation",
+                "detail": f"Parameter '{arg.arg}' of '{node.name}' has no type annotation."
+                + (f" Inferred type: {inferred}." if inferred else ""),
+                "inferred_type": inferred,
+            })
+            if inferred and context.parameters.get("apply", False):
+                line_index = node.lineno - 1
+                original_line = lines[line_index]
+                marker = f"{arg.arg}"
+                replacement = f"{arg.arg}: {inferred}"
+                if marker in original_line and replacement not in original_line:
+                    lines[line_index] = original_line.replace(marker, replacement, 1)
+                    edits.append(arg.arg)
 
         if node.returns is None:
-            findings.append(
-                {
-                    "line": node.lineno,
-                    "issue": "missing-return-annotation",
-                    "detail": f"Function '{node.name}' has no return type annotation.",
-                }
-            )
+            findings.append({
+                "line": node.lineno,
+                "issue": "missing-return-annotation",
+                "detail": f"Function '{node.name}' has no return type annotation.",
+                "inferred_type": None,
+            })
 
-    summary = (
-        f"Found {len(findings)} missing annotation(s)."
-        if findings
-        else "No missing annotations found by CAP-007's current rule set."
+    if not findings:
+        return CapabilityResult.ok(summary="No missing annotations found by CAP-007's current rule set.")
+    if not context.parameters.get("apply", False):
+        return CapabilityResult.ok(summary=f"Found {len(findings)} missing annotation(s).", findings=findings)
+    if not edits:
+        return CapabilityResult.ok(summary="Missing annotations found, but none could be inferred safely.", findings=findings)
+
+    modified = "\n".join(lines) + ("\n" if context.code.endswith("\n") else "")
+    return CapabilityResult.ok(
+        summary=f"Added {len(edits)} safely inferred parameter annotation(s).",
+        modified_code=modified,
+        findings=findings,
     )
-    return CapabilityResult.ok(summary=summary, findings=findings)
