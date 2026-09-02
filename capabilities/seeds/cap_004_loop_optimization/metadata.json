@@ -1,22 +1,12 @@
 {
-  "id": "CAP-004",
+  "id": "CAP-005",
   "name": "Loop Optimization",
   "version": "0.1.0",
   "description": "Detects simple, safely-rewritable loop patterns (e.g. building a list via append-in-a-for-loop) and suggests a more idiomatic equivalent.",
   "entry_point": "capabilities.seeds.cap_004_loop_optimization.capability.run",
   "origin": "seed",
   "status": "active",
-  "target_languages": [
-    "python",
-    "java",
-    "javascript",
-    "typescript",
-    "go",
-    "csharp"
-  ],
+  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
   "parent_capability_id": null,
-  "tags": [
-    "optimization",
-    "refactor"
-  ]
+  "tags": ["optimization", "refactor"]
 }
