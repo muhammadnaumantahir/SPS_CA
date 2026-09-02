@@ -45,13 +45,41 @@ Test the model directly:
 !bash scripts/run_tests.sh
 ```
 
-### Run SPS-CA
+### Run SPS-CA CLI
 
 ```bash
 python ui/cli_interface.py
 ```
 
 Commands include `load`, `show project`, `show registry`, `show experience`, `help`, and `quit`.
+
+### Run the SPS-CA web UI
+
+The web UI is implemented as a Gradio presentation layer over the existing ten-layer SPS architecture. It supports prompt + pasted code, source-file upload, supervisor execution, modified-code display, and research trace/registry inspection.
+
+From the repository root:
+
+```bash
+python ui/web_ui.py
+```
+
+In Google Colab, the launcher detects Colab and enables a Gradio share link automatically. Gradio's current documentation describes share links as a tunnel to the locally running app; the app itself continues to execute in the Colab runtime. citeturn364581search4turn364581search8
+
+For a Python cell instead:
+
+```python
+from ui.web_ui import launch
+launch()
+```
+
+For a private/local launch outside Colab:
+
+```python
+from ui.web_ui import launch
+launch(share=False)
+```
+
+Because a Colab share link is publicly reachable, do not use the public link with sensitive source code or production credentials. Add authentication before exposing any real project. citeturn364581search4
 
 ## Reusing the same Colab workflow after GitHub updates
 
