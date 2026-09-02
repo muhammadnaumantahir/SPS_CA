@@ -1,22 +1,12 @@
 {
-  "id": "CAP-005",
+  "id": "CAP-006",
   "name": "Error Handling Pattern",
   "version": "0.1.0",
   "description": "Detects functions that perform risky operations (file/network/dict access) without any error handling and proposes a try/except wrapper.",
   "entry_point": "capabilities.seeds.cap_005_error_handling_pattern.capability.run",
   "origin": "seed",
   "status": "active",
-  "target_languages": [
-    "python",
-    "java",
-    "javascript",
-    "typescript",
-    "go",
-    "csharp"
-  ],
+  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
   "parent_capability_id": null,
-  "tags": [
-    "reliability",
-    "refactor"
-  ]
+  "tags": ["reliability", "refactor"]
 }
