@@ -21,7 +21,7 @@ cycle end to end:
 Generated capability bodies are intentionally conservative (see
 ``generate_capability_code``): every generated capability detects and
 reports the failure pattern that triggered it rather than attempting a
-speculative automatic fix. This keeps the quality gates in Phase 4
+speculative automatic fix. This keeps the quality gates in the evolution engine
 ("generated code is syntactically valid", "all tests pass", "coverage
 >80%") reliably satisfiable without depending on a live LLM being
 available, while still leaving the LLM query point (``models/``) as the
@@ -444,7 +444,7 @@ def {test_names[2]}():
         test_result: TestRunResult,
         governance_decision_id: Optional[str] = None,
     ) -> str:
-        """Build the ``EVOLUTION: ...`` commit message described in Phase 4."""
+        """Build the ``EVOLUTION: ...`` commit message described in the design."""
         coverage = (
             f"{test_result.coverage_percent:.1f}%"
             if test_result.coverage_percent is not None

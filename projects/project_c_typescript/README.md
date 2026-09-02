@@ -1,6 +1,6 @@
 # Project C — TypeScript / Express
 
-Equivalent Phase-8 benchmark target to Project A (Python/FastAPI) and Project B (Java/Spring Boot).
+Equivalent benchmark target to Project A (Python/FastAPI) and Project B (Java/Spring Boot).
 
 ## Run
 

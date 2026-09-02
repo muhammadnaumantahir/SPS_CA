@@ -1,6 +1,6 @@
 """Data models for Layer 8 (Evolution Engine).
 
-These mirror the workflow described in Phase 4 of the master document:
+These mirror the workflow described in the master document:
 a repeated failure pattern (:class:`EvolutionTrigger`) is turned into a
 design (:class:`CapabilityPlan`), the design is turned into concrete files
 (:class:`GeneratedCapabilityFiles`), the files are exercised by their own
@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 class EvolutionTrigger:
     """A repeated failure pattern that has crossed the evolution threshold.
 
-    Mirrors the Phase 4 example: three or more failures sharing a
+    Mirrors the design's example: three or more failures sharing a
     ``failure_category`` (e.g. ``"Parse error"``) justify generating a new
     capability rather than continuing to retry existing ones.
 
@@ -105,7 +105,7 @@ class EvolutionRecord:
     """Persisted, auditable record of one full evolution cycle.
 
     Written to ``evaluation/evolution/<capability_id>.json`` and the basis
-    for the GitHub commit message described in Phase 4 ("Commit message
+    for the GitHub commit message described in the design ("Commit message
     format"). ``registered`` is only ``True`` when the capability passed its
     own tests, met the coverage gate, and was not rejected by Governance.
     """

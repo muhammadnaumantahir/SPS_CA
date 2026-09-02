@@ -27,7 +27,7 @@ _SUBTASK_SPLIT_RE = re.compile(
 )
 
 # Very small keyword -> tag map used for heuristic capability relevance.
-# This is intentionally simple for Phase 1; Layer 4 (Meta-Learning) is where
+# This is intentionally simple for now; Layer 4 (Meta-Learning) is where
 # selection actually improves from experience over time.
 _KEYWORD_TAG_HINTS = {
     "bug": {"bug-detection"},
@@ -59,7 +59,7 @@ class CognitiveCore:
     ):
         self.analyzer = analyzer or ProjectAnalyzer()
         self.llm = llm  # Not constructed eagerly: querying a local LLM is
-        # optional for Phase 1's structural flow and shouldn't be required
+        # optional for the current structural flow and shouldn't be required
         # just to instantiate CognitiveCore (e.g. in unit tests, or when
         # Ollama isn't running).
         self._capability_loader = capability_loader
@@ -133,7 +133,7 @@ class CognitiveCore:
         """Split a (possibly compound) task description into ordered subtasks.
 
         Splits on coordinating language ("and", "then", commas). Each
-        subtask depends on the previous one, reflecting that Phase 1's
+        subtask depends on the previous one, reflecting that the current
         decomposition is sequential rather than a dependency graph -- true
         parallel/branching planning is future work beyond this phase's scope.
         """

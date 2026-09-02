@@ -11,7 +11,7 @@ from typing import Dict
 class AdaptationRecord:
     """One logged adaptation: an existing capability reused with adjusted
     parameters for a new task/language, per the ``adaptation_NNN`` records
-    described in Phase 2 of the master document.
+    described in the master document.
 
     Adaptations are Type 6 changes (Change Type Taxonomy, Section 11) — they
     reuse an existing capability with parameter adjustment and never trigger

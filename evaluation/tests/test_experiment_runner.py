@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from evaluation.phase10_runner import read_results, run_matrix
+from evaluation.experiment_runner import read_results, run_matrix
 from evaluation.scenarios import load_catalog
 
 

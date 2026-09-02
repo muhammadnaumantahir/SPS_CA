@@ -44,7 +44,7 @@ class MetaLearner:
         Requires at least ``min_occurrences`` uses (to avoid reacting to
         noise from a single unlucky run) *and* a failure rate above
         ``failure_rate_threshold`` (default 20%, matching the example in
-        Phase 2 of the master document: "If CAP-002 fails >20% of the
+        the design: "If CAP-002 fails >20% of the
         time, recommend trying CAP-003 instead").
         """
         usage_count = experience_log.get_capability_usage_count(capability_id)
@@ -99,8 +99,8 @@ class MetaLearner:
         """Return percentage improvement of current success rate over baseline.
 
         E.g. baseline 0.50, current 0.65 -> 30.0 (a 30% relative
-        improvement), matching the Phase 2 target of >15% improvement by
-        Phase 10.
+        improvement), matching the target of >15% improvement over the
+        evaluation horizon.
         """
         current = experience_log.get_overall_success_rate()
         if baseline_success_rate <= 0:

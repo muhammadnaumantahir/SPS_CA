@@ -47,7 +47,11 @@ Test the model directly:
 
 ### Run SPS-CA
 
-The repository is currently an architecture foundation. After the application entry point is implemented, run it from the repository root. Until then, use the tests and layer modules as the verification entry points.
+```bash
+python ui/cli_interface.py
+```
+
+Commands include `load`, `show project`, `show registry`, `show experience`, `help`, and `quit`.
 
 ## Reusing the same Colab workflow after GitHub updates
 

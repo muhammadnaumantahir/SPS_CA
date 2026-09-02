@@ -157,7 +157,7 @@
     {
       "id": "CAP-009",
       "name": "Parse Error Handler",
-      "description": "Generated from repeated Parse error failures during Phase 4 evolution.",
+      "description": "Generated from repeated Parse error failures during capability evolution.",
       "type": "parsing",
       "entry_point": "capabilities.generated.cap_009.capability.run",
       "supported_languages": ["python"],

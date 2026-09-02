@@ -17,4 +17,4 @@ Layers:
 """
 
 __version__ = "0.1.0"
-__status__ = "Development (Phase 0-10)"
+__status__ = "Complete"

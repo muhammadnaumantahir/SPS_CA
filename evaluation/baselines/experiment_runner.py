@@ -1,4 +1,4 @@
-"""Phase-9 runner for reproducible baseline executions."""
+"""Runner for reproducible baseline executions."""
 from __future__ import annotations
 
 import json

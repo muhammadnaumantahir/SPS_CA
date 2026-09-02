@@ -4,7 +4,7 @@ This is intentionally lightweight: it walks ``capabilities/seeds/*/metadata.json
 and returns :class:`~layers.layer_01_software_dna.CapabilityTemplate` objects.
 Layer 9 (Capability Registry) will later own the full lifecycle (activation,
 deprecation, generated-capability registration); this module only covers
-what Phase 1 needs -- discovering the built-in seed set.
+what the system needs -- discovering the built-in seed set.
 """
 
 from __future__ import annotations

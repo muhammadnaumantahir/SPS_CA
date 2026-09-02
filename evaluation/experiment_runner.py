@@ -1,4 +1,4 @@
-"""Reproducible Phase-10 execution harness.
+"""Reproducible experiment execution harness.
 
 The harness deliberately separates experiment orchestration from the actual
 baseline implementations. A caller supplies adapters for A, B, and SPS-CA;

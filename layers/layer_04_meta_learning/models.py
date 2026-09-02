@@ -12,7 +12,7 @@ class MetaLearningDecision:
     """A single strategy-change decision made by :class:`MetaLearner`.
 
     Mirrors the ``meta_learning_decision_NNN`` records described in
-    Phase 2 of the master document, kept as a first-class model so they
+    the design, kept as a first-class model so they
     can be validated, persisted, and unit tested like any other record.
     """
 

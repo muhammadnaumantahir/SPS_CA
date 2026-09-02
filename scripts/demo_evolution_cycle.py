@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Phase 4 Definition-of-Done demonstration: one full evolution cycle.
+"""Demonstration: one full evolution cycle.
 
-Seeds a Layer 3 (Experience) log with the exact scenario from the Phase 4
+Seeds a Layer 3 (Experience) log with the exact scenario from the evolution-engine
 spec of the master document -- three repeated "Parse error" failures
 (parsing JSON, XML, and CSV) against CAP-001 -- then runs Layer 8
 (Evolution Engine) end to end: trigger detection, planning, code
@@ -15,7 +15,7 @@ Run from the repo root:
 
 This is a manual, reproducible demonstration (not part of the automated
 test suite) so a supervisor can see the full self-programming loop run
-against real files in the repository, per Phase 4's Definition of Done:
+against real files in the repository, per the evolution engine's Definition of Done:
 "Generate a test capability (CAP-009) manually following the algorithm."
 """
 

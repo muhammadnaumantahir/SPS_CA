@@ -1,4 +1,4 @@
-"""Metric aggregation for Phase-10 experimental results."""
+"""Metric aggregation for experimental results."""
 from __future__ import annotations
 
 from collections import defaultdict

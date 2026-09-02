@@ -1,4 +1,4 @@
-"""Phase-10 experimental scenario catalog and execution-matrix builder."""
+"""Experimental scenario catalog and execution-matrix builder."""
 from __future__ import annotations
 
 import json

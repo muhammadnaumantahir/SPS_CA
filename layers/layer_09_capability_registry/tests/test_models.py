@@ -48,14 +48,14 @@ class TestCapabilityMetadata:
             entry_point="universal_parser",
             supported_languages=["python"],
             generated=True,
-            origin="phase_4_evolution",
+            origin="capability_evolution",
             failure_pattern="Parse error",
             trigger_tasks=["task_010", "task_015", "task_020"],
             test_coverage=100.0,
         )
         
         assert cap.generated == True
-        assert cap.origin == "phase_4_evolution"
+        assert cap.origin == "capability_evolution"
         assert cap.failure_pattern == "Parse error"
         assert len(cap.trigger_tasks) == 3
         assert cap.test_coverage == 100.0

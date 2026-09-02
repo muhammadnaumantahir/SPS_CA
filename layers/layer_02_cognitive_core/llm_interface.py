@@ -5,7 +5,7 @@ abstraction in ``models/``, never to a concrete provider directly. This
 module is that call site for Layer 2: it wraps an ``LLMProvider`` (Ollama
 by default, since that's the zero-cost local provider used for the
 prototype) and adds the query framing (code + context in, text out) and
-timeout handling called for in the Phase 1 spec ("Handle timeouts (local
+timeout handling called for in the design ("Handle timeouts (local
 inference is slow)").
 """
 

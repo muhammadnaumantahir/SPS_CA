@@ -5,7 +5,7 @@ adjusting their runtime parameters (timeout, aggressiveness, language),
 rather than generating new capabilities. This is always a Type 6 change
 (Change Type Taxonomy, Section 11) — it never triggers Layer 8 (Evolution).
 
-Sandbox execution proper belongs to Layer 6 (Validation, Phase 3) and
+Sandbox execution proper belongs to Layer 6 (Validation) and
 ``execution/`` (controlled execution infrastructure). ``test_adaptation``
 here is a lightweight pre-check Layer 5 can run on its own before handing
 an adapted capability off to validation — it is intentionally conservative
@@ -133,7 +133,7 @@ class Adaptation:
         """Run adjust_parameters + test_adaptation and package the result.
 
         Convenience method combining the individual steps into the single
-        :class:`AdaptationRecord` the Phase 2 spec's ``adaptation_NNN`` JSON
+        :class:`AdaptationRecord` the design's ``adaptation_NNN`` JSON
         format expects, so callers don't have to wire the three steps
         together themselves.
         """

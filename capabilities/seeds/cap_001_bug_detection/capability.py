@@ -1,11 +1,11 @@
 """CAP-001: Simple Bug Detection.
 
-Structure-only seed capability (per Phase 1 scope). Implements real,
+Structure-only seed capability. Implements real,
 minimal detection logic for Python using the standard library ``ast``
 module so that Layer 2/6 integration tests have something genuine to
 exercise. Non-Python languages return a not-yet-implemented result rather
 than raising, so capability selection/execution flow can still be tested
-end-to-end before Phase 1's tree-sitter-based analysis is extended to
+end-to-end before tree-sitter-based analysis is extended to
 per-language rule sets in a later phase.
 """
 

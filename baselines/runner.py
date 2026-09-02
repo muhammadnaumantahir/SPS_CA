@@ -1,4 +1,4 @@
-"""Shared execution and result contract for Phase 9 baseline agents."""
+"""Shared execution and result contract for baseline agents."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -26,7 +26,7 @@ class BaselineResult:
         return asdict(self)
 
 class ResultStore:
-    """Append-only JSONL store suitable for Phase 10 experiment records."""
+    """Append-only JSONL store suitable for experiment records."""
     def __init__(self, path: str | Path = "evaluation/baselines/results.jsonl") -> None:
         self.path = Path(path)
 

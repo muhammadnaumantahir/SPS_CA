@@ -1,4 +1,4 @@
-# SPS-CA Architecture v2
+# SPS-CA Architecture
 
 ## 1. Purpose
 

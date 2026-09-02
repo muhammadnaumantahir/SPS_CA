@@ -43,6 +43,6 @@ class TestSeedRegistry:
             fn = load_entry_point(cap)
             ctx = CapabilityContext(code=code, language="cobol", file_path="f.cob")
             result = fn(ctx)
-            # Seeds are Python-only for Phase 1; unsupported languages must
+            # Seeds are Python-only for now; unsupported languages must
             # degrade gracefully (success with a note), never raise.
             assert result.success is True

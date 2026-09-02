@@ -6,7 +6,7 @@ Three baselines for comparison:
   - Baseline B: Coding Agent + Tool Registry
   - Baseline C: SPS-CA (Full framework)
 
-Created in Phase 9.
+Baseline agent module.
 """
 
 __version__ = "0.1.0"

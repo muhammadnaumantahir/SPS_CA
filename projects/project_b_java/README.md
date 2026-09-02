@@ -1,6 +1,6 @@
 # Project B — Java / Spring Boot
 
-Equivalent Phase-8 benchmark target to Project A and Project C.
+Equivalent benchmark target to Project A and Project C.
 
 ## Run
 
