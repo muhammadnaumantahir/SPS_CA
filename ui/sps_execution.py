@@ -221,6 +221,7 @@ class SPSExecutionService:
     ) -> None:
         if not generation.get("required") or not generation.get("capability_id"):
             return
+        cap_id = generation["capability_id"]
         module_dir = Path(
             generation.get("module_dir")
             or (
@@ -231,16 +232,16 @@ class SPSExecutionService:
         )
         metadata_path = module_dir / "metadata.json"
         if not metadata_path.exists():
+            # Fallback: check CWD-relative path (generated_dir is often relative)
+            cwd_module_dir = Path(self.analysis_service.gap_planner.generated_dir) / module_dir.name
+            metadata_path = cwd_module_dir / "metadata.json"
+            if metadata_path.exists():
+                module_dir = cwd_module_dir
+        if not metadata_path.exists():
             return
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        # Fix entry_point to match the actual directory layout so it can be
-        # imported regardless of whether the capability lives in the repo
-        # capabilities/generated/ tree or a temporary workspace.
-        cap_id = generation["capability_id"]
+        # Fix entry_point to a short import path that works from the parent dir.
         module_pkg = module_dir.name  # e.g. "cap_010"
-        # Always use a short import path that works from the parent dir.
-        # e.g. "cap_010.capability.run" instead of
-        # "capabilities.generated.cap_010.capability.run"
         metadata["entry_point"] = f"{module_pkg}.capability.run"
         # Ensure the parent directory is importable.
         parent_str = str(module_dir.parent)
@@ -296,18 +297,24 @@ class SPSExecutionService:
             return getattr(importlib.import_module(module_name), function_name)
         except (ModuleNotFoundError, AttributeError):
             pass
-        # The entry_point may reference a package path (e.g. capabilities.generated.cap_010.capability)
-        # that doesn't match the actual directory layout.  Fall back to importing
-        # directly from the module_dir which was written by the evolution engine.
-        module_dir = Path(
-            generation.get("module_dir")
-            or (Path(self.analysis_service.gap_planner.generated_dir) / cap_id.lower().replace("-", "_"))
-        )
-        parent_str = str(module_dir.parent)
-        if parent_str not in sys.path:
-            sys.path.insert(0, parent_str)
-        fallback_name = f"{module_dir.name}.capability"
-        return getattr(importlib.import_module(fallback_name), function_name)
+        # Try the module_dir from the generation dict (written by evolution engine).
+        cap_dir_name = cap_id.lower().replace("-", "_")
+        for candidate_dir in [
+            Path(generation.get("module_dir", "")),
+            Path(self.analysis_service.gap_planner.generated_dir) / cap_dir_name,
+            Path.cwd() / str(self.analysis_service.gap_planner.generated_dir) / cap_dir_name,
+            self.repo_root / str(self.analysis_service.gap_planner.generated_dir) / cap_dir_name,
+        ]:
+            if not candidate_dir.is_dir():
+                continue
+            parent_str = str(candidate_dir.parent)
+            if parent_str not in sys.path:
+                sys.path.insert(0, parent_str)
+            try:
+                return getattr(importlib.import_module(f"{candidate_dir.name}.capability"), function_name)
+            except (ModuleNotFoundError, AttributeError):
+                continue
+        raise ImportError(f"Cannot load capability module for {cap_id} (entry_point: {entry_point})")
 
     @staticmethod
     def _default_filename(language: str) -> str:
