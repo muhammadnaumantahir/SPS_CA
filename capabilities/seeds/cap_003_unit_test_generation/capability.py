@@ -13,7 +13,7 @@ import ast
 import re
 
 from capabilities.base import CapabilityContext, CapabilityResult
-from capabilities.seeds.cap_010_natural_language_code_modification.capability import (
+from capabilities.seeds.cap_009_natural_language_code_modification.capability import (
     run as modify_code,
 )
 

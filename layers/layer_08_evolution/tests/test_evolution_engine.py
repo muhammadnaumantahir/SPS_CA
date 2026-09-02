@@ -108,7 +108,7 @@ class TestPlanNewCapability:
         trigger = EvolutionTrigger(pattern="Parse error", occurrence_count=3, trigger_task_ids=["t1"])
         plan = engine.plan_new_capability(trigger)
         assert plan.capability_id == "CAP-009"
-        assert plan.entry_point == "capabilities.generated.cap_009.capability.run"
+        assert plan.entry_point == "capabilities.generated.cap_010.capability.run"
         assert plan.trigger_pattern == "Parse error"
         assert len(plan.test_case_names) == 3
 
@@ -153,7 +153,7 @@ class TestGenerateCapabilityCode:
             capability_id="CAP-009",
             name="Parse Error Handler",
             description="Generated from repeated Parse error failures.",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
             trigger_pattern="Parse error",
             trigger_task_ids=["task_000", "task_001", "task_002"],
         )
@@ -169,7 +169,7 @@ class TestGenerateCapabilityCode:
         assert files.metadata["generated"] is True
         assert files.metadata["failure_pattern"] == "Parse error"
         assert files.metadata["trigger_tasks"] == ["task_000", "task_001", "task_002"]
-        assert files.metadata["entry_point"] == "capabilities.generated.cap_009.capability.run"
+        assert files.metadata["entry_point"] == "capabilities.generated.cap_010.capability.run"
 
     def test_readme_mentions_trigger(self, engine: EvolutionEngine):
         files = engine.generate_capability_code(self._plan())
@@ -182,7 +182,7 @@ class TestImplementCapability:
             capability_id="CAP-009",
             name="Parse Error Handler",
             description="desc",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
             trigger_pattern="Parse error",
         )
         files = engine.generate_capability_code(plan)
@@ -281,7 +281,7 @@ class TestTestCapability:
             capability_id="CAP-009",
             name="Broken Handler",
             description="desc",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
             trigger_pattern="Parse error",
         )
         files = engine.generate_capability_code(plan)
@@ -301,7 +301,7 @@ class TestBuildCommitMessage:
             capability_id="CAP-009",
             name="Parse Error Handler",
             description="Generated from 3 repeated 'Parse error' failures (tasks: t1, t2, t3).",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
             trigger_pattern="Parse error",
             trigger_task_ids=["t1", "t2", "t3"],
         )
@@ -319,7 +319,7 @@ class TestBuildCommitMessage:
             capability_id="CAP-009",
             name="Parse Error Handler",
             description="desc",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
             trigger_pattern="Parse error",
         )
         test_result = TestRunResult(passed=True, tests_run=3, coverage_percent=None)

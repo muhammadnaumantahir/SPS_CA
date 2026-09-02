@@ -15,17 +15,10 @@ from typing import Callable, List
 from layers.layer_01_software_dna import CapabilityTemplate
 
 SEEDS_DIR = Path(__file__).resolve().parent / "seeds"
-LEGACY_NON_CAPABILITY_DIRS = {"cap_001_prompt_processing"}
-
-
 def list_seed_metadata_paths() -> List[Path]:
     if not SEEDS_DIR.exists():
         return []
-    return sorted(
-        path
-        for path in SEEDS_DIR.glob("*/metadata.json")
-        if path.parent.name not in LEGACY_NON_CAPABILITY_DIRS
-    )
+    return sorted(SEEDS_DIR.glob("*/metadata.json"))
 
 
 def load_seed_capabilities() -> List[CapabilityTemplate]:

@@ -36,7 +36,7 @@ class TestCapabilityPlan:
             capability_id="CAP-009",
             name="Parse Error Handler",
             description="desc",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
         )
         defaults.update(overrides)
         return CapabilityPlan(**defaults)

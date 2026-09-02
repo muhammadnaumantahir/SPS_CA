@@ -1,5 +1,5 @@
 """
-Layer 6: Validation & V&V Layer
+Layer 9: Verification & Validation
 
 Implements sandbox testing, regression detection, performance monitoring,
 and rollback mechanisms for safe code modification.
@@ -25,7 +25,6 @@ from .models import (
     RollbackPlan,
 )
 
-__version__ = "0.1.0"
 __all__ = [
     "Validator",
     "ValidationError",

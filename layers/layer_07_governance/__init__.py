@@ -1,5 +1,5 @@
 """
-Layer 7: Governance Layer
+Layer 2: Governance Layer
 
 Implements governance gates, DNA rule enforcement, risk assessment,
 and audit trail logging for all SPS-CA decisions.
@@ -29,7 +29,6 @@ from .models import (
     GovernanceStats,
 )
 
-__version__ = "0.1.0"
 __all__ = [
     "GovernanceGate",
     "GovernanceError",

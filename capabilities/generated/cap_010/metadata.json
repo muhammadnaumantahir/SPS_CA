@@ -3,7 +3,7 @@
   "name": "Parse Error Handler",
   "version": "1.0.0",
   "description": "Generated from 3 repeated 'Parse error' failures (tasks: task_010, task_015, task_020).",
-  "entry_point": "capabilities.generated.cap_009.capability.run",
+  "entry_point": "capabilities.generated.cap_010.capability.run",
   "origin": "generated",
   "status": "active",
   "target_languages": ["python"],

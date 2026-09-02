@@ -30,7 +30,7 @@ def fake_capabilities():
             name="Go Only Capability",
             version="0.1.0",
             description="",
-            entry_point="capabilities.generated.cap_009.capability.run",
+            entry_point="capabilities.generated.cap_010.capability.run",
             target_languages=["go"],
             tags=["bug-detection"],
         ),

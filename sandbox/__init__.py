@@ -2,7 +2,5 @@
 SPS-CA Sandbox: Isolated Execution Environment
 
 Provides safe, isolated execution for testing code modifications.
-Used by Layer 6 (Validation & V&V).
+Used by Layer 9 (Verification & Validation).
 """
-
-__version__ = "0.1.0"

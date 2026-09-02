@@ -3,10 +3,6 @@ SPS-CA Baselines: Comparison Agents for Experimental Evaluation
 
 Three baselines for comparison:
   - Baseline A: Naive LLM
-  - Baseline B: Coding Agent + Tool Registry
-  - Baseline C: SPS-CA (Full framework)
-
-Baseline agent module.
+  - Baseline B: Tool-Augmented Coding Agent
+  - SPS-CA: Self-Programming Framework (reference baseline)
 """
-
-__version__ = "0.1.0"

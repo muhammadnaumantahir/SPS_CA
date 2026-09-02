@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from capabilities.base import CapabilityContext
-from capabilities.seeds.cap_010_natural_language_code_modification import capability
+from capabilities.seeds.cap_009_natural_language_code_modification import capability
 from models.base import LLMProvider, LLMRequest, LLMResponse
 
 

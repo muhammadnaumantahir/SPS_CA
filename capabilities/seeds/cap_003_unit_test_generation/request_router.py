@@ -7,7 +7,7 @@ from capabilities.seeds.cap_003_unit_test_generation.capability import (
     _is_explicit_modification,
     run as generate_tests,
 )
-from capabilities.seeds.cap_010_natural_language_code_modification.capability import (
+from capabilities.seeds.cap_009_natural_language_code_modification.capability import (
     run as modify_code,
 )
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from capabilities.base import CapabilityContext
-from capabilities.generated.cap_009.capability import run
+from capabilities.generated.cap_010.capability import run
 
 
 def test_parse_error_detects_reported_pattern():

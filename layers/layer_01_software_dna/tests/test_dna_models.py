@@ -109,7 +109,7 @@ class TestCapabilityTemplate:
             name="Generated One",
             version="0.2.1",
             description="An evolved capability",
-            entry_point="capabilities.generated.cap_009.run",
+            entry_point="capabilities.generated.cap_010.run",
             origin="generated",
             status="active",
             target_languages=["python"],
