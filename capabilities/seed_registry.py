@@ -1,4 +1,9 @@
-"""Discovery of seed capabilities."""
+"""Discovery of SPS-CA seed capabilities.
+
+The Brain is deliberately outside this registry. This registry contains only
+executable SPS capabilities. Legacy prompt-processing metadata is ignored so
+CAP-001 remains a real coding capability rather than becoming the Brain.
+"""
 
 from __future__ import annotations
 
@@ -10,20 +15,28 @@ from typing import Callable, List
 from layers.layer_01_software_dna import CapabilityTemplate
 
 SEEDS_DIR = Path(__file__).resolve().parent / "seeds"
+LEGACY_NON_CAPABILITY_DIRS = {"cap_001_prompt_processing"}
 
 
 def list_seed_metadata_paths() -> List[Path]:
     if not SEEDS_DIR.exists():
         return []
-    return sorted(SEEDS_DIR.glob("*/metadata.json"))
+    return sorted(
+        path
+        for path in SEEDS_DIR.glob("*/metadata.json")
+        if path.parent.name not in LEGACY_NON_CAPABILITY_DIRS
+    )
 
 
 def load_seed_capabilities() -> List[CapabilityTemplate]:
-    """Load all built-in seed capabilities in numeric pipeline order."""
+    """Load executable built-in capabilities in numeric ID order."""
     templates = []
     for path in list_seed_metadata_paths():
         with path.open("r", encoding="utf-8") as fh:
-            templates.append(CapabilityTemplate.from_dict(json.load(fh)))
+            metadata = json.load(fh)
+        if metadata.get("status") == "retired":
+            continue
+        templates.append(CapabilityTemplate.from_dict(metadata))
     return sorted(templates, key=lambda template: int(template.id.split("-")[-1]))
 
 
