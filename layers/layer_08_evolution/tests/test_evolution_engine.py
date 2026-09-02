@@ -124,27 +124,27 @@ class TestPlanNewCapability:
 
 
 class TestNextCapabilityId:
-    def test_starts_at_cap_009_with_no_seeds_or_generated(self, engine: EvolutionEngine):
-        assert engine.next_capability_id() == "CAP-009"
+    def test_starts_at_cap_010_with_no_seeds_or_generated(self, engine: EvolutionEngine):
+        assert engine.next_capability_id() == "CAP-010"
 
     def test_skips_ids_already_used_by_seeds(self, engine: EvolutionEngine):
-        seed_dir = engine.seeds_dir / "cap_009_something"
+        seed_dir = engine.seeds_dir / "cap_010_something"
         seed_dir.mkdir(parents=True)
-        (seed_dir / "metadata.json").write_text(json.dumps({"id": "CAP-009"}), encoding="utf-8")
-        assert engine.next_capability_id() == "CAP-010"
+        (seed_dir / "metadata.json").write_text(json.dumps({"id": "CAP-010"}), encoding="utf-8")
+        assert engine.next_capability_id() == "CAP-011"
 
     def test_skips_ids_already_used_by_generated_capabilities(self, engine: EvolutionEngine):
-        gen_dir = engine.generated_dir / "cap_009"
+        gen_dir = engine.generated_dir / "cap_010"
         gen_dir.mkdir(parents=True)
-        (gen_dir / "metadata.json").write_text(json.dumps({"id": "CAP-009"}), encoding="utf-8")
-        assert engine.next_capability_id() == "CAP-010"
+        (gen_dir / "metadata.json").write_text(json.dumps({"id": "CAP-010"}), encoding="utf-8")
+        assert engine.next_capability_id() == "CAP-011"
 
     def test_fills_gaps(self, engine: EvolutionEngine):
-        for cap_id in ("CAP-009", "CAP-011"):
+        for cap_id in ("CAP-010", "CAP-012"):
             gen_dir = engine.generated_dir / cap_id.lower().replace("-", "_")
             gen_dir.mkdir(parents=True)
             (gen_dir / "metadata.json").write_text(json.dumps({"id": cap_id}), encoding="utf-8")
-        assert engine.next_capability_id() == "CAP-010"
+        assert engine.next_capability_id() == "CAP-011"
 
 
 class TestGenerateCapabilityCode:

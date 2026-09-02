@@ -57,7 +57,7 @@ DEFAULT_SEEDS_DIR = "capabilities/seeds"
 DEFAULT_REGISTRY_PATH = "capabilities/registry.json"
 DEFAULT_EVALUATION_DIR = "evaluation/evolution"
 DEFAULT_COVERAGE_THRESHOLD = 80.0
-FIRST_GENERATED_NUMBER = 9  # CAP-001..CAP-008 are the seed capabilities.
+FIRST_GENERATED_NUMBER = 10  # CAP-001..CAP-009 are the seed capabilities.
 
 _COVERAGE_TOTAL_RE = re.compile(r"TOTAL\s+.*?(\d+)%\s*$", re.MULTILINE)
 
