@@ -1,0 +1,19 @@
+{
+  "capability_id": "CAP-009",
+  "trigger_pattern": "Parse error",
+  "trigger_task_ids": [
+    "task_010",
+    "task_015",
+    "task_020"
+  ],
+  "test_result": {
+    "passed": true,
+    "tests_run": 3,
+    "tests_failed": 0,
+    "coverage_percent": 100.0
+  },
+  "governance_decision_id": "decision_000001",
+  "registered": true,
+  "commit_message": "EVOLUTION: CAP-009 Parse Error Handler\nGenerated from repeated Parse error failures (tasks: task_010, task_015, task_020).\nTest coverage: 100.0%. Entry point: run().\nSupported languages: python.\n\nTrigger rationale: Generated from 3 repeated 'Parse error' failures (tasks: task_010, task_015, task_020).\nDecision: decision_000001",
+  "timestamp": "2026-09-02T04:02:35.501752+00:00"
+}

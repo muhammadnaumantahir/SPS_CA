@@ -1,0 +1,28 @@
+{
+  "CAP-009": {
+    "id": "CAP-009",
+    "name": "Parse Error Handler",
+    "version": "1.0.0",
+    "description": "Generated from 3 repeated 'Parse error' failures (tasks: task_010, task_015, task_020).",
+    "entry_point": "capabilities.generated.cap_009.capability.run",
+    "origin": "generated",
+    "status": "active",
+    "target_languages": [
+      "python"
+    ],
+    "parent_capability_id": null,
+    "tags": [
+      "evolution",
+      "generated"
+    ],
+    "generated": true,
+    "failure_pattern": "Parse error",
+    "trigger_tasks": [
+      "task_010",
+      "task_015",
+      "task_020"
+    ],
+    "reuse_count": 0,
+    "test_coverage": 100.0
+  }
+}
