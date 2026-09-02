@@ -8,6 +8,7 @@ cycle end to end:
                                    acting on? (Layer 3 experience -> bool)
     get_trigger_patterns()     -- which pattern(s), ranked by frequency
     plan_new_capability()      -- design a capability for a trigger
+    plan_capability_for_gap()  -- design a capability for an immediate gap
     generate_capability_code() -- turn the design into capability.py /
                                    tests.py / metadata.json / README.md
     implement_capability()     -- write those files under capabilities/generated/
@@ -15,8 +16,10 @@ cycle end to end:
                                    sandbox and measure coverage
     register_capability()      -- add to capabilities/registry.json, gated
                                    on Layer 7 (Governance) not rejecting it
-    run_evolution_cycle()      -- orchestrates all of the above and persists
-                                   an auditable EvolutionRecord
+    develop_capability_for_gap() -- execute plan -> generate -> test ->
+                                   register and return a structured result
+    run_evolution_cycle()      -- orchestrates the repeated-failure path and
+                                   persists an auditable EvolutionRecord
 
 Generated capability bodies are intentionally conservative (see
 ``generate_capability_code``): every generated capability detects and
@@ -37,7 +40,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from layers.layer_03_experience.experience_log import ExperienceLog
 from layers.layer_07_governance.governance import GovernanceGate
@@ -167,6 +170,35 @@ class EvolutionEngine:
                 f"test_{slug}_fails_gracefully_on_empty_input",
                 f"test_{slug}_no_ops_on_unsupported_language",
             ],
+            provenance={
+                "trigger": "repeated_failure",
+                "why": f"Failure pattern '{trigger.pattern}' occurred {trigger.occurrence_count} times.",
+                "what": f"Develop capability for {trigger.pattern}.",
+                "when": "evolution_trigger",
+                "how": "Layer 8 converted repeated experience into a CapabilityPlan.",
+            },
+        )
+
+    def plan_capability_for_gap(
+        self,
+        *,
+        task_description: str,
+        language: str,
+        reason: str,
+        task_id: Optional[str] = None,
+    ) -> CapabilityPlan:
+        """Delegate immediate capability-gap planning to Layer 8's gap planner."""
+        from .gap_planner import CapabilityGapPlanner
+
+        planner = CapabilityGapPlanner(
+            seeds_dir=str(self.seeds_dir),
+            generated_dir=str(self.generated_dir),
+        )
+        return planner.plan(
+            task_description=task_description,
+            language=language,
+            reason=reason,
+            task_id=task_id,
         )
 
     def next_capability_id(self) -> str:
@@ -292,15 +324,14 @@ def {test_names[2]}():
             "trigger_tasks": plan.trigger_task_ids,
             "reuse_count": 0,
             "test_coverage": None,
+            "provenance": plan.provenance,
         }
 
         readme = (
             f"# {plan.capability_id}: {plan.name}\n\n"
             f"{plan.description}\n\n"
-            "Generated automatically by Layer 8 (Evolution Engine) in response "
-            f"to repeated `{plan.trigger_pattern}` failures. See "
-            f"`evaluation/evolution/{plan.capability_id}.json` for the full "
-            "audit trail of the evolution decision that created it.\n"
+            "Generated automatically by Layer 8 (Evolution Engine). See "
+            f"the recorded scenario trace for the provenance of `{plan.capability_id}`.\n"
         )
 
         return GeneratedCapabilityFiles(
@@ -327,8 +358,6 @@ def {test_names[2]}():
         )
         (module_dir / "README.md").write_text(files.readme, encoding="utf-8")
 
-        # capabilities/generated/ needs its own __init__.py the first time a
-        # capability is generated; harmless (and idempotent) to (re-)ensure it.
         init_path = self.generated_dir / "__init__.py"
         if not init_path.exists():
             init_path.write_text("", encoding="utf-8")
@@ -340,14 +369,7 @@ def {test_names[2]}():
     def test_capability(
         self, capability_id: str, project_root: str = "."
     ) -> TestRunResult:
-        """Run a generated capability's own ``tests.py`` in a subprocess sandbox.
-
-        Uses ``pytest --cov`` when ``pytest-cov`` is installed so the >80%
-        coverage quality gate (R4.4) can actually be checked; if coverage
-        collection isn't available, tests still run and
-        ``coverage_percent`` is left ``None`` (``meets_coverage_gate`` is
-        then correctly ``False`` rather than silently passing the gate).
-        """
+        """Run a generated capability's own ``tests.py`` in a subprocess sandbox."""
         module = _module_name(capability_id)
         module_dir = self.generated_dir / module
         tests_path = module_dir / "tests.py"
@@ -385,8 +407,6 @@ def {test_names[2]}():
 
     @staticmethod
     def _parse_pytest_summary(output: str) -> tuple[int, int]:
-        passed = sum(1 for m in re.finditer(r"^tests?/.*::.*\bPASSED\b", output, re.MULTILINE))
-        # pytest -v prints one "<nodeid> PASSED/FAILED" line per test.
         passed = len(re.findall(r"\bPASSED\b", output))
         failed = len(re.findall(r"\bFAILED\b", output))
         return passed + failed, failed
@@ -407,13 +427,7 @@ def {test_names[2]}():
         test_result: TestRunResult,
         governance_decision_status: Optional[DecisionStatus] = None,
     ) -> bool:
-        """Add ``plan`` to ``registry_path`` if it clears the quality gates.
-
-        Returns whether registration happened. A capability is registered
-        only when: its own tests passed, it met the coverage threshold, and
-        (when a governance decision was supplied) that decision wasn't a
-        rejection.
-        """
+        """Add ``plan`` to ``registry_path`` if it clears the quality gates."""
         if not test_result.passed:
             return False
         if not test_result.meets_coverage_gate:
@@ -435,6 +449,40 @@ def {test_names[2]}():
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         self.registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
         return True
+
+    def develop_capability_for_gap(
+        self,
+        plan: CapabilityPlan,
+        *,
+        project_root: str = ".",
+        governance_decision_status: Optional[DecisionStatus] = None,
+    ) -> Dict[str, Any]:
+        """Develop a gap plan through generation, testing, and registry registration.
+
+        Governance is intentionally supplied as a status from Layer 7; this
+        method does not redefine or bypass the Governance layer.
+        """
+        files = self.generate_capability_code(plan)
+        module_dir = self.implement_capability(plan, files)
+        test_result = self.test_capability(plan.capability_id, project_root=project_root)
+        registered = self.register_capability(
+            plan,
+            files,
+            test_result,
+            governance_decision_status=governance_decision_status,
+        )
+        return {
+            "capability_id": plan.capability_id,
+            "module_dir": str(module_dir),
+            "implemented": True,
+            "test_result": {
+                "passed": test_result.passed,
+                "tests_run": test_result.tests_run,
+                "tests_failed": test_result.tests_failed,
+                "coverage_percent": test_result.coverage_percent,
+            },
+            "registered": registered,
+        }
 
     # -- 7. Commit message ---------------------------------------------------
 
@@ -472,13 +520,7 @@ def {test_names[2]}():
         min_occurrences: int = DEFAULT_MIN_OCCURRENCES,
         project_root: str = ".",
     ) -> Optional[EvolutionRecord]:
-        """Run one full evolve-generate-test-register cycle for the top trigger.
-
-        Returns ``None`` if ``should_evolve`` finds nothing above threshold.
-        Otherwise always returns an :class:`EvolutionRecord` (persisted to
-        ``evaluation/evolution/<capability_id>.json``) describing what
-        happened, whether or not registration ultimately succeeded.
-        """
+        """Run one full evolve-generate-test-register cycle for the top trigger."""
         triggers = self.get_trigger_patterns(experience_log, min_occurrences)
         if not triggers:
             return None
