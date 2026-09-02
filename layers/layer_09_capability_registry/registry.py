@@ -41,6 +41,29 @@ class CapabilityRegistryManager:
             return
         try:
             data = json.loads(self.registry_path.read_text(encoding="utf-8"))
+            # Layer 8 in older revisions persisted generated entries as a
+            # CAP-id -> metadata mapping. Accept that legacy shape and
+            # normalize it into the canonical Layer 9 registry structure.
+            if "capabilities" not in data and any(str(key).startswith("CAP-") for key in data):
+                raw_caps = []
+                for metadata in data.values():
+                    if not isinstance(metadata, dict):
+                        continue
+                    item = dict(metadata)
+                    item.setdefault("type", CapabilityType.TRANSFORMATION.value)
+                    item.setdefault("supported_languages", item.get("target_languages", ["python"]))
+                    item.setdefault("generated", True)
+                    item.setdefault("origin", "capability_evolution")
+                    item.setdefault("status", "active")
+                    item.setdefault("test_coverage", 0.0)
+                    item.setdefault("extra_metadata", {})
+                    item["extra_metadata"] = {
+                        **dict(item.get("extra_metadata") or {}),
+                        "provenance": item.get("provenance", {}),
+                        "tags": item.get("tags", []),
+                    }
+                    raw_caps.append(item)
+                data = {"capabilities": raw_caps, "usage_history": [], "last_updated": datetime.utcnow().isoformat()}
             self.registry_data = CapabilityRegistryData.from_dict(data)
             self.capabilities_by_id = {cap.id: cap for cap in self.registry_data.capabilities}
         except Exception as exc:  # noqa: BLE001
@@ -67,7 +90,7 @@ class CapabilityRegistryManager:
     def register_from_dict(self, metadata: Dict[str, Any]) -> bool:
         normalized = dict(metadata)
         normalized.setdefault("type", CapabilityType.TRANSFORMATION.value)
-        normalized.setdefault("supported_languages", ["python"])
+        normalized.setdefault("supported_languages", normalized.get("target_languages", ["python"]))
         normalized.setdefault("status", "active")
         normalized.setdefault("generated", True)
         normalized.setdefault("origin", "capability_evolution")
