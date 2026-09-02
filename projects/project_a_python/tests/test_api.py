@@ -6,16 +6,15 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def reset_state():
-    app.router.routes[-1] if False else None
     from app import tasks
     tasks.clear()
     import app as module
     module.next_id = 1
     yield
 
-
 def test_health_and_crud_contract():
     assert client.get('/health').json() == {'status': 'ok'}
+    assert client.get('/tasks').json() == []
     created = client.post('/tasks', json={'title': 'write tests'}).json()
     assert created['id'] == 1
     assert client.get('/tasks/1').json()['title'] == 'write tests'
@@ -23,13 +22,17 @@ def test_health_and_crud_contract():
     assert updated['title'] == 'write better tests'
     assert client.delete('/tasks/1').status_code == 204
     assert client.get('/tasks/1').status_code == 404
+    assert client.delete('/tasks/99').status_code == 404
 
-
-def test_multiple_ids_are_distinct():
+def test_multiple_ids_and_missing_update():
     client.post('/tasks', json={'title': 'first'})
     second = client.post('/tasks', json={'title': 'second'}).json()
     assert client.get(f"/tasks/{second['id']}").json()['id'] == second['id']
-
+    assert client.put('/tasks/99', json={'title': 'missing'}).status_code == 404
 
 def test_empty_title_rejected():
     assert client.post('/tasks', json={'title': ''}).status_code == 422
+
+def test_seeded_exists_defect_is_present():
+    client.post('/tasks', json={'title': 'one'})
+    assert client.get('/tasks/999/exists').json()['exists'] is True
