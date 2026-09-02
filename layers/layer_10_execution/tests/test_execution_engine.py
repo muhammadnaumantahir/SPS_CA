@@ -12,6 +12,8 @@ Covers:
     - Execution metrics are logged to execution_log.json
     - Success ratio by capability
     - monitor_execution returns a previously logged result
+    - monitor_execution re-runs tests and rolls back a detected regression
+    - Successful usage is reported to the capability registry
 """
 
 import json
@@ -176,5 +178,54 @@ class TestMetricsAndLogging:
         assert monitored.change_id == change.change_id
         assert monitored.status == ExecutionStatus.SUCCESS
 
+    def test_monitor_detects_regression_and_rolls_back(self, engine, target_project):
+        original = (target_project / "app.py").read_text()
+        change = Change.new(
+            capability_id="CAP-002",
+            description="Monitor regression",
+            edits=[FileEdit(file_path="app.py", new_content="def add(a, b):\n    return a + b + 1\n")],
+            test_command="pytest tests/ -q",
+        )
+        # Execute a known-good change first.
+        change.edits[0].new_content = "def add(a, b):\n    return a + b\n"
+        result = engine.execute_change(change, str(target_project))
+        assert result.status == ExecutionStatus.SUCCESS
+
+        # Simulate a later regression in the target project.
+        (target_project / "app.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+        monitored = engine.monitor_execution(change.change_id)
+
+        assert monitored is not None
+        assert monitored.status == ExecutionStatus.ROLLED_BACK
+        assert monitored.rollback_triggered is True
+        assert (target_project / "app.py").read_text() == original
+
     def test_monitor_unknown_change_returns_none(self, engine):
         assert engine.monitor_execution("change_does_not_exist") is None
+
+    def test_successful_usage_is_reported_to_registry(self, tmp_path, target_project):
+        class RegistrySpy:
+            def __init__(self):
+                self.calls = []
+
+            def record_usage(self, capability_id, success=True, execution_time_ms=0.0, notes=""):
+                self.calls.append((capability_id, success, execution_time_ms, notes))
+                return True
+
+        registry = RegistrySpy()
+        engine = ExecutionEngine(
+            snapshot_dir=str(tmp_path / "snapshots"),
+            log_path=str(tmp_path / "evaluation" / "execution_log.json"),
+            registry=registry,
+        )
+        change = Change.new(
+            capability_id="CAP-002",
+            description="Registry integration",
+            edits=[FileEdit(file_path="app.py", new_content="def add(a, b):\n    return a + b\n")],
+            test_command="pytest tests/ -q",
+        )
+        result = engine.execute_change(change, str(target_project))
+        assert result.status == ExecutionStatus.SUCCESS
+        assert len(registry.calls) == 1
+        assert registry.calls[0][0] == "CAP-002"
+        assert registry.calls[0][1] is True
