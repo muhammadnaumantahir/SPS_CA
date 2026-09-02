@@ -1,4 +1,4 @@
-"""CAP-010: explicit natural-language code modification."""
+"""CAP-011: explicit natural-language code modification."""
 
 from __future__ import annotations
 
@@ -35,11 +35,14 @@ def run(context: CapabilityContext) -> CapabilityResult:
     provider = context.parameters.get("llm_provider")
     timeout = float(context.parameters.get("llm_timeout_seconds", 120.0))
     model = str(context.parameters.get("llm_model", ""))
+    request = str(context.metadata.get("request", "")).strip()
+    if not request:
+        return CapabilityResult.fail(error="Natural Language Code Modification requires a user request.")
     try:
         llm = LLMInterface(provider=provider, timeout_seconds=timeout)
         output = llm.query(
             code=context.code,
-            instruction=f"{_SYSTEM_INSTRUCTION}\n\nUSER REQUEST:\n{context.metadata.get('request', '')}",
+            instruction=f"{_SYSTEM_INSTRUCTION}\n\nUSER REQUEST:\n{request}",
             model=model,
             temperature=0.0,
         )
@@ -53,6 +56,6 @@ def run(context: CapabilityContext) -> CapabilityResult:
         return CapabilityResult.fail(error="The requested code change produced no source-code change.")
 
     return CapabilityResult.ok(
-        summary="Applied the explicit natural-language code modification.",
+        summary="Applied the explicit natural-language code modification with the Ollama brain.",
         modified_code=modified + ("\n" if context.code.endswith("\n") else ""),
     )
