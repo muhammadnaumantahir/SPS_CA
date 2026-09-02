@@ -1,9 +1,9 @@
 {
   "id": "CAP-003",
   "name": "Unit Test Generation",
-  "version": "0.1.0",
-  "description": "Generates a stub pytest test module for the top-level functions found in the given source file.",
-  "entry_point": "capabilities.seeds.cap_003_unit_test_generation.capability.run",
+  "version": "1.1.0",
+  "description": "Generates executable pytest smoke tests unless the request explicitly asks for a source-code modification; explicit modification requests are routed to the natural-language code modifier.",
+  "entry_point": "capabilities.seeds.cap_003_unit_test_generation.request_router.run",
   "origin": "seed",
   "status": "active",
   "target_languages": [
