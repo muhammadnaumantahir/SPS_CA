@@ -55,7 +55,7 @@ Commands include `load`, `show project`, `show registry`, `show experience`, `he
 
 ### Run the SPS-CA web UI
 
-The web UI is implemented as a Gradio presentation layer over the existing ten-layer SPS architecture. It supports prompt + pasted code, source-file upload, supervisor execution, modified-code display, and research trace/registry inspection.
+The web UI is implemented as a Gradio presentation layer over the existing ten-layer SPS architecture. It supports prompt + pasted code, source-file upload, SPS-CA execution, modified-code display, and research trace/registry inspection.
 
 From the repository root:
 
