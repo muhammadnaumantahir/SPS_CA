@@ -1,18 +1,26 @@
 # SPS-CA Layers
 
-The ten SPS layers are first-class modules. Each layer owns its implementation, models, interfaces, and layer-local tests.
+The public SPS-CA architecture has **ten layers**. Use these names in the UI, documentation, experiments and trace output:
 
-## Layers
+1. **Software DNA layer** — identity, invariants and constraints.
+2. **Governance layer** — policy, risk and approval/rejection.
+3. **Cognitive core** — prompt analysis, reasoning, planning and code context.
+4. **Knowledge core** — structured code/capability/system knowledge.
+5. **Experience core** — persistent outcomes, failures, successes and lessons.
+6. **Meta-learning core** — learns which strategies work under which conditions.
+7. **Adaptation core** — adjusts strategies and capability composition.
+8. **Evolution core** — develops/improves reusable SPS capabilities.
+9. **Verification & Validation** — correctness, tests, sandbox and evidence.
+10. **Execution layer** — controlled application of approved operations.
 
-1. Software DNA — immutable constraints and seed rules
-2. Cognitive Core — understanding, planning, decomposition, reasoning
-3. Experience — structured task/outcome history
-4. Meta-Learning — strategy effectiveness learning
-5. Adaptation — strategy and parameter adaptation
-6. Validation — testing and verification
-7. Governance — risk, policy, approval gates
-8. Evolution — capability development/self-programming
-9. Capability Registry — versions, provenance, dependencies, lineage
-10. Execution — controlled tools, processes, snapshots and rollback
+## Brain boundary
 
-Cross-layer orchestration belongs in `core/`; cross-layer tests belong in `testing/`.
+The **Brain is separate from these ten layers**. It is a replaceable AI intelligence service, initially backed by Ollama through `models/`. It supports the Cognitive core with prompt understanding, reasoning, planning, code generation and debugging. It may also support Meta-learning, Adaptation and Evolution reasoning.
+
+The Brain is **not** `CAP-001`, is not assigned a `CAP-NNN` identifier, and is not counted as layer 11.
+
+## Capability boundary
+
+Capabilities are executable SPS skills under `capabilities/`. They are selected/composed by the SPS process and may be seeded or generated. The Capability Registry and Capability Lineage are supporting subsystems, not additional architectural layers.
+
+`layers/architecture.py` is the canonical machine-readable vocabulary for the ten public layer names.
