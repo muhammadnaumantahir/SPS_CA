@@ -1,7 +1,7 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Version:** 0.6.0  
-**Status:** Phase 6 — Initial Capability Implementation  
+**Version:** 0.7.0  
+**Status:** Phase 7 — User Interface & Prompt-Based Interaction  
 **Goal:** Research prototype for governed, traceable and reversible self-programming.
 
 SPS-CA investigates whether an AI coding system can improve future performance by accumulating experience, adapting strategies, and safely developing reusable capabilities.
@@ -20,19 +20,13 @@ Self-modification must never bypass governance or validation.
 
 ## Current implementation status
 
-Phases 0–5 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry and execution boundary. **Phase 6 implements the eight seed capabilities as reusable executable components.**
+Phases 0–6 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry, execution boundary and executable seed capabilities. **Phase 7 adds the prompt-based user interface and session interaction layer.**
 
-- **CAP-001:** high-confidence bug pattern detection.
-- **CAP-002:** conservative syntax-error repair.
-- **CAP-003:** executable pytest smoke-test generation where behavior is statically inferable.
-- **CAP-004:** safe identity-append loop optimization.
-- **CAP-005:** risky-call/error-handling pattern detection.
-- **CAP-006:** conservative unused-literal assignment removal.
-- **CAP-007:** safe parameter annotation inference from literal defaults.
-- **CAP-008:** conservative documentation stub generation.
-- **CAP-009:** generated Phase-4 parse-error capability remains registered alongside the seed set.
-
-Each seed uses the shared `CapabilityContext` / `CapabilityResult` interface and has its own metadata and README documentation. The canonical registry now indexes CAP-001 through CAP-009.
+- **CLI:** `python ui/cli_interface.py`
+- **Commands:** `load`, `show project`, `show registry`, `show experience`, `help`, `quit`.
+- **Session history:** persisted locally as `ui/session_history.json` at runtime.
+- **Request flow:** natural-language requests are routed through Cognitive Core, then through Validation and Governance before approved executable changes reach Layer 10.
+- **Response:** reports capability, validation/governance status, test counts, coverage when available, and execution time.
 
 ## Architecture
 
@@ -61,7 +55,7 @@ SPS_CA/
 ├── memory/                  # Runtime conversations/experiences/memories/traces
 ├── projects/                # User target projects; never mix with SPS source
 ├── data/                    # Runtime database/users/sessions/exports
-├── ui/                      # UI and visualization
+├── ui/                      # Prompt UI and future presentation layers
 ├── testing/                 # Cross-layer and research tests
 ├── analytics/               # Metrics, graphs, growth and evolution datasets
 └── docs/                    # Architecture, research and experiment docs
@@ -97,7 +91,7 @@ Generated capabilities retain provenance, triggering task/experience identifiers
 
 ## Model strategy
 
-SPS-CA uses a provider-neutral model interface. The initial local provider is Ollama. Future adapters can support OpenAI, Anthropic and additional local/cloud providers without changing the SPS layers.
+SPS-CA uses a provider-neutral model interface. The initial local provider is Ollama.
 
 **Never commit API keys or model secrets.**
 
@@ -116,14 +110,21 @@ python -m venv .venv
 pip install -r requirements.txt
 ollama pull qwen2.5-coder:7b
 pytest -q
+python ui/cli_interface.py
 ```
 
-To run the seed-capability suite:
+## Phase 7 commands
 
-```bash
-pytest capabilities/tests/test_seed_capabilities.py -v
-pytest capabilities/tests/test_seed_registry.py -v
+```text
+load projects/project_a_python
+show project
+show registry
+show experience
+help
+quit
 ```
+
+Natural-language coding requests can be entered directly after loading a target project.
 
 ## Development rules
 
@@ -147,4 +148,4 @@ Primary evidence should include repeat-task performance, capability reuse, failu
 
 ## Status
 
-**Phase 6 capability implementation is in place.** The behavioral suite has been strengthened and a CI workflow is included, but the repository's Actions API currently reports no workflow runs, so remote CI/coverage execution has not been independently verified yet. Full system-wide evaluation remains part of the later testing/evaluation phases.
+**Phase 7 UI implementation is in place.** The source includes the interactive CLI, required commands, session history, capability selection, validation/governance routing, execution reporting and a GitHub Actions verification workflow. Remote workflow execution remains subject to the repository's GitHub Actions availability.
