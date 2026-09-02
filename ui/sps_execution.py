@@ -75,8 +75,7 @@ class SPSExecutionService:
         if capability is None:
             return self._fail(scenario_id, f"Capability {cap_id} is not registered.")
 
-        module_name, _, function_name = capability.entry_point.rpartition(".")
-        capability_fn = getattr(importlib.import_module(module_name), function_name)
+        capability_fn = self._load_capability_fn(capability.entry_point, cap_id, generation)
 
         workspace, relative_file = self._prepare_workspace(
             scenario_id=scenario_id,
@@ -233,11 +232,24 @@ class SPSExecutionService:
         if not metadata_path.exists():
             return
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        # Fix entry_point to match the actual directory layout so it can be
+        # imported regardless of whether the capability lives in the repo
+        # capabilities/generated/ tree or a temporary workspace.
+        cap_id = generation["capability_id"]
+        module_pkg = module_dir.name  # e.g. "cap_010"
+        # Always use a short import path that works from the parent dir.
+        # e.g. "cap_010.capability.run" instead of
+        # "capabilities.generated.cap_010.capability.run"
+        metadata["entry_point"] = f"{module_pkg}.capability.run"
+        # Ensure the parent directory is importable.
+        parent_str = str(module_dir.parent)
+        if parent_str not in sys.path:
+            sys.path.insert(0, parent_str)
         if generation.get("test_result", {}).get("coverage_percent") is not None:
             metadata["test_coverage"] = generation["test_result"]["coverage_percent"]
         registered = registry.register_from_dict(metadata)
         generation["registered"] = (
-            registered or registry.get_capability(generation["capability_id"]) is not None
+            registered or registry.get_capability(cap_id) is not None
         )
 
     def _prepare_workspace(
@@ -275,6 +287,26 @@ class SPSExecutionService:
                 encoding="utf-8",
             )
         return workspace, relative_file
+
+    def _load_capability_fn(self, entry_point: str, cap_id: str, generation: Dict[str, Any]):
+        """Load the capability function from its entry_point, handling non-standard locations."""
+        module_name, _, function_name = entry_point.rpartition(".")
+        try:
+            return getattr(importlib.import_module(module_name), function_name)
+        except (ModuleNotFoundError, AttributeError):
+            pass
+        # The entry_point may reference a package path (e.g. capabilities.generated.cap_010.capability)
+        # that doesn't match the actual directory layout.  Fall back to importing
+        # directly from the module_dir which was written by the evolution engine.
+        module_dir = Path(
+            generation.get("module_dir")
+            or (Path(self.analysis_service.gap_planner.generated_dir) / cap_id.lower().replace("-", "_"))
+        )
+        parent_str = str(module_dir.parent)
+        if parent_str not in sys.path:
+            sys.path.insert(0, parent_str)
+        fallback_name = f"{module_dir.name}.capability"
+        return getattr(importlib.import_module(fallback_name), function_name)
 
     @staticmethod
     def _default_filename(language: str) -> str:
