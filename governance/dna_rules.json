@@ -1,90 +1,89 @@
 {
-  "$schema_version": "1.0",
-  "description": "Immutable governance constraints for SPS-CA (Layer 1: Software DNA). Hard rules must reject a violating action outright. Soft rules are logged as warnings. This file is read-only at runtime; only a human-reviewed pull request may change it.",
+  "description": "Immutable governance constraints for SPS-CA (Software DNA layer). Hard rules reject violating actions; soft rules create warnings or review requirements. This file is read-only at runtime and changes require human-reviewed source control changes.",
   "dna_rules": [
     {
       "id": "rule_001",
       "constraint": "Never modify core governance logic or the DNA rule set itself",
       "severity": "hard",
       "category": "governance",
-      "rationale": "The rules that constrain self-modification cannot be a target of self-modification, or the entire governance layer is meaningless."
+      "rationale": "The rules that constrain self-modification cannot be a target of self-modification."
     },
     {
       "id": "rule_002",
       "constraint": "Never bypass or disable the Governance layer's approval gate for an Evolution-generated capability",
       "severity": "hard",
       "category": "governance",
-      "rationale": "Every self-generated capability must pass through explicit governance review before activation."
+      "rationale": "Every self-generated capability must pass governance before activation."
     },
     {
       "id": "rule_003",
-      "constraint": "Never bypass or disable the Validation layer for a proposed change",
+      "constraint": "Never bypass or disable Verification & Validation for a proposed change",
       "severity": "hard",
       "category": "safety",
       "rationale": "Untested self-modifications must not reach execution."
     },
     {
       "id": "rule_004",
-      "constraint": "Never execute a capability outside the sandbox/controlled execution environment",
+      "constraint": "Never execute a capability outside the sandbox or controlled execution environment",
       "severity": "hard",
       "category": "safety",
-      "rationale": "Generated code must run in an isolated environment until proven safe."
+      "rationale": "Generated code must remain isolated until proven safe."
     },
     {
       "id": "rule_005",
       "constraint": "Never delete or overwrite experience logs, audit trails, or lineage records",
       "severity": "hard",
       "category": "traceability",
-      "rationale": "The audit trail is the evidentiary basis for the thesis claims (traceability, reversibility). It must be append-only."
+      "rationale": "Historical evidence is required to reproduce and evaluate SPS behavior."
     },
     {
       "id": "rule_006",
       "constraint": "Never commit secrets, API keys, tokens, or credentials to the repository",
       "severity": "hard",
       "category": "security",
-      "rationale": "Matches REQUIREMENTS.md: 'Never commit API keys, tokens, passwords, or other secrets to the repository.'"
+      "rationale": "Credentials belong in runtime configuration, never in source control."
     },
     {
       "id": "rule_007",
-      "constraint": "Never apply a self-modification without a rollback path",
+      "constraint": "Never apply SPS self-modification without a rollback path",
       "severity": "hard",
       "category": "safety",
-      "rationale": "Every change to SPS-CA's own logic must be reversible (Layer 10: Execution snapshots)."
+      "rationale": "Self-change must remain reversible."
     },
     {
       "id": "rule_008",
-      "constraint": "Never modify a user's target project files without an explicit user request for that project",
+      "constraint": "Never modify a user's target project files without an explicit user request",
       "severity": "hard",
       "category": "scope",
-      "rationale": "SPS self-change (Type B) and user-project change must remain distinct; SPS-CA must not silently touch user code."
+      "rationale": "User-project change and SPS self-change are separate behaviors."
     },
     {
       "id": "rule_009",
-      "constraint": "Prefer the smallest capability version bump that accurately reflects the change",
+      "constraint": "Preserve capability history and lineage when a capability is changed",
       "severity": "soft",
       "category": "quality",
-      "rationale": "Keeps capability lineage and version history meaningful rather than inflated."
+      "rationale": "Capability evolution must remain traceable across changes."
     },
     {
       "id": "rule_010",
-      "constraint": "Prefer reusing or adapting an existing capability over generating a new one when semantically equivalent",
+      "constraint": "Prefer reusing or adapting an existing capability over creating a semantically equivalent new capability",
       "severity": "soft",
       "category": "quality",
-      "rationale": "Reduces capability sprawl; supports the meta-learning/adaptation research questions."
+      "rationale": "Avoid capability sprawl and support reuse research."
     },
     {
       "id": "rule_011",
-      "constraint": "Flag any generated capability whose target languages fall outside the supported set (Python, Java, JavaScript/TypeScript, Go, C#) for manual review",
+      "constraint": "Flag generated capabilities outside the supported target languages (Python, Java, JavaScript/TypeScript, Go, C#) for manual review",
       "severity": "soft",
       "category": "scope",
-      "rationale": "The evaluation is scoped to five target languages; anything outside that scope needs explicit sign-off."
+      "rationale": "The controlled evaluation scope is limited to the supported languages."
     },
     {
       "id": "rule_012",
-      "constraint": "Log every DNA check performed, whether it passes or fails",
+      "constraint": "Log every Software DNA check performed, whether it passes or fails",
       "severity": "soft",
       "category": "traceability",
-      "rationale": "Supports the auditability claim even for actions that were ultimately allowed."
+      "rationale": "Auditability requires both allowed and rejected decisions to be visible."
     }
   ]
 }
