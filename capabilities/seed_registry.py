@@ -26,12 +26,20 @@ def list_seed_metadata_paths() -> List[Path]:
 
 
 def load_seed_capabilities() -> List[CapabilityTemplate]:
-    """Load every seed capability's metadata as a CapabilityTemplate."""
+    """Load every seed capability's metadata as a CapabilityTemplate.
+
+    Explicit natural-language modification is placed first so a request such
+    as "add this function" or "add input validation" is handled as a code
+    modification rather than being misclassified as test generation or a
+    narrow analysis capability.
+    """
     templates = []
     for path in list_seed_metadata_paths():
         with path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
         templates.append(CapabilityTemplate.from_dict(data))
+
+    templates.sort(key=lambda template: (0 if template.id == "CAP-010" else 1, template.id))
     return templates
 
 
