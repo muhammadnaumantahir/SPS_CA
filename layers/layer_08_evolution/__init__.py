@@ -1,12 +1,13 @@
 """Layer 08: Evolution Engine.
 
-The core self-programming mechanism: detects repeated failure patterns in
-Layer 3's experience log and generates new, tested, governed capabilities
-in response. See ``evolution_engine.py`` for the full pipeline and
-``models.py`` for the data it produces and persists.
+Layer 8 owns the self-programming lifecycle: detecting limitations,
+planning capability growth, generating capabilities, and preserving their
+evolution provenance. Layer names remain aligned with the SPS ten-layer
+framework.
 """
 
 from .evolution_engine import EvolutionEngine, EvolutionError
+from .gap_planner import CapabilityGapPlanner
 from .models import (
     CapabilityPlan,
     EvolutionRecord,
@@ -18,6 +19,7 @@ from .models import (
 __all__ = [
     "EvolutionEngine",
     "EvolutionError",
+    "CapabilityGapPlanner",
     "CapabilityPlan",
     "EvolutionRecord",
     "EvolutionTrigger",
