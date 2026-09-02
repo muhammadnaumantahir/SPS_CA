@@ -2,19 +2,31 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from capabilities.base import CapabilityContext
-from capabilities.seed_registry import load_entry_point, load_seed_capabilities
-from layers.layer_02_cognitive_core import CognitiveCore
-from layers.layer_06_validation import Validator
-from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGate
-from layers.layer_09_capability_registry import CapabilityRegistryManager
-from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit
+# Required for the documented `python ui/cli_interface.py` entrypoint.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
+from capabilities.base import CapabilityContext  # noqa: E402
+from capabilities.seed_registry import load_entry_point, load_seed_capabilities  # noqa: E402
+from layers.layer_02_cognitive_core import CognitiveCore  # noqa: E402
+from layers.layer_06_validation import Validator  # noqa: E402
+from layers.layer_07_governance import (  # noqa: E402
+    ChangeType,
+    DecisionStatus,
+    GovernanceGate,
+)
+from layers.layer_09_capability_registry import CapabilityRegistryManager  # noqa: E402
+from layers.layer_10_execution import (  # noqa: E402
+    Change,
+    ExecutionEngine,
+    ExecutionStatus,
+    FileEdit,
+)
 
 HELP_TEXT = """Commands:
   load <project_path>      Load a target project
@@ -28,13 +40,7 @@ Any other input is treated as a natural-language coding request."""
 
 
 class SPS_CA_Interface:
-    """Prompt-based Phase 7 interface over the existing SPS layer packages.
-
-    The UI is intentionally thin: it owns interaction, presentation and
-    session history while delegating reasoning to Layer 2, validation to
-    Layer 6, governance to Layer 7, registry lookup to Layer 9, and execution
-    to Layer 10.
-    """
+    """Simple ChatGPT-like prompt interface for SPS-CA."""
 
     def __init__(
         self,
@@ -49,9 +55,6 @@ class SPS_CA_Interface:
         self.project_context: Optional[Dict[str, Any]] = None
         self._history = self._load_history()
 
-    # ------------------------------------------------------------------
-    # Interactive session / commands
-    # ------------------------------------------------------------------
     def start_interactive_session(self) -> None:
         print("Welcome to SPS-CA (Self-Programming Code Assistant)")
         print("Type 'help' for commands, 'quit' to exit")
@@ -82,18 +85,6 @@ class SPS_CA_Interface:
             response = self.load_project(command[5:].strip())
             self._record_event("load", command, response)
             return response
-        if lowered == "show project":
-            response = self.show_context("project")
-            self._record_event("show", command, response)
-            return response
-        if lowered == "show registry":
-            response = self.show_context("registry")
-            self._record_event("show", command, response)
-            return response
-        if lowered == "show experience":
-            response = self.show_context("experience")
-            self._record_event("show", command, response)
-            return response
         if lowered.startswith("show "):
             response = self.show_context(command[5:].strip())
             self._record_event("show", command, response)
@@ -102,9 +93,6 @@ class SPS_CA_Interface:
         self._record_event("request", command, response)
         return response
 
-    # ------------------------------------------------------------------
-    # Project context
-    # ------------------------------------------------------------------
     def load_project(self, project_path: str) -> str:
         root = Path(project_path).expanduser().resolve()
         if not root.exists() or not root.is_dir():
@@ -139,68 +127,41 @@ class SPS_CA_Interface:
             capabilities = self.registry.list_all_capabilities()
             if not capabilities:
                 return "Available capabilities: none"
-            lines = ["Available capabilities:"]
-            for cap in capabilities:
-                lines.append(
-                    f"  {cap.id}: {cap.name} [{cap.status}] v{cap.version}"
-                )
-            return "\n".join(lines)
+            return "\n".join(
+                ["Available capabilities:"]
+                + [f"  {cap.id}: {cap.name} [{cap.status}] v{cap.version}" for cap in capabilities]
+            )
         if context_type == "experience":
             events = self._history.get("events", [])[-5:]
             if not events:
                 return "Recent interactions: none"
-            lines = ["Recent interactions:"]
-            for event in events:
-                lines.append(
-                    f"  {event['timestamp']} | {event['kind']} | {event['command']}"
-                )
-            return "\n".join(lines)
+            return "\n".join(
+                ["Recent interactions:"]
+                + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events]
+            )
         return "Unknown context. Use: project, registry, experience"
 
-    # ------------------------------------------------------------------
-    # Ten-layer-oriented request flow
-    # ------------------------------------------------------------------
     def process_request(self, user_request: str) -> str:
         if not self.project_context:
             return "Error: no project loaded. Use: load <project_path>"
-
         try:
             project_path = self.project_context["path"]
             language = self.project_context["language"]
+            self.core.receive_request(user_request, target_project=project_path, target_language=language)
 
-            # Layer 1: Software DNA boundary is enforced later by Layer 7,
-            # while this interface keeps the request/project boundary explicit.
-            request = self.core.receive_request(
-                user_request,
-                target_project=project_path,
-                target_language=language,
-            )
-
-            # Layer 2: cognitive analysis + candidate capability selection.
             analysis = self.core.analyze_target_project(project_path)
-            candidates = self.core.select_candidate_capabilities(
-                analysis, user_request=user_request
-            )
+            candidates = self.core.select_candidate_capabilities(analysis, user_request=user_request)
             plan = self.core.plan_modification_strategy(
                 analysis, candidates, self.core.decompose_task(user_request)
             )
-            if not plan.selected_capability_ids:
+            selected = self._best_candidate(plan.selected_capability_ids, user_request)
+            if selected is None:
                 return "Cognitive Core: no suitable capability found."
 
-            selected = self._resolve_capability(plan.selected_capability_ids)
-            if selected is None:
-                return "Cognitive Core: selected capability could not be resolved."
-
-            # Layers 3-5: current experience/meta-learning/adaptation state is
-            # represented through the existing planning result; no UI-specific
-            # learning logic is introduced here.
             capability_fn = load_entry_point(selected)
             target_file, code = self._choose_target_file(project_path, language, user_request)
             if target_file is None:
-                return (
-                    f"Analysis complete. Capability used: {selected.id}. "
-                    "No supported source file was found for this request."
-                )
+                return f"Analysis complete. Capability used: {selected.id}. No supported source file was found."
 
             capability_result = capability_fn(
                 CapabilityContext(
@@ -211,15 +172,11 @@ class SPS_CA_Interface:
                     metadata={"request": user_request},
                 )
             )
-
             if not capability_result.success:
                 return f"Capability {selected.id} failed: {capability_result.error}"
-
-            # Analysis-only capability: return findings without modifying user code.
             if capability_result.modified_code is None:
                 return self._format_analysis_response(selected.id, capability_result)
 
-            change_type = self._change_type_for_capability(selected.id)
             change = Change.new(
                 capability_id=selected.id,
                 description=user_request,
@@ -228,26 +185,21 @@ class SPS_CA_Interface:
                 test_command="pytest -q",
             )
 
-            # Layer 6: validate candidate in an isolated copy.
             validator = Validator(project_path)
             sandbox = validator.run_in_sandbox(
-                capability_result.modified_code,
-                change.change_id,
-                target_file,
+                capability_result.modified_code, change.change_id, target_file
             )
-            validation_ok = sandbox.status.value == "success"
-            if not validation_ok:
+            if sandbox.status.value != "success":
                 return (
                     f"Validation failed for {selected.id}.\n"
                     f"  Layer 6: {sandbox.status.value}\n"
                     f"  Change: {change.change_id}"
                 )
 
-            # Layer 7: governance gate and audit decision.
             governance = GovernanceGate()
             decision = governance.make_decision(
                 change.change_id,
-                change_type,
+                self._change_type_for_capability(selected.id),
                 change.description,
                 [target_file],
                 related_capabilities=[selected.id],
@@ -260,9 +212,6 @@ class SPS_CA_Interface:
                     f"  Reason: {decision.rationale}"
                 )
 
-            # Layer 8 is represented by generated capabilities entering the
-            # registry before execution; normal seed use proceeds without creating
-            # a new capability.
             execution = self.execution.execute_change(change, project_path)
             return self.format_response(
                 execution,
@@ -271,12 +220,9 @@ class SPS_CA_Interface:
                 validation_status=sandbox.status.value,
                 governance_status=decision.decision.value,
             )
-        except Exception as exc:  # UI must report failures, not terminate the REPL.
+        except Exception as exc:  # UI must not terminate the REPL.
             return f"Error: {exc}"
 
-    # ------------------------------------------------------------------
-    # Formatting / helpers
-    # ------------------------------------------------------------------
     def format_response(
         self,
         execution_result: Any,
@@ -286,9 +232,8 @@ class SPS_CA_Interface:
         validation_status: str,
         governance_status: str,
     ) -> str:
-        status = execution_result.status.value
         coverage_text = "not reported" if coverage is None else f"{coverage:.1f}%"
-        if status == ExecutionStatus.SUCCESS.value:
+        if execution_result.status == ExecutionStatus.SUCCESS:
             return (
                 "✓ Change applied successfully!\n"
                 f"  Capability used: {capability_id}\n"
@@ -300,58 +245,44 @@ class SPS_CA_Interface:
                 f"  Execution time: {execution_result.execution_time_ms}ms"
             )
         return (
-            f"✗ Change {status}.\n"
+            f"✗ Change {execution_result.status.value}.\n"
             f"  Capability used: {capability_id}\n"
             f"  Validation: {validation_status}\n"
             f"  Governance: {governance_status}\n"
             f"  Error: {execution_result.error_message or 'unknown error'}"
         )
 
-    def _format_analysis_response(self, capability_id: str, result: Any) -> str:
-        lines = [
-            f"✓ Analysis completed with {capability_id}.",
-            f"  Summary: {result.summary}",
-            f"  Findings: {len(result.findings)}",
-        ]
-        for finding in result.findings[:10]:
-            detail = finding.get("detail", finding.get("issue", "finding"))
-            lines.append(f"    - {detail}")
-        return "\n".join(lines)
+    @staticmethod
+    def _best_candidate(capability_ids: list[str], request: str):
+        priority = (
+            ("syntax", "CAP-002"),
+            ("test", "CAP-003"),
+            ("loop", "CAP-004"),
+            ("exception", "CAP-005"),
+            ("error handling", "CAP-005"),
+            ("unused", "CAP-006"),
+            ("annotation", "CAP-007"),
+            ("type", "CAP-007"),
+            ("doc", "CAP-008"),
+            ("documentation", "CAP-008"),
+            ("parse error", "CAP-009"),
+        )
+        lowered = request.lower()
+        for keyword, capability_id in priority:
+            if keyword in lowered and capability_id in capability_ids:
+                return SPS_CA_Interface._resolve_template(capability_id)
+        return SPS_CA_Interface._resolve_template(capability_ids[0]) if capability_ids else None
 
-    def _resolve_capability(self, capability_id: str):
+    @staticmethod
+    def _resolve_template(capability_id: str):
         for template in load_seed_capabilities():
             if template.id == capability_id:
                 return template
         return None
 
-    def _choose_target_file(
-        self, project_path: str, language: str, user_request: str
-    ) -> tuple[Optional[str], str]:
-        suffixes = {
-            "python": {".py"},
-            "java": {".java"},
-            "javascript": {".js", ".jsx"},
-            "typescript": {".ts", ".tsx"},
-            "go": {".go"},
-            "csharp": {".cs"},
-        }
-        requested = user_request.lower()
-        candidates = []
-        for path in sorted(Path(project_path).rglob("*")):
-            if not path.is_file() or path.suffix not in suffixes.get(language, set()):
-                continue
-            if any(part in str(path).lower() for part in requested.split() if len(part) > 3):
-                candidates.insert(0, path)
-            else:
-                candidates.append(path)
-        if not candidates:
-            return None, ""
-        target = candidates[0]
-        return str(target.relative_to(Path(project_path))).replace("\\", "/"), target.read_text(encoding="utf-8")
-
     @staticmethod
     def _change_type_for_capability(capability_id: str) -> ChangeType:
-        mapping = {
+        return {
             "CAP-002": ChangeType.SYNTAX_FIX,
             "CAP-003": ChangeType.TEST_GENERATION,
             "CAP-004": ChangeType.REFACTORING,
@@ -360,8 +291,37 @@ class SPS_CA_Interface:
             "CAP-007": ChangeType.REFACTORING,
             "CAP-008": ChangeType.FEATURE_ADDITION,
             "CAP-009": ChangeType.LOGIC_FIX,
+        }.get(capability_id, ChangeType.LOGIC_FIX)
+
+    @staticmethod
+    def _choose_target_file(project_path: str, language: str, user_request: str) -> tuple[Optional[str], str]:
+        suffixes = {
+            "python": {".py"}, "java": {".java"}, "javascript": {".js", ".jsx"},
+            "typescript": {".ts", ".tsx"}, "go": {".go"}, "csharp": {".cs"},
         }
-        return mapping.get(capability_id, ChangeType.LOGIC_FIX)
+        requested = user_request.lower()
+        candidates = []
+        for path in sorted(Path(project_path).rglob("*")):
+            if not path.is_file() or path.suffix not in suffixes.get(language, set()):
+                continue
+            score = sum(1 for token in requested.split() if len(token) > 3 and token in str(path).lower())
+            candidates.append((score, path))
+        if not candidates:
+            return None, ""
+        candidates.sort(key=lambda item: (-item[0], str(item[1])))
+        target = candidates[0][1]
+        return str(target.relative_to(Path(project_path))).replace("\\", "/"), target.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _format_analysis_response(capability_id: str, result: Any) -> str:
+        lines = [
+            f"✓ Analysis completed with {capability_id}.",
+            f"  Summary: {result.summary}",
+            f"  Findings: {len(result.findings)}",
+        ]
+        for finding in result.findings[:10]:
+            lines.append(f"    - {finding.get('detail', finding.get('issue', 'finding'))}")
+        return "\n".join(lines)
 
     def _load_history(self) -> Dict[str, Any]:
         if not self.history_path.exists():
@@ -381,14 +341,11 @@ class SPS_CA_Interface:
                 "response": response,
             }
         )
-        self.history_path.write_text(
-            json.dumps(self._history, indent=2), encoding="utf-8"
-        )
+        self.history_path.write_text(json.dumps(self._history, indent=2), encoding="utf-8")
 
 
 def main() -> None:
-    interface = SPS_CA_Interface()
-    interface.start_interactive_session()
+    SPS_CA_Interface().start_interactive_session()
 
 
 if __name__ == "__main__":
