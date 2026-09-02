@@ -22,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 from brain import Brain, BrainError  # noqa: E402
 from capabilities.base import CapabilityContext  # noqa: E402
 from capabilities.seed_registry import load_entry_point, load_seed_capabilities  # noqa: E402
+from experience.evolution_trace import EvolutionTraceStore  # noqa: E402
 from layers.layer_02_cognitive_core import CognitiveCore  # noqa: E402
 from layers.layer_06_validation import Validator  # noqa: E402
 from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGate  # noqa: E402
@@ -43,15 +44,18 @@ ARCHITECTURE = [
 
 HELP_TEXT = """Commands:
   load <project_path>      Load a target project
+  submit                   Submit a prompt + pasted code as a research scenario
+  submit_file <path>       Submit a prompt + local code file as a research scenario
   show project             Show current project context
   show architecture        Show the 10 SPS-CA layers and Brain boundary
   show registry            Show available SPS capabilities
   show brain               Show Brain provider/model status
   show experience          Show recent recorded UI interactions
+  show evolution           Show recent Stage 0..N evolution records
   help                     Show this help
   quit                     Exit SPS-CA
 
-Any other input is treated as a natural-language coding request."""
+Any other input is treated as a natural-language coding request for a loaded project."""
 
 
 class SPS_CA_Interface:
@@ -70,6 +74,15 @@ class SPS_CA_Interface:
         self.brain = Brain(provider=llm_provider, model=llm_model)
         self.registry = CapabilityRegistryManager(registry_path)
         self.execution = ExecutionEngine()
+        self.trace_store = EvolutionTraceStore(history_path=trace_history_path, stage_path=trace_stage_path)
+        self.supervisor = SupervisorScenarioService(
+            trace_history_path=trace_history_path,
+            trace_stage_path=trace_stage_path,
+            registry_path=registry_path,
+            seeds_dir=str(REPO_ROOT / "capabilities" / "seeds"),
+            generated_dir=str(self.history_path.parent / "generated"),
+            evaluation_dir=str(self.history_path.parent / "evaluation" / "evolution"),
+        )
         self.project_context: Optional[Dict[str, Any]] = None
         self.last_trace: Dict[str, Any] = {}
         self._history = self._load_history()
@@ -107,6 +120,55 @@ class SPS_CA_Interface:
             response = self.process_request(command)
         self._record_event("command", command, response)
         return response
+
+    def _interactive_submission(self) -> str:
+        request = input("Request: ").strip()
+        language = input("Language [python]: ").strip() or "python"
+        print("Paste code. Enter __END__ on its own line when finished:")
+        lines: list[str] = []
+        while True:
+            line = input()
+            if line == "__END__":
+                break
+            lines.append(line)
+        return self.submit_submission(request, "\n".join(lines), language)
+
+    def _interactive_file_submission(self, file_path: str) -> str:
+        path = Path(file_path).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            return f"Error: code file does not exist: {file_path}"
+        request = input("Request: ").strip()
+        language = input(f"Language [{self._infer_language(path)}]: ").strip() or self._infer_language(path)
+        try:
+            code = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return f"Error: file is not UTF-8 text: {path}"
+        return self.submit_submission(request, code, language, file_path=str(path))
+
+    def submit_submission(self, user_request: str, code: str, language: str, *, file_path: str = "") -> str:
+        """Run the submitted scenario through the SPS Supervisor analysis path."""
+        try:
+            result = self.supervisor.analyze_submission(
+                user_request=user_request,
+                code=code,
+                language=language,
+                file_path=file_path,
+                project_root=str(self.history_path.parent),
+            )
+            generation = result.capability_generation
+            return (
+                f"Scenario analyzed: {result.scenario_id}\n"
+                f"  Stage: {result.stage}\n"
+                f"  Language: {language}\n"
+                f"  Code length: {len(code)} characters\n"
+                f"  Capability found: {result.capability_search.get('found', False)}\n"
+                f"  Capability: {result.capability_search.get('selected') or generation.get('capability_id', 'none')}\n"
+                f"  Generation required: {generation.get('required', False)}\n"
+                f"  Trace: {self.trace_store.history_path}\n"
+                f"  Status: {generation.get('developed', False) and generation.get('registered', False) and 'capability developed' or 'analysis complete'}"
+            )
+        except Exception as exc:
+            return f"Error: {exc}"
 
     def load_project(self, project_path: str) -> str:
         root = Path(project_path).expanduser().resolve()
@@ -163,9 +225,14 @@ class SPS_CA_Interface:
             events = self._history.get("events", [])[-5:]
             if not events:
                 return "Recent interactions: none"
+            return "\n".join(["Recent interactions:"] + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events])
+        if context_type == "evolution":
+            records = self.trace_store.list_records()[-5:]
+            if not records:
+                return "Evolution history: none"
             return "\n".join(
-                ["Recent interactions:"]
-                + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events]
+                ["Recent evolution scenarios:"]
+                + [f"  {record['scenario_id']} | Stage {record['stage_before']} -> {record['stage_after']} | {record['status']} | {record['user_request']}" for record in records]
             )
         return "Unknown context. Use: project, architecture, registry, brain, experience"
 

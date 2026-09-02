@@ -22,6 +22,7 @@ class CapabilityType(str, Enum):
     PARSING = "parsing"
     TRANSFORMATION = "transformation"
     REFACTORING = "refactoring"
+    MODIFICATION = "modification"
     UNKNOWN = "unknown"
 
 

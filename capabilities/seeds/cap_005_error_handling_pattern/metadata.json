@@ -1,5 +1,5 @@
 {
-  "id": "CAP-006",
+  "id": "CAP-005",
   "name": "Error Handling Pattern",
   "version": "0.1.0",
   "description": "Detects functions that perform risky operations (file/network/dict access) without any error handling and proposes a try/except wrapper.",

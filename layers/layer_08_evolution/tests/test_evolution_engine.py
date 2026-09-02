@@ -107,7 +107,7 @@ class TestPlanNewCapability:
     def test_plan_uses_next_capability_id_by_default(self, engine: EvolutionEngine):
         trigger = EvolutionTrigger(pattern="Parse error", occurrence_count=3, trigger_task_ids=["t1"])
         plan = engine.plan_new_capability(trigger)
-        assert plan.capability_id == "CAP-009"
+        assert plan.capability_id == "CAP-010"
         assert plan.entry_point == "capabilities.generated.cap_010.capability.run"
         assert plan.trigger_pattern == "Parse error"
         assert len(plan.test_case_names) == 3
@@ -211,19 +211,19 @@ class TestFullCycle:
         record = self._run(engine, hermetic_project)
 
         assert record is not None
-        assert record.capability_id == "CAP-009"
+        assert record.capability_id == "CAP-010"
         assert record.test_result.passed is True
         assert record.test_result.tests_run == 3
         assert record.test_result.tests_failed == 0
         assert record.test_result.coverage_percent == 100.0
         assert record.registered is True
-        assert "EVOLUTION: CAP-009" in record.commit_message
+        assert "EVOLUTION: CAP-010" in record.commit_message
 
         registry = json.loads(engine.registry_path.read_text())
-        assert "CAP-009" in registry
-        assert registry["CAP-009"]["test_coverage"] == 100.0
+        assert "CAP-010" in registry
+        assert registry["CAP-010"]["test_coverage"] == 100.0
 
-        record_path = engine.evaluation_dir / "CAP-009.json"
+        record_path = engine.evaluation_dir / "CAP-010.json"
         assert record_path.exists()
 
     def test_full_cycle_returns_none_when_nothing_triggers(self, engine: EvolutionEngine):

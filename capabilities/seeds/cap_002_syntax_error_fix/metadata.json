@@ -1,5 +1,5 @@
 {
-  "id": "CAP-003",
+  "id": "CAP-002",
   "name": "Syntax Error Fix",
   "version": "0.1.0",
   "description": "Attempts to parse the given source and, for a small set of common syntax mistakes, propose a corrected version.",

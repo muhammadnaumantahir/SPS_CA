@@ -33,8 +33,16 @@ def make_project(tmp_path: Path) -> Path:
     return project
 
 
+def make_ui(tmp_path: Path) -> SPS_CA_Interface:
+    return SPS_CA_Interface(
+        history_path=tmp_path / "history.json",
+        trace_history_path=tmp_path / "evolution_history.json",
+        trace_stage_path=tmp_path / "stage_state.json",
+    )
+
+
 def test_help_command_contains_required_commands(tmp_path: Path):
-    ui = SPS_CA_Interface(history_path=tmp_path / "history.json")
+    ui = make_ui(tmp_path)
     text = ui.handle_command("help")
     assert "load <project_path>" in text
     assert "quit" in text

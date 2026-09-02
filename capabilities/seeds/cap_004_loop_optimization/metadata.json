@@ -1,5 +1,5 @@
 {
-  "id": "CAP-005",
+  "id": "CAP-004",
   "name": "Loop Optimization",
   "version": "0.1.0",
   "description": "Detects simple, safely-rewritable loop patterns (e.g. building a list via append-in-a-for-loop) and suggests a more idiomatic equivalent.",

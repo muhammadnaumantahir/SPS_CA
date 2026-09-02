@@ -1,5 +1,5 @@
 {
-  "id": "CAP-002",
+  "id": "CAP-001",
   "name": "Simple Bug Detection",
   "version": "0.1.0",
   "description": "Scans source code for a small set of common, high-confidence bug patterns (e.g. bare except, mutable default arguments, comparison to None with ==).",

@@ -1,12 +1,4 @@
-"""Data models for Layer 8 (Evolution Engine).
-
-These mirror the workflow described in the master document:
-a repeated failure pattern (:class:`EvolutionTrigger`) is turned into a
-design (:class:`CapabilityPlan`), the design is turned into concrete files
-(:class:`GeneratedCapabilityFiles`), the files are exercised by their own
-generated test suite (:class:`TestRunResult`), and the whole cycle is
-captured for audit as an :class:`EvolutionRecord`.
-"""
+"""Data models for Layer 8 (Evolution Engine)."""
 
 from __future__ import annotations
 
@@ -17,18 +9,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class EvolutionTrigger:
-    """A repeated failure pattern that has crossed the evolution threshold.
-
-    Mirrors the design's example: three or more failures sharing a
-    ``failure_category`` (e.g. ``"Parse error"``) justify generating a new
-    capability rather than continuing to retry existing ones.
-
-    Attributes:
-        pattern: The ``failure_category`` this trigger is built from.
-        occurrence_count: How many failed tasks share this category.
-        trigger_task_ids: The specific task ids that make up the count, for
-            traceability into the GitHub commit message and audit trail.
-    """
+    """A repeated failure pattern that has crossed the evolution threshold."""
 
     pattern: str
     occurrence_count: int
@@ -43,7 +24,7 @@ class EvolutionTrigger:
 
 @dataclass
 class CapabilityPlan:
-    """Design for a new capability, produced from an :class:`EvolutionTrigger`."""
+    """Design for a new capability, produced from an evolution trigger or gap."""
 
     capability_id: str
     name: str
@@ -53,6 +34,7 @@ class CapabilityPlan:
     trigger_pattern: str = ""
     trigger_task_ids: List[str] = field(default_factory=list)
     test_case_names: List[str] = field(default_factory=list)
+    provenance: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.capability_id:
@@ -65,14 +47,7 @@ class CapabilityPlan:
 
 @dataclass
 class GeneratedCapabilityFiles:
-    """The concrete artifacts produced for a planned capability.
-
-    Attributes:
-        capability_code: Contents of ``capability.py``.
-        tests_code: Contents of ``tests.py``.
-        metadata: Contents of ``metadata.json`` (as a dict, not yet serialized).
-        readme: Contents of ``README.md``.
-    """
+    """Concrete artifacts produced for a planned capability."""
 
     capability_code: str
     tests_code: str
@@ -84,8 +59,6 @@ class GeneratedCapabilityFiles:
 class TestRunResult:
     """Outcome of running a generated capability's own test suite in sandbox."""
 
-    # Not a pytest test case -- stop pytest's collector from warning about
-    # the "Test" prefix just because this dataclass defines __init__.
     __test__ = False
 
     passed: bool
@@ -96,19 +69,12 @@ class TestRunResult:
 
     @property
     def meets_coverage_gate(self) -> bool:
-        """True only if coverage was actually measured and is >= 80%."""
         return self.coverage_percent is not None and self.coverage_percent >= 80.0
 
 
 @dataclass
 class EvolutionRecord:
-    """Persisted, auditable record of one full evolution cycle.
-
-    Written to ``evaluation/evolution/<capability_id>.json`` and the basis
-    for the GitHub commit message described in the design ("Commit message
-    format"). ``registered`` is only ``True`` when the capability passed its
-    own tests, met the coverage gate, and was not rejected by Governance.
-    """
+    """Persisted, auditable record of one full evolution cycle."""
 
     capability_id: str
     trigger_pattern: str

@@ -8,7 +8,7 @@ from layers.layer_02_cognitive_core.models import ProjectAnalysis
 def fake_capabilities():
     return [
         CapabilityTemplate(
-            id="CAP-002",
+            id="CAP-001",
             name="Simple Bug Detection",
             version="0.1.0",
             description="",
@@ -17,7 +17,7 @@ def fake_capabilities():
             tags=["bug-detection"],
         ),
         CapabilityTemplate(
-            id="CAP-004",
+            id="CAP-003",
             name="Unit Test Generation",
             version="0.1.0",
             description="",

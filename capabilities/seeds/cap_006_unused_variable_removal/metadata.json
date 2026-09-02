@@ -1,5 +1,5 @@
 {
-  "id": "CAP-007",
+  "id": "CAP-006",
   "name": "Unused Variable Removal",
   "version": "0.1.0",
   "description": "Detects locally-assigned variables that are never read again in the same scope and proposes their removal.",

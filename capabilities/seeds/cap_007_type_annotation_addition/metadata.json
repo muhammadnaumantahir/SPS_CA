@@ -1,5 +1,5 @@
 {
-  "id": "CAP-008",
+  "id": "CAP-007",
   "name": "Type Annotation Addition",
   "version": "0.1.0",
   "description": "Detects function parameters and return values with no type annotation and proposes annotations inferred from simple heuristics (defaults, literal returns).",

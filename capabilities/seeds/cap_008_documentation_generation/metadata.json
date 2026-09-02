@@ -1,5 +1,5 @@
 {
-  "id": "CAP-009",
+  "id": "CAP-008",
   "name": "Documentation Generation",
   "version": "0.1.0",
   "description": "Detects functions/classes with no docstring and generates a minimal docstring stub from the signature.",
