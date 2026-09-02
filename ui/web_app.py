@@ -37,7 +37,7 @@ def capability_catalog() -> list[dict[str, Any]]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SPS-CA-Chat/4.0"
+    server_version = "SPS-CA-Chat"
 
     def _send(self, status: int, payload: Any, content_type: str = "application/json") -> None:
         body = payload if isinstance(payload, bytes) else (

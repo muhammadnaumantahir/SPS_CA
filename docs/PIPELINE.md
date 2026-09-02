@@ -1,82 +1,46 @@
 # SPS-CA Request Pipeline
 
-Every user coding request follows a deterministic lifecycle through the 10-layer architecture. The Brain (separate from the layers) provides the intelligence for reasoning, planning, and capability selection.
+SPS-CA uses ten architectural layers. The Brain is a separate AI intelligence service, used primarily by the Cognitive core, and is neither a layer nor a capability.
 
 ```text
-User Prompt + Source Code
-        │
-        ▼
-L1  Software DNA layer
-        │  load constraints, policies, safety rules
-        ▼
-L2  Governance layer (preflight)
-        │  check DNA preconditions, risk assessment
-        ▼
-L3  Cognitive core
-        │  ← Brain (Ollama / other AI model)
-        │  reasoning, intent understanding, planning
-        │  select ordered capability sequence
-        ▼
-L4  Knowledge core
-        │  structured domain knowledge context
-        ▼
-L5  Experience core
-        │  historical memory, failure patterns
-        ▼
-L6  Meta-learning core
-        │  strategy evaluation, learning improvement
-        ▼
-L7  Adaptation core
-        │  context awareness, capability activation
-        ▼
-L8  Evolution core (when evolution is triggered)
-        │  generate new capability candidate
-        ▼
-Capability selection / composition
-        │  CAP-001 ... CAP-011 (seeded + generated)
-        ▼
-L9  Verification & Validation
-        │  sandboxed testing, regression detection
-        ▼
-L2  Governance (final decision)
-        │  approve / reject with rationale
-        ▼
+User message + current code + conversation
+                    ↓
+L1 Software DNA layer
+                    ↓
+L2 Governance layer (preflight policy/risk)
+                    ↓
+L3 Cognitive core ↔ SPS-CA Brain
+                    ↓
+L4 Knowledge core
+                    ↓
+L5 Experience core
+                    ↓
+L6 Meta-learning core
+                    ↓
+L7 Adaptation core
+                    ↓
+L8 Evolution core (when SPS self-growth is relevant)
+                    ↓
+Capability system: select / compose reusable SPS skills
+                    ↓
+L9 Verification & Validation
+                    ↓
+L2 Governance layer (final authorization)
+                    ↓
 L10 Execution layer
-        │  apply changes, monitor, rollback if needed
-        ▼
-Result + trace
-        │  update L5 Experience, L6 Meta-learning
-        ▼
-Experience + learning feedback loop
+                    ↓
+Result + trace → Experience → learning/adaptation/evolution
 ```
 
 ## Brain boundary
 
-The Brain is a **separate AI intelligence service**, not a layer and not a capability.
+The Brain provides prompt analysis, reasoning, planning, code generation, debugging, strategy analysis, failure analysis and capability-selection reasoning. Ollama is the initial provider through the provider-neutral `models/` interface. The Brain does not execute code or approve its own changes.
 
-```text
-              SPS-CA
-                 │
-    ┌────────────┴────────────┐
-    │                         │
-  Ten architectural layers    Brain
-    │                         │
-    │                 Ollama / other AI
-    │                         │
-    └──────────────┬──────────┘
-                   │
-             Capability system
-                   │
-        Seed + generated capabilities
-```
+## Capabilities
 
-The UI must not use keyword priority rules to override the Brain. The Brain interprets the request, reasons about context, and selects the downstream capability sequence. Selected capability IDs are validated against the active registry before execution.
+Capabilities are independent executable SPS skills. Current Stage 0 seeded capabilities include:
 
-The Brain can be swapped (Ollama → Qwen → Llama → DeepSeek → cloud API) through `models/` without changing the SPS architecture or capabilities.
-
-## Capability numbering (Stage 0 seed portfolio)
-
-| ID | Role |
+| ID | Capability |
 |---|---|
 | CAP-001 | Simple Bug Detection |
 | CAP-002 | Syntax Error Fix |
@@ -86,7 +50,49 @@ The Brain can be swapped (Ollama → Qwen → Llama → DeepSeek → cloud API) 
 | CAP-006 | Unused Variable Removal |
 | CAP-007 | Type Annotation Addition |
 | CAP-008 | Documentation Generation |
-| CAP-009 | Natural Language Code Modification |
-| CAP-010+ | Generated capabilities (from evolution) |
+| CAP-011 | Natural Language Code Modification |
 
-The local Brain adapter defaults to `qwen2.5-coder:7b` as documented in `REQUIREMENTS.md`.
+Generated capabilities are created by the Evolution path and recorded separately with lineage evidence.
+
+## Conversational coding
+
+The top page is a multi-turn coding assistant. Every turn carries the current working source and recent conversation to the Brain, so feedback can refer to earlier work.
+
+```text
+Turn 1: Add input validation.
+Turn 2: Also reject negative values.
+Turn 3: Now add tests for those cases.
+Turn 4: Allow zero again; keep the other validation.
+```
+
+## SPS self-programming
+
+A user-project change is normal coding-assistant behavior. Self-programming is demonstrated when SPS-CA improves its own reusable capability system:
+
+```text
+Repeated limitation/failure
+        ↓
+Experience core
+        ↓
+Meta-learning core
+        ↓
+Adaptation core
+        ↓
+Brain-assisted Evolution core
+        ↓
+New capability candidate
+        ↓
+L9 Verification & Validation
+        ↓
+L2 Governance
+        ↓
+Capability Registry + Lineage
+        ↓
+Reusable capability
+```
+
+## Trace requirements
+
+The runtime trace should retain the request/turn, source context, Brain plan, layer participation, selected capabilities, capability outcomes, verification evidence, governance decision, execution/rollback outcome, experience record and evolution lineage when applicable.
+
+Detailed experimental scenarios are maintained separately in `docs/scenarios.md`.
