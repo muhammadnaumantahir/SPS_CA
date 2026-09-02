@@ -17,8 +17,7 @@ _SUPPORTED = {"python"}
 
 def _top_level_functions(tree: ast.AST):
     return [
-        node
-        for node in ast.iter_child_nodes(tree)
+        node for node in ast.iter_child_nodes(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
     ]
 
@@ -40,16 +39,14 @@ def _literal_for_parameter(arg: ast.arg, default: ast.expr | None):
 
 
 def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
-    if not node.args.args:
-        if node.body and isinstance(node.body[-1], ast.Return) and node.body[-1].value is not None:
-            value = node.body[-1].value
-            if isinstance(value, ast.Constant):
-                return f"assert {node.name}() == {ast.unparse(value)}"
-        return f"assert {node.name}() is not None"
+    if node.args.vararg or node.args.kwarg or node.args.kwonlyargs:
+        return None
 
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + list(node.args.defaults)
     args = []
     for arg, default in zip(node.args.args, defaults):
+        if arg.arg in {"self", "cls"}:
+            return None
         value = _literal_for_parameter(arg, default)
         if value is None:
             return None
@@ -58,24 +55,27 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
     call = f"{node.name}({', '.join(args)})"
     if node.body and isinstance(node.body[-1], ast.Return) and node.body[-1].value is not None:
         expr = node.body[-1].value
-        if isinstance(expr, ast.BinOp):
-            if isinstance(expr.op, ast.Add) and any(isinstance(n, ast.Constant) and isinstance(n.value, str) for n in ast.walk(expr)):
-                if all(isinstance(n, ast.Constant) or isinstance(n, ast.Name) for n in ast.walk(expr)):
-                    if len(args) == 1 and args[0] == "'x'":
-                        expected = repr("Hello, x") if node.name in {"greet", "hello"} else None
-                        if expected:
-                            return f"assert {call} == {expected}"
-            if isinstance(expr.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)) and all(
-                isinstance(n, (ast.BinOp, ast.Name, ast.Constant)) for n in ast.walk(expr)
-            ):
+        if isinstance(expr, ast.Constant):
+            return f"assert {call} == {ast.unparse(expr)}"
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+            try:
+                local_values = {
+                    arg.arg: ast.literal_eval(ast.parse(value, mode="eval").body)
+                    for arg, value in zip(node.args.args, args)
+                }
+                expected = eval(compile(ast.Expression(expr), "<cap003>", "eval"), {"__builtins__": {}}, local_values)
+                return f"assert {call} == {expected!r}"
+            except Exception:
+                pass
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add) and len(args) == 1 and args[0] == "'x'":
+            if any(isinstance(n, ast.Constant) and isinstance(n.value, str) for n in ast.walk(expr)):
                 try:
-                    local_values = {arg.arg: ast.literal_eval(ast.parse(value, mode="eval").body) for arg, value in zip(node.args.args, args)}
-                    expected = eval(compile(ast.Expression(expr), "<cap003>", "eval"), {"__builtins__": {}}, local_values)
+                    expected = eval(compile(ast.Expression(expr), "<cap003>", "eval"), {"__builtins__": {}}, {node.args.args[0].arg: "x"})
                     return f"assert {call} == {expected!r}"
                 except Exception:
                     pass
-        if isinstance(expr, ast.Constant):
-            return f"assert {call} == {ast.unparse(expr)}"
+    if not node.args.args:
+        return f"assert {call} is not None"
     return f"assert {call} is not None"
 
 
@@ -92,30 +92,25 @@ def run(context: CapabilityContext) -> CapabilityResult:
     if not functions:
         return CapabilityResult.ok(summary="No top-level functions found; nothing to generate tests for.")
 
-    test_lines = ["import pytest", ""]
     module_name = (context.file_path or "module").rsplit("/", 1)[-1].removesuffix(".py")
     names = [fn.name for fn in functions]
-    test_lines.append(f"from {module_name} import {', '.join(names)}")
-    test_lines.append("")
+    test_lines = ["import pytest", "", f"from {module_name} import {', '.join(names)}", ""]
     findings = []
     for fn in functions:
         assertion = _infer_smoke_assertion(fn)
         if assertion is None:
             findings.append({"function": fn.name, "issue": "cannot-infer-safe-inputs"})
             continue
-        test_lines.append(f"def test_{fn.name}():")
-        test_lines.append(f"    {assertion}")
-        test_lines.append("")
+        test_lines.extend([f"def test_{fn.name}():", f"    {assertion}", ""])
         findings.append({"function": fn.name, "issue": "generated-smoke-test"})
 
-    generated = "\n".join(test_lines).rstrip() + "\n"
-    if all(item["issue"] != "generated-smoke-test" for item in findings):
+    if not any(item["issue"] == "generated-smoke-test" for item in findings):
         return CapabilityResult.fail(
             error="Could not safely infer executable tests for the discovered functions.",
             summary="No executable tests were generated.",
         )
     return CapabilityResult.ok(
-        summary=f"Generated {sum(1 for item in findings if item['issue'] == 'generated-smoke-test')} executable smoke test(s).",
-        modified_code=generated,
+        summary=f"Generated {sum(item['issue'] == 'generated-smoke-test' for item in findings)} executable smoke test(s).",
+        modified_code="\n".join(test_lines).rstrip() + "\n",
         findings=findings,
     )
