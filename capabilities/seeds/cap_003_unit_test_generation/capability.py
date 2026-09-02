@@ -1,26 +1,52 @@
 """CAP-003: Unit Test Generation.
 
 Generates executable pytest smoke tests for simple, statically understandable
-function shapes. Inputs are inferred from defaults, annotations, or a narrow
-string-concatenation pattern where possible; parameters with no such hint fall
-back to safe sequential placeholder numbers, which is sound because the
-generated assertion either evaluates the return expression against those same
-values or degrades to a generic "result is not None" smoke check.
+function shapes. Explicit source-code modification requests are routed to
+CAP-010 here as well as through the legacy request-router entry point. This
+makes request intent authoritative even when a caller invokes CAP-003's
+entry point directly.
 """
 
 from __future__ import annotations
 
 import ast
+import re
 
 from capabilities.base import CapabilityContext, CapabilityResult
+from capabilities.seeds.cap_010_natural_language_code_modification.capability import (
+    run as modify_code,
+)
 
 _SUPPORTED = {"python"}
+
+_MODIFICATION_PATTERNS = (
+    r"\badd\b.*\bfunction\b",
+    r"\bcreate\b.*\bfunction\b",
+    r"\bimplement\b.*\bfunction\b",
+    r"\badd\b.*\bvalidation\b",
+    r"\binput\s+validation\b",
+    r"\bvalidate\b.*\binput(?:s)?\b",
+    r"\bimplement\b.*\bvalidation\b",
+    r"\bmodify\b.*\bcode\b",
+    r"\bchange\b.*\bcode\b",
+    r"\bupdate\b.*\bcode\b",
+    r"\badd\b.*\bfeature\b",
+    r"\bimplement\b.*\bfeature\b",
+)
+
+
+def _is_explicit_modification(request: str) -> bool:
+    """Return True when the user explicitly asks to modify source code."""
+    lowered = request.lower()
+    return any(re.search(pattern, lowered, flags=re.DOTALL) for pattern in _MODIFICATION_PATTERNS)
 
 
 def _top_level_functions(tree: ast.AST):
     return [
-        node for node in ast.iter_child_nodes(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
+        node
+        for node in ast.iter_child_nodes(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and not node.name.startswith("_")
     ]
 
 
@@ -56,11 +82,6 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
     string_mode = bool(return_expr is not None and _is_string_concat(return_expr))
     defaults = [None] * (len(node.args.args) - len(node.args.defaults)) + list(node.args.defaults)
     args = []
-    # Sequential placeholder numbers for parameters with no default, annotation, or
-    # string hint to go on. Safe to use here: the assertion this feeds is either an
-    # exact eval of the return expression against these same values (arithmetic /
-    # constant-return cases below) or a generic "is not None" smoke check, neither
-    # of which depends on the placeholder being semantically meaningful.
     numeric_placeholder = 2
     for arg, default in zip(node.args.args, defaults):
         if arg.arg in {"self", "cls"}:
@@ -91,12 +112,11 @@ def _infer_smoke_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef):
             return f"assert {call} == {expected!r}"
         except Exception:
             return None
-    if not node.args.args:
-        return f"assert {call} is not None"
     return f"assert {call} is not None"
 
 
-def run(context: CapabilityContext) -> CapabilityResult:
+def _generate_tests(context: CapabilityContext) -> CapabilityResult:
+    """Generate tests for a request that is actually a test-generation request."""
     if context.language not in _SUPPORTED:
         return CapabilityResult.ok(summary=f"CAP-003 has no generator yet for language '{context.language}'")
     try:
@@ -130,3 +150,16 @@ def run(context: CapabilityContext) -> CapabilityResult:
         modified_code="\n".join(test_lines).rstrip() + "\n",
         findings=findings,
     )
+
+
+def run(context: CapabilityContext) -> CapabilityResult:
+    """Honor explicit source-code modification requests before test generation.
+
+    CAP-003 can be selected by older planners or cached registries, so intent
+    routing is enforced in this public entry point as well as the metadata
+    router. Explicit prompts reach CAP-010 and return modified source code.
+    """
+    request = str(context.metadata.get("request", ""))
+    if _is_explicit_modification(request):
+        return modify_code(context)
+    return _generate_tests(context)
