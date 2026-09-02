@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .models import (
-    CapabilityLanguage,
     CapabilityMetadata,
     CapabilityQuery,
     CapabilityQueryResult,
@@ -58,7 +57,6 @@ class CapabilityRegistryManager:
         )
 
     def register(self, capability: CapabilityMetadata) -> bool:
-        """Register a capability as a Layer 9 lifecycle operation."""
         if capability.id in self.capabilities_by_id:
             return False
         self.registry_data.capabilities.append(capability)
@@ -67,7 +65,6 @@ class CapabilityRegistryManager:
         return True
 
     def register_from_dict(self, metadata: Dict[str, Any]) -> bool:
-        """Register metadata emitted by Layer 8 after normalizing its shape."""
         normalized = dict(metadata)
         normalized.setdefault("type", CapabilityType.TRANSFORMATION.value)
         normalized.setdefault("supported_languages", ["python"])
@@ -77,7 +74,6 @@ class CapabilityRegistryManager:
         normalized.setdefault("test_coverage", 0.0)
         normalized.setdefault("documentation_path", "")
         normalized.setdefault("metadata_path", "")
-        normalized.setdefault("extra_metadata", {})
         normalized["extra_metadata"] = {
             **dict(normalized.get("extra_metadata") or {}),
             "provenance": normalized.get("provenance", {}),
@@ -130,12 +126,7 @@ class CapabilityRegistryManager:
         )
 
     def search_capabilities(self, request: str, language: Optional[str] = None) -> List[CapabilityMetadata]:
-        """Layer 9 semantic-light discovery using name/description/tags/provenance text.
-
-        Unlike a broad query, this method returns only capabilities with at least
-        one meaningful request-token match, preventing generic language-compatible
-        capabilities from being mistaken for task-specific capabilities.
-        """
+        """Return active capabilities with meaningful request-text evidence."""
         tokens = {token for token in request.lower().split() if len(token) > 3}
         results = []
         for capability in self.registry_data.capabilities:
@@ -180,8 +171,9 @@ class CapabilityRegistryManager:
         capability = self.capabilities_by_id.get(capability_id)
         if not capability:
             return False
-        capability.reuse_count += 1
-        capability.last_modified = datetime.utcnow().isoformat()
+        if success:
+            capability.reuse_count += 1
+            capability.last_modified = datetime.utcnow().isoformat()
         self.registry_data.usage_history.append(
             CapabilityReusageRecord(
                 capability_id=capability_id,
