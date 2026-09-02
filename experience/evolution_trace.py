@@ -246,7 +246,7 @@ class EvolutionTraceStore:
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         payload = list(records)
         self.history_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
 
@@ -266,7 +266,7 @@ class EvolutionTraceStore:
     def _save_stage_state(self, state: Dict[str, Any]) -> None:
         self.stage_path.parent.mkdir(parents=True, exist_ok=True)
         self.stage_path.write_text(
-            json.dumps(state, indent=2, ensure_ascii=False) + "\n",
+            json.dumps(state, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+import textwrap
 from pathlib import Path
 from typing import Any, Optional
 
@@ -164,7 +165,7 @@ def _scenario_detail(scenario_id: str) -> str:
     matches = [record for record in records if record.get("scenario_id") == scenario_id.strip()]
     if not matches:
         return "Select a scenario ID from the Evolution table."
-    return json.dumps(matches[-1], indent=2, ensure_ascii=False)
+    return json.dumps(matches[-1], indent=2, ensure_ascii=False, default=str)
 
 
 def _layer_html() -> str:
@@ -220,6 +221,8 @@ def _run_sps(request: str, code: str, language: str, uploaded: Optional[Any], ta
         raise gr.Error("Enter a coding request first.")
     if not code.strip():
         raise gr.Error("Paste code or upload a source file.")
+    if language == "python":
+        code = textwrap.dedent(code)
     result = SPSExecutionService().run_submission(
         user_request=request,
         code=code,

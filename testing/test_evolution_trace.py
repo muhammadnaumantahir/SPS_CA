@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from experience.evolution_trace import EvolutionTraceStore
 
@@ -75,3 +76,31 @@ def test_events_are_timestamped_and_researchable(tmp_path):
     assert len(record["events"]) == 2
     assert record["events"][0]["event"] == "capability_search"
     assert record["events"][1]["details"]["capability_id"] == "CAP-009"
+
+
+def test_complete_scenario_tolerates_raw_datetime_values(tmp_path):
+    """Layers 4-8 may attach live datetime objects (not yet isoformat strings)
+    onto analysis/validation/governance/result payloads. Persisting a scenario
+    must not raise TypeError('Object of type datetime is not JSON serializable')."""
+    history = tmp_path / "evolution_history.json"
+    stage = tmp_path / "stage_state.json"
+    store = EvolutionTraceStore(history_path=history, stage_path=stage)
+
+    store.start_scenario(user_request="Add logging", code="def f(): pass", language="python")
+
+    now = datetime.now(timezone.utc)
+    completed = store.complete_scenario(
+        "SC-001",
+        stage_after=1,
+        validation={"passed": True, "checked_at": now},
+        governance={"decision": "auto_approved", "approved_at": now},
+        result={"success": True, "finished_at": now},
+    )
+
+    assert completed["result"]["finished_at"] == now  # in-memory record is unchanged
+
+    on_disk = json.loads(history.read_text(encoding="utf-8"))
+    # Once round-tripped through JSON, the datetime must have been coerced to a string.
+    assert isinstance(on_disk[0]["result"]["finished_at"], str)
+    assert isinstance(on_disk[0]["validation"]["checked_at"], str)
+    assert isinstance(on_disk[0]["governance"]["approved_at"], str)
