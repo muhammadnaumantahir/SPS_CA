@@ -1,7 +1,8 @@
-"""SPS-CA web UI.
+"""SPS-CA research dashboard web UI.
 
-Presentation-only layer built with Gradio. All SPS behavior remains in the
-existing ten layers and supervisor services.
+Presentation-only Gradio application. The ten SPS layers remain the system of
+record; this module reads their persisted artifacts and presents them for
+research, demonstration, and supervised code-change experiments.
 """
 
 from __future__ import annotations
@@ -17,38 +18,284 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import gradio as gr
+import pandas as pd
+import plotly.graph_objects as go
 
 from ui.supervisor_execution import SupervisorExecutionService
+
+
+LANGUAGES = ["python", "java", "javascript", "typescript", "go", "csharp"]
+LAYERS = [
+    (1, "Software DNA"),
+    (2, "Cognitive Core"),
+    (3, "Experience"),
+    (4, "Meta-Learning"),
+    (5, "Adaptation"),
+    (6, "Validation"),
+    (7, "Governance"),
+    (8, "Evolution"),
+    (9, "Capability Registry"),
+    (10, "Execution"),
+]
+
+
+def _read_json(path: Path, default: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return default
+
+
+def _state() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    root = REPO_ROOT
+    registry = _read_json(root / "capabilities/registry.json", {})
+    trace = _read_json(root / "experience/traces/evolution_history.json", [])
+    stage = _read_json(root / "experience/traces/stage_state.json", {"current_stage": 0})
+    return registry, trace, stage
+
+
+def _capabilities(registry: dict[str, Any]) -> list[dict[str, Any]]:
+    caps = registry.get("capabilities", []) if isinstance(registry, dict) else []
+    return caps if isinstance(caps, list) else []
+
+
+def _records(trace: Any) -> list[dict[str, Any]]:
+    return trace if isinstance(trace, list) else []
+
+
+def _metrics() -> dict[str, Any]:
+    registry, trace, stage = _state()
+    caps = _capabilities(registry)
+    records = _records(trace)
+    generated = sum(1 for cap in caps if cap.get("generated"))
+    reused = sum(int(cap.get("reuse_count", 0) or 0) for cap in caps)
+    successful = sum(1 for record in records if record.get("result", {}).get("success") is True)
+    completed = sum(1 for record in records if record.get("status") == "completed")
+    return {
+        "stage": int(stage.get("current_stage", 0) or 0),
+        "capabilities": len(caps),
+        "generated": generated,
+        "reused": reused,
+        "scenarios": len(records),
+        "success_rate": (successful / completed * 100.0) if completed else 0.0,
+        "rollbacks": sum(
+            1 for record in records if record.get("result", {}).get("rollback_triggered") is True
+        ),
+    }
+
+
+def _kpi_html(metrics: dict[str, Any]) -> str:
+    cards = [
+        ("CURRENT STAGE", metrics["stage"]),
+        ("CAPABILITIES", metrics["capabilities"]),
+        ("GENERATED", metrics["generated"]),
+        ("REUSE EVENTS", metrics["reused"]),
+        ("SCENARIOS", metrics["scenarios"]),
+        ("SUCCESS RATE", f"{metrics['success_rate']:.1f}%"),
+    ]
+    inner = "".join(
+        f'<div class="kpi"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div></div>'
+        for label, value in cards
+    )
+    return f"<div class='kpi-grid'>{inner}</div>"
+
+
+def _growth_figure() -> go.Figure:
+    registry, trace, _ = _state()
+    records = _records(trace)
+    if records:
+        stages = []
+        counts = []
+        generated = []
+        cap_count = 0
+        generated_count = 0
+        for record in records:
+            stage = int(record.get("stage_after", record.get("stage_before", 0)) or 0)
+            if record.get("capability_generation", {}).get("registered"):
+                generated_count += 1
+                cap_count += 1
+            stages.append(stage)
+            counts.append(cap_count)
+            generated.append(generated_count)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=list(range(1, len(records) + 1)), y=counts, mode="lines+markers", name="Capabilities introduced"))
+        fig.add_trace(go.Scatter(x=list(range(1, len(records) + 1)), y=generated, mode="lines+markers", name="Generated capabilities"))
+        fig.update_layout(height=360, margin=dict(l=20, r=20, t=35, b=20), title="Capability growth by scenario", xaxis_title="Scenario", yaxis_title="Count", template="plotly_white")
+        return fig
+    caps = _capabilities(registry)
+    count = len(caps)
+    fig = go.Figure(go.Bar(x=["Current"], y=[count], name="Capabilities"))
+    fig.update_layout(height=360, margin=dict(l=20, r=20, t=35, b=20), title="Capability inventory", yaxis_title="Count", template="plotly_white")
+    return fig
+
+
+def _reuse_figure() -> go.Figure:
+    registry, _, _ = _state()
+    caps = sorted(_capabilities(registry), key=lambda cap: int(cap.get("reuse_count", 0) or 0), reverse=True)[:12]
+    names = [cap.get("id", "?") for cap in caps]
+    reuse = [int(cap.get("reuse_count", 0) or 0) for cap in caps]
+    fig = go.Figure(go.Bar(x=names, y=reuse))
+    fig.update_layout(height=320, margin=dict(l=20, r=20, t=35, b=20), title="Capability reuse", xaxis_title="Capability", yaxis_title="Reuse count", template="plotly_white")
+    return fig
+
+
+def _capability_table() -> pd.DataFrame:
+    registry, _, _ = _state()
+    rows = []
+    for cap in _capabilities(registry):
+        rows.append({
+            "ID": cap.get("id", ""),
+            "Name": cap.get("name", ""),
+            "Type": cap.get("type", ""),
+            "Origin": "Generated" if cap.get("generated") else cap.get("origin", "Seed"),
+            "Version": cap.get("version", ""),
+            "Reuse": cap.get("reuse_count", 0),
+            "Coverage": cap.get("test_coverage", 0.0),
+            "Status": cap.get("status", ""),
+        })
+    return pd.DataFrame(rows, columns=["ID", "Name", "Type", "Origin", "Version", "Reuse", "Coverage", "Status"])
+
+
+def _evolution_table() -> pd.DataFrame:
+    _, trace, _ = _state()
+    rows = []
+    for record in reversed(_records(trace)):
+        generation = record.get("capability_generation", {}) or {}
+        search = record.get("capability_search", {}) or {}
+        result = record.get("result", {}) or {}
+        rows.append({
+            "Scenario": record.get("scenario_id", ""),
+            "Stage": f"{record.get('stage_before', 0)} → {record.get('stage_after', 0)}",
+            "Status": record.get("status", ""),
+            "Request": record.get("user_request", ""),
+            "Capability": search.get("selected") or generation.get("capability_id", ""),
+            "Generated": bool(generation.get("required")),
+            "Result": result.get("status", result.get("success", "")),
+        })
+    return pd.DataFrame(rows, columns=["Scenario", "Stage", "Status", "Request", "Capability", "Generated", "Result"])
+
+
+def _scenario_detail(scenario_id: str) -> str:
+    _, trace, _ = _state()
+    matches = [record for record in _records(trace) if record.get("scenario_id") == scenario_id]
+    if not matches:
+        return "Select a scenario from the Evolution table."
+    return json.dumps(matches[-1], indent=2, ensure_ascii=False)
+
+
+def _layer_html() -> str:
+    body = []
+    for number, name in LAYERS:
+        body.append(f'<div class="layer-row"><span class="layer-num">{number:02d}</span><span class="layer-name">{name}</span></div>')
+    return "<div class='layer-list'>" + "".join(body) + "</div>"
+
+
+def _experiment_table() -> pd.DataFrame:
+    scenarios_path = REPO_ROOT / "evaluation/scenarios.py"
+    text = scenarios_path.read_text(encoding="utf-8") if scenarios_path.exists() else ""
+    rows = []
+    for line in text.splitlines():
+        if line.strip().startswith('{"id":'):
+            rows.append({"Scenario": "catalog", "Definition": line.strip()})
+    if not rows:
+        return pd.DataFrame([{"Scenario": "S1–S25", "Definition": "See evaluation/scenarios.py"}])
+    return pd.DataFrame(rows)
+
+
+def _guide_markdown() -> str:
+    return """
+# SPS-CA Run Guide
+
+## Google Colab — cell by cell
+
+### Cell 1 — Clone the research branch
+```python
+!git clone -b feat/sps-supervisor-loop-step1 https://github.com/muhammadnaumantahir/SPS_CA.git
+%cd /content/SPS_CA
+```
+
+### Cell 2 — Install dependencies and Ollama
+```python
+!bash scripts/colab_setup.sh qwen2.5-coder:7b
+```
+
+### Cell 3 — Verify Ollama
+```python
+!ollama list
+!curl -s http://127.0.0.1:11434/api/tags
+```
+
+### Cell 4 — Run the repository tests
+```python
+!bash scripts/run_tests.sh
+```
+
+### Cell 5 — Launch the dashboard
+```python
+from ui.web_ui import launch
+launch()
+```
+
+Colab automatically enables a Gradio share link. The SPS runtime still executes inside the Colab machine.
+
+### Cell 6 — First research experiment
+Use the **SPS Supervisor** tab. Enter a prompt such as `add input validation to this function`, paste code, then run it. Inspect the modified code, Stage transition, capability, and trace.
+
+### Cell 7 — Capability growth experiment
+Run a request that has no existing matching capability. Inspect **Capabilities**, **Growth**, and **Evolution**. The generated capability should appear in the registry and the trace should record its WHY / WHAT / WHEN / HOW provenance.
+
+## Local machine
+
+### Windows
+```powershell
+git clone -b feat/sps-supervisor-loop-step1 https://github.com/muhammadnaumantahir/SPS_CA.git
+cd SPS_CA
+python -m venv .venv
+.venv\\Scripts\\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+ollama pull qwen2.5-coder:7b
+python ui/web_ui.py
+```
+
+### Linux / macOS
+```bash
+git clone -b feat/sps-supervisor-loop-step1 https://github.com/muhammadnaumantahir/SPS_CA.git
+cd SPS_CA
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+ollama pull qwen2.5-coder:7b
+python ui/web_ui.py
+```
+
+For local development, the dashboard launches without a public share link by default.
+
+## Important runtime rule
+
+Keep user projects, credentials, runtime traces, and generated runtime artifacts outside source control unless they are deliberately part of a reproducible research fixture. The dashboard visualizes persisted SPS artifacts; it does not replace them.
+"""
 
 
 def _read_uploaded_file(uploaded: Any) -> tuple[str, str]:
     if uploaded is None:
         return "", ""
-    path = getattr(uploaded, "name", uploaded)
-    path = Path(path)
+    path = Path(getattr(uploaded, "name", uploaded))
     try:
         return path.name, path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise ValueError(f"Unable to read uploaded source file: {exc}") from exc
 
 
-def _run_supervisor(
-    request: str,
-    code: str,
-    language: str,
-    uploaded: Optional[Any],
-    target_project: str,
-) -> tuple[str, str, str, str, str]:
+def _run_supervisor(request: str, code: str, language: str, uploaded: Optional[Any], target_project: str):
     request = (request or "").strip()
-    language = (language or "python").strip().lower()
     code = code or ""
+    language = (language or "python").strip().lower()
     target_project = (target_project or "").strip()
-
     uploaded_name = ""
     if uploaded is not None:
-        uploaded_name, uploaded_code = _read_uploaded_file(uploaded)
-        code = uploaded_code
-
+        uploaded_name, code = _read_uploaded_file(uploaded)
     if not request:
         raise gr.Error("Enter a coding request first.")
     if not code.strip():
@@ -62,106 +309,87 @@ def _run_supervisor(
         file_path=uploaded_name,
         target_project=target_project or None,
     )
-
-    trace_path = Path("experience/traces/evolution_history.json")
-    stage_path = Path("experience/traces/stage_state.json")
-    registry_path = Path("capabilities/registry.json")
-
-    result_text = json.dumps(result, indent=2, default=str)
     modified = result.get("modified_code", code)
     summary = (
-        f"Scenario: {result.get('scenario_id', '-')}\n"
-        f"Stage: {result.get('stage_before', '-')} → {result.get('stage_after', '-')}\n"
-        f"Capability: {result.get('capability_id', '-')}\n"
-        f"Generated: {result.get('generated', False)}\n"
-        f"Validation: {result.get('validation', '-')}\n"
-        f"Governance: {result.get('governance', '-')}\n"
-        f"Execution: {result.get('execution', '-')}\n"
+        f"Scenario {result.get('scenario_id', '-')}  |  Stage {result.get('stage_before', '-')} → {result.get('stage_after', '-')}\n"
+        f"Capability: {result.get('capability_id', '-')}  |  Generated: {result.get('generated', False)}\n"
+        f"Validation: {result.get('validation', '-')}  |  Governance: {result.get('governance', '-')}  |  Execution: {result.get('execution', '-')}\n"
         f"Success: {result.get('success', False)}"
     )
+    return summary, modified, json.dumps(result, indent=2, default=str), _kpi_html(_metrics()), _growth_figure(), _reuse_figure(), _capability_table(), _evolution_table()
 
-    trace = {}
-    if trace_path.exists():
-        try:
-            trace = json.loads(trace_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            trace = {"error": "Trace JSON could not be parsed."}
 
-    registry = {}
-    if registry_path.exists():
-        try:
-            registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            registry = {"error": "Registry JSON could not be parsed."}
-
-    stage = ""
-    if stage_path.exists():
-        try:
-            stage = stage_path.read_text(encoding="utf-8")
-        except OSError:
-            stage = ""
-
-    registry_text = json.dumps(registry, indent=2)
-    if stage:
-        registry_text += f"\n\nStage state:\n{stage}"
-
-    return summary, modified, result_text, json.dumps(trace, indent=2), registry_text
+def _refresh_dashboard():
+    return _kpi_html(_metrics()), _growth_figure(), _reuse_figure(), _capability_table(), _evolution_table(), _layer_html()
 
 
 def build_app() -> gr.Blocks:
-    with gr.Blocks(title="SPS-CA — Self-Programming Code Assistant") as app:
-        gr.Markdown(
-            """
-# SPS-CA
-### Self-Programming Code Assistant
+    css = """
+    .app-shell {max-width: 1500px !important; margin: auto;}
+    .hero {padding: 8px 0 12px 0;}
+    .hero h1 {font-size: 34px; margin-bottom: 4px;}
+    .hero p {font-size: 15px; opacity: .78;}
+    .kpi-grid {display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)); gap:10px; margin: 6px 0 16px;}
+    .kpi {border:1px solid #ddd; border-radius:14px; padding:14px; background:rgba(255,255,255,.03);}
+    .kpi-label {font-size:11px; letter-spacing:.08em; opacity:.65;}
+    .kpi-value {font-size:26px; font-weight:700; margin-top:4px;}
+    .layer-list {display:grid; gap:8px;}
+    .layer-row {display:flex; gap:12px; align-items:center; border:1px solid #ddd; border-radius:10px; padding:9px 11px;}
+    .layer-num {font-family:monospace; opacity:.65; width:26px;}
+    .layer-name {font-weight:600;}
+    @media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,minmax(100px,1fr));}}
+    """
+    with gr.Blocks(css=css, title="SPS-CA Research Dashboard") as app:
+        with gr.Column(elem_classes="app-shell"):
+            gr.HTML("<div class='hero'><h1>SPS-CA Research Dashboard</h1><p>Self-Programming Code Assistant · governed · traceable · reversible · research instrument</p></div>")
+            kpis = gr.HTML(_kpi_html(_metrics()))
+            refresh = gr.Button("Refresh Research Data", size="sm")
 
-**Prompt → Analyze → Find Capability → Grow Capability → Modify → Validate → Govern → Execute → Learn**
+            with gr.Tabs():
+                with gr.Tab("🧠 SPS Supervisor"):
+                    with gr.Row():
+                        with gr.Column(scale=5):
+                            request = gr.Textbox(label="Task / Prompt", placeholder="Tell SPS-CA what should change…", lines=4)
+                            with gr.Row():
+                                language = gr.Dropdown(LANGUAGES, value="python", label="Language", scale=2)
+                                upload = gr.File(label="Upload code", file_count="single", scale=2)
+                            code = gr.Code(label="Source Code", language="python", lines=22)
+                            target = gr.Textbox(label="Target project directory (optional)", placeholder="Leave empty for a safe SPS workspace")
+                            run = gr.Button("Run SPS Supervisor", variant="primary")
+                        with gr.Column(scale=5):
+                            result_status = gr.Textbox(label="Execution Summary", lines=6)
+                            modified = gr.Code(label="Modified Code", language="python", lines=22)
+                            result_json = gr.Code(label="Scenario Result", language="json", lines=12)
 
-The interface is only the presentation layer. The ten SPS layers remain unchanged.
-"""
-        )
+                with gr.Tab("🧩 Capabilities"):
+                    gr.Markdown("### Capability Registry")
+                    cap_table = gr.Dataframe(value=_capability_table(), interactive=False, wrap=True)
+                    gr.Markdown("Generated capabilities are first-class research artifacts with provenance, versioning, tests, and reuse history.")
 
-        with gr.Row():
-            with gr.Column(scale=5):
-                request = gr.Textbox(
-                    label="What should SPS-CA do?",
-                    placeholder="Example: add input validation to this function",
-                    lines=3,
-                )
-                language = gr.Dropdown(
-                    ["python", "java", "javascript", "typescript", "go", "csharp"],
-                    value="python",
-                    label="Language",
-                )
-                code = gr.Code(
-                    label="Source Code",
-                    language="python",
-                    lines=18,
-                )
-                upload = gr.File(
-                    label="Or upload a source file",
-                    file_count="single",
-                )
-                target_project = gr.Textbox(
-                    label="Target project directory (optional)",
-                    placeholder="Leave empty to use a safe SPS workspace",
-                )
-                run = gr.Button("Run SPS Supervisor", variant="primary")
+                with gr.Tab("📈 Growth"):
+                    with gr.Row():
+                        growth_plot = gr.Plot(_growth_figure(), label="Capability Growth")
+                        reuse_plot = gr.Plot(_reuse_figure(), label="Capability Reuse")
+                    gr.HTML(_layer_html())
 
-            with gr.Column(scale=5):
-                status = gr.Textbox(label="Supervisor Result", lines=10)
-                modified = gr.Code(label="Modified Code", language="python", lines=18)
+                with gr.Tab("🔄 Evolution"):
+                    evo_table = gr.Dataframe(value=_evolution_table(), interactive=False, wrap=True)
+                    scenario_id = gr.Textbox(label="Scenario ID", placeholder="SC-001")
+                    inspect = gr.Button("Inspect Scenario")
+                    scenario_detail = gr.Code(label="WHY / WHAT / WHEN / HOW trace", language="json", lines=18)
 
-        with gr.Accordion("Research Trace", open=False):
-            raw_result = gr.Code(label="Scenario Result JSON", language="json", lines=12)
-            trace = gr.Code(label="Evolution History", language="json", lines=16)
-            registry = gr.Code(label="Capability Registry", language="json", lines=16)
+                with gr.Tab("🧪 Experiments"):
+                    gr.Markdown("### Reproducible Evaluation Catalog")
+                    gr.Dataframe(value=_experiment_table(), interactive=False, wrap=True)
+                    gr.Markdown("The evaluation layer remains the source of truth for the 25-scenario benchmark catalog and comparison baselines.")
 
-        run.click(
-            _run_supervisor,
-            inputs=[request, code, language, upload, target_project],
-            outputs=[status, modified, raw_result, trace, registry],
-        )
+                with gr.Tab("📖 Guide"):
+                    gr.Markdown(_guide_markdown())
+
+            run.click(_run_supervisor, [request, code, language, upload, target], [result_status, modified, result_json, kpis, growth_plot, reuse_plot, cap_table, evo_table])
+            refresh.click(_refresh_dashboard, outputs=[kpis, growth_plot, reuse_plot, cap_table, evo_table, gr.State()])
+            inspect.click(_scenario_detail, inputs=scenario_id, outputs=scenario_detail)
+            language.change(lambda lang: gr.Code(language=lang or "python"), inputs=language, outputs=code)
 
     return app
 
@@ -175,15 +403,10 @@ def _running_in_colab() -> bool:
 
 
 def launch(*, share: Optional[bool] = None, auth: Optional[Any] = None, debug: bool = False):
-    """Launch the SPS-CA web UI.
-
-    In Google Colab, a share link is enabled by default because the notebook's
-    localhost server is not directly reachable from the user's browser.
-    Locally, sharing remains opt-in.
-    """
+    """Launch the dashboard; Colab uses a share link by default."""
     app = build_app()
     if share is None:
-        share = True if _running_in_colab() else False
+        share = _running_in_colab()
     return app.launch(share=share, auth=auth, debug=debug)
 
 
