@@ -1,17 +1,23 @@
 # SPS-CA Layers
 
-The public SPS-CA architecture has **ten layers**. Use these names in the UI, documentation, experiments and trace output:
+The public SPS-CA architecture has **ten layers**. These names are canonical for the UI, documentation, experiments, and trace output.
 
-1. **Software DNA layer** — identity, invariants and constraints.
-2. **Governance layer** — policy, risk and approval/rejection.
-3. **Cognitive core** — prompt analysis, reasoning, planning and code context.
-4. **Knowledge core** — structured code/capability/system knowledge.
-5. **Experience core** — persistent outcomes, failures, successes and lessons.
-6. **Meta-learning core** — learns which strategies work under which conditions.
-7. **Adaptation core** — adjusts strategies and capability composition.
-8. **Evolution core** — develops/improves reusable SPS capabilities.
-9. **Verification & Validation** — correctness, tests, sandbox and evidence.
-10. **Execution layer** — controlled application of approved operations.
+| # | Layer | Purpose | Optional sub-components |
+|---|---|---|---|
+| 1 | **Software DNA layer** | Acts as the absolute source of truth, defining constraints and meta-rules that all evolution must obey. | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
+| 2 | **Governance layer** | Executive gatekeeper that authorizes proposed changes against the Software DNA before deployment. | Authorization, Evolution Approval, Compliance Checking, Risk Management |
+| 3 | **Cognitive core** | Synthesizes goals and system state into tactical decisions, reasoning, and plans. | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
+| 4 | **Knowledge core** | Manages structured, evolving domain knowledge. | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
+| 5 | **Experience core** | Collects and stores feedback and runtime signals as historical memory. | Memory, Feedback, Monitoring, Learning Engine |
+| 6 | **Meta-learning core** | Evaluates and improves the system's own learning process. | Learning Evaluation, Strategy Optimization, Learning Improvement |
+| 7 | **Adaptation core** | Shifts behavior instantly by context, without modifying source code. | Context Awareness, Personalization, Capability Activation, Strategy Selection |
+| 8 | **Evolution core** | The engine of genuine structural self-growth. | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation |
+| 9 | **Verification & Validation** | Screens new or mutated code in a sandbox before it reaches production. | Testing, Simulation, Safety Validation, Performance Validation |
+| 10 | **Execution layer** | Translates validated decisions into real, observable action. | Action Executor, Services, APIs, User Interaction |
+
+## Sub-components are modular
+
+The table defines the recommended architecture, not a requirement that every SPS-CA installation implement every sub-component immediately. A sub-component may be added, replaced, deferred, or omitted while the parent layer retains ownership of its responsibility.
 
 ## Brain boundary
 
@@ -21,6 +27,6 @@ The Brain is **not** `CAP-001`, is not assigned a `CAP-NNN` identifier, and is n
 
 ## Capability boundary
 
-Capabilities are executable SPS skills under `capabilities/`. They are selected/composed by the SPS process and may be seeded or generated. The Capability Registry and Capability Lineage are supporting subsystems, not additional architectural layers.
+Capabilities are executable SPS skills under `capabilities/`. They are selected/composed by the SPS process and may be seeded or generated. Capability Registry and Capability Lineage are supporting subsystems, not additional architectural layers.
 
-`layers/architecture.py` is the canonical machine-readable vocabulary for the ten public layer names.
+`layers/architecture.py` is the canonical machine-readable architecture manifest used by the dashboard/API.
