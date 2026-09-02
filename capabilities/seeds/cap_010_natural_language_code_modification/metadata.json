@@ -1,7 +1,7 @@
 {
-  "id": "CAP-010",
+  "id": "CAP-011",
   "name": "Natural Language Code Modification",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Applies an explicit natural-language code change using the configured reasoning model while preserving only the returned source code.",
   "entry_point": "capabilities.seeds.cap_010_natural_language_code_modification.capability.run",
   "origin": "seed",
