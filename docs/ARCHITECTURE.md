@@ -1,74 +1,176 @@
-# SPS-CA Architecture
+# SPS-CA Architecture v2
 
 ## 1. Purpose
 
-SPS-CA is a research prototype for a governed self-programming coding assistant. The architecture separates SPS reasoning/evolution from coding infrastructure, model providers, user projects, persistent runtime data, UI, testing, and analytics.
+SPS-CA is a research prototype for Self-Programming Software expressed as a coding assistant. Its purpose is not merely to generate code. It provides a governed, traceable and reversible architecture in which the system can accumulate experience, improve strategy selection, adapt, and eventually develop reusable capabilities.
 
-## 2. Ten SPS layers
+The architecture has **exactly ten layers**. The **Brain is not a layer and is not a capability**. It is a replaceable AI/model service used primarily by the Cognitive core for reasoning, prompt analysis, planning, code generation, debugging and strategy analysis.
 
-Each layer is a first-class package under `layers/` and owns its implementation and layer-local tests.
+## 2. Canonical ten-layer model
 
-1. Software DNA — immutable constraints, invariants, seed rules.
-2. Cognitive Core — task understanding, planning, decomposition, reasoning and context requests.
-3. Experience — structured observations, outcomes and failures.
-4. Meta-Learning — learns which strategies work under which conditions.
-5. Adaptation — changes strategies/parameters based on evidence.
-6. Validation — verifies proposed changes and generated capabilities.
-7. Governance — policy, risk classification, approval and rejection decisions.
-8. Evolution — proposes and develops new capabilities from repeated limitations.
-9. Capability Registry — lifecycle, versions, dependencies and provenance.
-10. Execution — controlled tools, processes, snapshots and rollback.
+| Layer | Public name | Responsibility |
+|---|---|---|
+| L1 | **Software DNA layer** | Identity, invariants, constraints and seed-system rules |
+| L2 | **Governance layer** | Policy, risk, approval/rejection and audit decisions |
+| L3 | **Cognitive core** | Prompt understanding, reasoning, planning and code context |
+| L4 | **Knowledge core** | Structured knowledge about code, capabilities, patterns and system state |
+| L5 | **Experience core** | Persistent outcomes, failures, successes, traces and lessons |
+| L6 | **Meta-learning core** | Learns which strategies/capabilities work under which conditions |
+| L7 | **Adaptation core** | Adjusts strategy and capability composition to current context |
+| L8 | **Evolution core** | Designs, generates and improves SPS capabilities |
+| L9 | **Verification & Validation** | Syntax, tests, regression, sandbox and evidence checks |
+| L10 | **Execution layer** | Controlled application of approved changes and tool operations |
 
-## 3. Cross-layer orchestration
+The canonical vocabulary is implemented in `layers/architecture.py`. Existing Python package paths are kept stable where necessary for compatibility; package names are implementation details and must not redefine the research-layer names.
 
-Layers do not become tightly coupled by directly calling arbitrary implementation details. `core/` owns orchestration, state and event contracts.
+## 3. Brain boundary
 
-Conceptual flow:
+```text
+                       SPS-CA
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+       Ten architectural layers       Brain
+             │                         │
+             │                 Ollama / other AI
+             │                         │
+             └──────────────┬──────────┘
+                            │
+                     Capability system
+                            │
+                 Seed + generated capabilities
+```
 
-`Request → Cognition → Capability/Experience context → Adaptation → Governance → Execution → Validation → Experience/Trace → Learning/Evolution`
+The Brain is provider-neutral. Ollama is the initial local provider, but another model can be introduced through `models/` without becoming a new SPS capability or layer.
 
-Failure creates a feedback loop rather than simply ending the task.
+The Brain can:
+- analyze a user prompt;
+- reason about code and context;
+- produce a task/strategy plan;
+- select and order capabilities from the registry;
+- generate or repair code when a capability delegates generation to it;
+- analyze failures and propose recovery strategies;
+- support Evolution when repeated limitations justify a new capability.
 
-## 4. Model abstraction
+The Brain does **not** execute code, approve its own changes, bypass Validation, or become `CAP-001`.
 
-`models/` is provider-neutral. SPS-CA talks to a model interface, not directly to Qwen or a cloud provider. Initial local deployment uses Ollama. Future adapters may support OpenAI, Anthropic and other providers.
+## 4. Capability boundary
 
-Model/provider configuration must never require changes to the ten SPS layers.
+Capabilities are executable SPS skills. They are independent of the Brain and are registered/versioned separately.
 
-## 5. Coding subsystem
+Stage 0 contains the initial seeded capabilities, for example:
 
-`coding/` handles repository discovery, AST/symbol analysis, context assembly, code generation coordination, controlled modification and local Git operations. It supplies services to SPS layers but does not own governance or learning decisions.
+- CAP-001 — Simple Bug Detection
+- CAP-002 — Syntax Error Fix
+- CAP-003 — Unit Test Generation
+- CAP-004 — Loop Optimization
+- CAP-005 — Error Handling Pattern
+- CAP-006 — Unused Variable Removal
+- CAP-007 — Type Annotation Addition
+- CAP-008 — Documentation Generation
+- CAP-010 — generated Parse Error Handler (existing evolution artifact)
+- CAP-011 — Natural Language Code Modification
 
-## 6. User/project data isolation
+The exact portfolio may grow as SPS-CA evolves. The Brain chooses from active capabilities; it does not replace the capability registry.
 
-`projects/` represents target projects. `memory/` and `data/` represent runtime information such as conversations, experiences, memories, traces, sessions and exports. Runtime user data must not be committed to Git.
+`capabilities/` and its registry/lineage services are supporting infrastructure, not an eleventh architectural layer.
 
-A configurable external storage root should be supported later so the same SPS-CA installation can manage multiple projects/users.
+## 5. Request lifecycle
 
-## 7. Capability lifecycle and lineage
+For a normal coding request:
 
-Every generated capability should have a stable ID and version and record provenance:
+```text
+User prompt + source
+        ↓
+L1 Software DNA layer
+        ↓
+L2 Governance layer (preflight constraints)
+        ↓
+L3 Cognitive core
+        ↓
+Brain reasoning / planning
+        ↓
+L4 Knowledge core
+        ↓
+L5 Experience core
+        ↓
+L6 Meta-learning core
+        ↓
+L7 Adaptation core
+        ↓
+L8 Evolution core (when evolution is relevant)
+        ↓
+Capability selection/composition
+        ↓
+L9 Verification & Validation
+        ↓
+L2 Governance final decision
+        ↓
+L10 Execution layer
+        ↓
+L5 Experience + trace
+        ↓
+L6 Meta-learning / L8 Evolution feedback
+```
 
-`Task/Failure → Experience → Pattern → Adaptation Proposal → Capability Candidate → Governance → Validation → Registry → Reuse`
+The numbered layers are architectural responsibilities. A layer may participate at more than one point in a controlled lifecycle; for example, Governance provides both preflight policy context and a final approval decision.
 
-Lineage records should include parent capabilities, triggering experience/task IDs, proposal IDs, model/provider metadata, validation evidence, versions and activation history.
+## 6. Self-programming lifecycle
 
-## 8. Analytics and explainability
+Only self-change should be treated as SPS evolution:
 
-`analytics/` derives datasets from events, traces and capability metadata. It will support capability growth charts, capability genealogy graphs, task-to-capability lineage, model performance, validation/rollback statistics and evolution history.
+```text
+Repeated task/failure pattern
+        ↓
+Experience core
+        ↓
+Meta-learning core
+        ↓
+Adaptation core
+        ↓
+Brain-assisted Evolution core
+        ↓
+New capability candidate
+        ↓
+Verification & Validation
+        ↓
+Governance approval
+        ↓
+Capability Registry + Lineage
+        ↓
+Reusable capability
+```
 
-The UI visualizes these datasets; the UI is not the system of record.
+A user-project modification is **not automatically self-programming**. The research distinction is between changing the target project and changing SPS-CA's own reusable capability set.
 
-## 9. Testing separation
+## 7. Evaluation strategy
 
-Layer-local tests live with each layer. Cross-layer, integration, system, scenario, baseline and benchmark tests live under `testing/`. Research evaluation remains reproducible and separate from production runtime code.
+SPS-CA must be evaluated progressively:
 
-## 10. Security and governance boundary
+1. **Baseline A — Naive coding assistant:** same Brain/model, direct request + code.
+2. **Baseline B — Tool-augmented coding assistant:** same Brain/model plus deterministic analysis/testing tools, but no SPS learning/evolution.
+3. **SPS-CA Stage 0:** ten-layer architecture with fixed seed capabilities.
+4. **SPS-CA later stage:** experience-informed adaptation and generated/reused capabilities.
 
-User secrets, API keys and runtime project data are configuration/runtime concerns and must never be hard-coded or committed. Self-modification is proposed through the Evolution layer and cannot bypass Governance and Validation.
+The same coding scenarios should be exercised across controlled projects/languages. Metrics should include correctness, success rate, time, validation failures, retries, capability selection, reuse, composition, generated capabilities, lineage, rollback and governance decisions.
 
-## 11. Thesis distinction
+The central research question becomes measurable:
 
-A conventional coding agent is primarily `Task → Model → Tools → Tests`.
+> Does adding the SPS architecture allow the coding assistant to improve future task handling and develop/reuse capabilities compared with the same-model coding baselines?
 
-SPS-CA adds persistent experience, strategy learning, adaptation, capability generation, capability lineage, governance, validation and an evolution feedback loop. The prototype should measure whether those additions improve repeat-task performance and capability reuse compared with baselines.
+## 8. Implementation boundaries
+
+- `layers/` — ten architectural responsibilities.
+- `brain/` — replaceable AI intelligence service; never a capability.
+- `models/` — provider/model abstraction.
+- `capabilities/` — seed/generated executable skills, registry and lineage.
+- `coding/` — repository and code intelligence.
+- `validation/` — verification infrastructure used by L9.
+- `governance/` — policy infrastructure used by L2.
+- `execution/` — controlled runtime infrastructure used by L10.
+- `memory/`, `data/`, `analytics/` — supporting runtime/evidence services.
+- `ui/` — presentation and observability; never the system of record.
+
+## 9. Safety boundary
+
+Generated SPS capabilities and SPS self-modifications must never bypass Validation or Governance. Runtime user projects, credentials and model secrets remain outside source control.
