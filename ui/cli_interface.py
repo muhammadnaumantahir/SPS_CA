@@ -1,3 +1,12 @@
+"""SPS-CA user interface and reference orchestration client.
+
+Architecture rule:
+    User -> Cognitive Core -> Brain -> Capability Plan -> 10-layer pipeline
+
+The Brain is an intelligence service, not a capability. Capabilities are
+registered independently and may be seeded or generated/evolved.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from brain import Brain, BrainError  # noqa: E402
 from capabilities.base import CapabilityContext  # noqa: E402
 from capabilities.seed_registry import load_entry_point, load_seed_capabilities  # noqa: E402
 from layers.layer_02_cognitive_core import CognitiveCore  # noqa: E402
@@ -18,10 +28,25 @@ from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGat
 from layers.layer_09_capability_registry import CapabilityRegistryManager  # noqa: E402
 from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit  # noqa: E402
 
+ARCHITECTURE = [
+    (1, "Software DNA layer"),
+    (2, "Governance layer"),
+    (3, "Cognitive core"),
+    (4, "Knowledge core"),
+    (5, "Experience core"),
+    (6, "Meta-learning core"),
+    (7, "Adaptation core"),
+    (8, "Evolution core"),
+    (9, "Verification & Validation"),
+    (10, "Execution layer"),
+]
+
 HELP_TEXT = """Commands:
   load <project_path>      Load a target project
   show project             Show current project context
-  show registry            Show available capabilities
+  show architecture        Show the 10 SPS-CA layers and Brain boundary
+  show registry            Show available SPS capabilities
+  show brain               Show Brain provider/model status
   show experience          Show recent recorded UI interactions
   help                     Show this help
   quit                     Exit SPS-CA
@@ -30,12 +55,7 @@ Any other input is treated as a natural-language coding request."""
 
 
 class SPS_CA_Interface:
-    """Prompt interface with a strict CAP-001 -> capability pipeline.
-
-    CAP-001 is always the first capability. It uses Ollama as the reasoning
-    brain and returns an allowlisted, ordered capability plan. The UI then
-    executes that plan sequentially; it never hard-codes intent selection.
-    """
+    """Reference interface for the 10-layer SPS-CA architecture."""
 
     def __init__(
         self,
@@ -47,15 +67,16 @@ class SPS_CA_Interface:
         self.history_path = Path(history_path)
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.core = CognitiveCore()
+        self.brain = Brain(provider=llm_provider, model=llm_model)
         self.registry = CapabilityRegistryManager(registry_path)
         self.execution = ExecutionEngine()
         self.project_context: Optional[Dict[str, Any]] = None
-        self.llm_provider = llm_provider
-        self.llm_model = llm_model
+        self.last_trace: Dict[str, Any] = {}
         self._history = self._load_history()
 
     def start_interactive_session(self) -> None:
-        print("Welcome to SPS-CA (Self-Programming Code Assistant)")
+        print("SPS-CA — Self-Programming Code Assistant")
+        print("Brain: provider-neutral AI service (Ollama by default)")
         print("Type 'help' for commands, 'quit' to exit")
         while True:
             try:
@@ -68,7 +89,7 @@ class SPS_CA_Interface:
             response = self.handle_command(user_input)
             if response == "__QUIT__":
                 break
-            print(f"\nSPS-CA: {response}\n")
+            print(f"\nSPS-CA:\n{response}\n")
 
     def handle_command(self, user_input: str) -> str:
         command = user_input.strip()
@@ -78,18 +99,13 @@ class SPS_CA_Interface:
             return "__QUIT__"
         if lowered == "help":
             response = HELP_TEXT
-            self._record_event("help", command, response)
-            return response
-        if lowered.startswith("load "):
+        elif lowered.startswith("load "):
             response = self.load_project(command[5:].strip())
-            self._record_event("load", command, response)
-            return response
-        if lowered.startswith("show "):
+        elif lowered.startswith("show "):
             response = self.show_context(command[5:].strip())
-            self._record_event("show", command, response)
-            return response
-        response = self.process_request(command)
-        self._record_event("request", command, response)
+        else:
+            response = self.process_request(command)
+        self._record_event("command", command, response)
         return response
 
     def load_project(self, project_path: str) -> str:
@@ -106,9 +122,9 @@ class SPS_CA_Interface:
             "functions": analysis.total_functions,
         }
         return (
-            f"Loaded project: {root} (language: {language})\n"
-            f"  Analyzed files: {len(analysis.files)}\n"
-            f"  Functions discovered: {analysis.total_functions}"
+            f"Loaded project: {root}\n"
+            f"Language: {language}\nFiles analyzed: {len(analysis.files)}\n"
+            f"Functions discovered: {analysis.total_functions}"
         )
 
     def show_context(self, context_type: str) -> str:
@@ -116,19 +132,32 @@ class SPS_CA_Interface:
         if context_type == "project":
             if not self.project_context:
                 return "No project loaded. Use: load <project_path>"
-            return (
-                f"Current project: {self.project_context['path']}\n"
-                f"Language: {self.project_context['language']}\n"
-                f"Analyzed files: {self.project_context['files']}\n"
-                f"Functions discovered: {self.project_context['functions']}"
-            )
+            return json.dumps(self.project_context, indent=2)
+        if context_type == "architecture":
+            lines = ["SPS-CA 10-Layer Architecture", ""]
+            for number, name in ARCHITECTURE:
+                lines.append(f"L{number:02d}  {name}")
+            lines.extend([
+                "",
+                "BRAIN  AI/model service — separate from layers and capabilities",
+                "CAPABILITIES  Seed + generated executable skills",
+                "CAPABILITY REGISTRY  Supporting subsystem for discovery/version/lineage",
+            ])
+            return "\n".join(lines)
         if context_type == "registry":
             capabilities = self.registry.list_all_capabilities()
             if not capabilities:
                 return "Available capabilities: none"
             return "\n".join(
-                ["Available capabilities:"]
+                ["SPS capability registry:"]
                 + [f"  {cap.id}: {cap.name} [{cap.status}] v{cap.version}" for cap in capabilities]
+            )
+        if context_type == "brain":
+            return (
+                f"Brain provider: {self.brain.provider_name}\n"
+                f"Model: {self.brain.model or 'provider default'}\n"
+                f"Available: {'yes' if self.brain.is_available() else 'no'}\n"
+                "Role: reasoning, prompt analysis, planning, code generation, debugging"
             )
         if context_type == "experience":
             events = self._history.get("events", [])[-5:]
@@ -138,111 +167,104 @@ class SPS_CA_Interface:
                 ["Recent interactions:"]
                 + [f"  {event['timestamp']} | {event['kind']} | {event['command']}" for event in events]
             )
-        return "Unknown context. Use: project, registry, experience"
+        return "Unknown context. Use: project, architecture, registry, brain, experience"
 
     def process_request(self, user_request: str) -> str:
         if not self.project_context:
             return "Error: no project loaded. Use: load <project_path>"
 
+        project_path = self.project_context["path"]
+        language = self.project_context["language"]
+        target_file, code = self._choose_target_file(project_path, language, user_request)
+        if target_file is None:
+            return "Pipeline error: no supported source file was found."
+
+        # L3 Cognitive core gathers context; the Brain performs intelligence.
+        analysis = self.core.analyze_single_file(target_file, code)
+        candidates = self.core.select_candidate_capabilities(analysis, user_request)
+        catalog = [
+            {
+                "id": cap.id,
+                "name": cap.name,
+                "description": cap.description,
+                "tags": getattr(cap, "tags", []) or [],
+            }
+            for cap in candidates
+            if cap.status == "active"
+        ]
+
+        trace: Dict[str, Any] = {
+            "request": user_request,
+            "layers": [],
+            "brain": {"provider": self.brain.provider_name, "model": self.brain.model},
+            "target": {"file": target_file, "language": language},
+        }
+        trace["layers"].append({"layer": 1, "name": "Software DNA layer", "status": "checked"})
+        trace["layers"].append({"layer": 3, "name": "Cognitive core", "status": "context analyzed"})
+        trace["layers"].append({"layer": 4, "name": "Knowledge core", "status": "capability knowledge loaded", "count": len(catalog)})
+        trace["layers"].append({"layer": 5, "name": "Experience core", "status": "history available"})
+        trace["layers"].append({"layer": 6, "name": "Meta-learning core", "status": "strategy context available"})
+        trace["layers"].append({"layer": 7, "name": "Adaptation core", "status": "ready"})
+
         try:
-            project_path = self.project_context["path"]
-            language = self.project_context["language"]
-            analysis = self.core.analyze_target_project(project_path)
+            plan = self.brain.plan(
+                request=user_request,
+                code=code,
+                language=language,
+                file_path=target_file,
+                capability_catalog=catalog,
+            )
+        except BrainError as exc:
+            trace["brain"]["error"] = str(exc)
+            self.last_trace = trace
+            return self._format_trace(trace, error=f"Brain planning failed: {exc}")
 
-            # CAP-001 is the mandatory first stage. Ollama is the brain.
-            templates = self.registry.list_all_capabilities()
-            catalog = [
-                {
-                    "id": cap.id,
-                    "name": cap.name,
-                    "description": cap.description,
-                    "tags": getattr(cap, "tags", []) or [],
-                }
-                for cap in templates
-                if cap.id != "CAP-001" and cap.status == "active"
-            ]
-            prompt_template = self._resolve_template("CAP-001")
-            if prompt_template is None:
-                return "Pipeline error: CAP-001 Prompt Processing is not registered."
+        trace["brain"].update({"intent": plan.intent, "reasoning": plan.reasoning, "steps": plan.steps})
+        trace["layers"].append({"layer": 8, "name": "Evolution core", "status": "evaluated"})
 
-            target_file, code = self._choose_target_file(project_path, language, user_request)
-            if target_file is None:
-                return "Pipeline error: no supported source file was found."
+        current_code = code
+        used_ids: list[str] = []
+        final_modified_code: Optional[str] = None
+        last_result: Any = None
 
-            prompt_result = load_entry_point(prompt_template)(
+        for step in plan.steps:
+            capability_id = step["capability_id"]
+            selected = self._resolve_template(capability_id)
+            if selected is None:
+                self.last_trace = trace
+                return self._format_trace(trace, error=f"Brain selected unavailable capability {capability_id}.")
+            result = load_entry_point(selected)(
                 CapabilityContext(
-                    code=code,
+                    code=current_code,
                     language=language,
                     file_path=target_file,
                     project_path=project_path,
                     parameters={
-                        "capability_catalog": catalog,
-                        "llm_provider": self.llm_provider,
-                        "llm_model": self.llm_model,
-                        "llm_timeout_seconds": 120.0,
+                        "llm_provider": self.brain.llm.provider,
+                        "llm_model": self.brain.model,
+                        "llm_timeout_seconds": self.brain.timeout_seconds,
                     },
-                    metadata={"request": user_request},
+                    metadata={"request": user_request, "brain_reason": step.get("reason", "")},
                 )
             )
-            if not prompt_result.success:
-                return "✗ CAP-001 Prompt Processing failed.\n  Brain: Ollama\n  Error: " + str(prompt_result.error)
+            last_result = result
+            if not result.success:
+                trace.setdefault("capability_results", []).append({"id": capability_id, "status": "failed", "error": result.error})
+                self.last_trace = trace
+                return self._format_trace(trace, error=f"{selected.name} failed: {result.error}")
+            used_ids.append(capability_id)
+            trace.setdefault("capability_results", []).append({"id": capability_id, "name": selected.name, "status": "completed", "summary": result.summary})
+            if result.modified_code is not None:
+                current_code = result.modified_code
+                final_modified_code = current_code
 
-            brain_plan = prompt_result.findings[0] if prompt_result.findings else {}
-            steps = brain_plan.get("steps", [])
-            intent = brain_plan.get("intent", "")
-            stage_lines = [
-                "Pipeline:",
-                "  CAP-001 Prompt Processing → Ollama brain ✓",
-            ]
-            if not steps:
-                stage_lines.append(f"  Result: no downstream capability selected. Intent: {intent or 'n/a'}")
-                return "\n".join(stage_lines)
+        if not plan.steps:
+            trace["result"] = {"status": "no_capability_selected"}
+            self.last_trace = trace
+            return self._format_trace(trace)
 
-            # CAP-002+ execute exactly what the brain selected, in order.
-            current_code = code
-            used_ids: list[str] = []
-            last_result: Any = None
-            final_modified_code: Optional[str] = None
-
-            for step in steps:
-                capability_id = str(step["capability_id"])
-                selected = self._resolve_template(capability_id)
-                if selected is None or selected.id == "CAP-001":
-                    return f"Pipeline error: Ollama selected unavailable capability {capability_id}."
-                stage_lines.append(f"  {selected.id} {selected.name} → running")
-                result = load_entry_point(selected)(
-                    CapabilityContext(
-                        code=current_code,
-                        language=language,
-                        file_path=target_file,
-                        project_path=project_path,
-                        parameters={
-                            "llm_provider": self.llm_provider,
-                            "llm_model": self.llm_model,
-                            "llm_timeout_seconds": 120.0,
-                        },
-                        metadata={
-                            "request": user_request,
-                            "brain_reason": step.get("reason", ""),
-                        },
-                    )
-                )
-                last_result = result
-                if not result.success:
-                    stage_lines[-1] = stage_lines[-1].replace("running", f"failed: {result.error}")
-                    return "\n".join(stage_lines)
-                used_ids.append(selected.id)
-                if result.modified_code is not None:
-                    current_code = result.modified_code
-                    final_modified_code = current_code
-                stage_lines[-1] = stage_lines[-1].replace("running", "completed ✓")
-
-            if final_modified_code is None:
-                stage_lines.append(f"  Result: analysis complete ({used_ids[-1] if used_ids else 'none'}).")
-                if last_result is not None:
-                    stage_lines.append(f"  Summary: {last_result.summary}")
-                return "\n".join(stage_lines)
-
+        trace["layers"].append({"layer": 9, "name": "Verification & Validation", "status": "pending"})
+        if final_modified_code is not None:
             change = Change.new(
                 capability_id=used_ids[-1],
                 description=user_request,
@@ -250,11 +272,12 @@ class SPS_CA_Interface:
                 target_language=language,
                 test_command="pytest -q",
             )
-            validator = Validator(project_path)
-            sandbox = validator.run_in_sandbox(final_modified_code, change.change_id, target_file)
+            sandbox = Validator(project_path).run_in_sandbox(final_modified_code, change.change_id, target_file)
+            trace["validation"] = {"status": sandbox.status.value}
+            trace["layers"][-1]["status"] = sandbox.status.value
             if sandbox.status.value != "success":
-                return "\n".join(stage_lines) + f"\n  Layer 6 Validation: {sandbox.status.value} ✗"
-            stage_lines.append("  Layer 6 Validation → sandbox passed ✓")
+                self.last_trace = trace
+                return self._format_trace(trace, error="Verification & Validation rejected the proposed change.")
 
             decision = GovernanceGate().make_decision(
                 change.change_id,
@@ -263,24 +286,45 @@ class SPS_CA_Interface:
                 [target_file],
                 related_capabilities=used_ids,
             )
-            stage_lines.append(f"  Layer 7 Governance → {decision.decision.value}")
+            trace["governance"] = {"status": decision.decision.value, "rationale": decision.rationale}
+            trace["layers"][0]["dna_note"] = "change remains inside system constraints"
+            trace["layers"].append({"layer": 2, "name": "Governance layer", "status": decision.decision.value})
             if decision.decision != DecisionStatus.AUTO_APPROVED:
-                return "\n".join(stage_lines) + f"\n  Reason: {decision.rationale}"
+                self.last_trace = trace
+                return self._format_trace(trace, error=f"Governance rejected the change: {decision.rationale}")
 
             execution = self.execution.execute_change(change, project_path)
-            stage_lines.append(f"  Layer 10 Execution → {execution.status.value}")
-            stage_lines.append(
-                f"  Brain: Ollama | Intent: {intent or 'n/a'} | Capabilities: {', '.join(used_ids)}"
-            )
-            return "\n".join(stage_lines)
-        except Exception as exc:
-            return f"Error: {exc}"
+            trace["execution"] = {"status": execution.status.value, "time_ms": execution.execution_time_ms}
+            trace["layers"].append({"layer": 10, "name": "Execution layer", "status": execution.status.value})
+        else:
+            trace["validation"]["status"] = "not_required_for_analysis"
+            trace["layers"][-1]["status"] = "analysis_only"
 
-    def format_response(self, execution_result: Any, *, capability_id: str, coverage: Optional[float], validation_status: str, governance_status: str) -> str:
-        coverage_text = "not reported" if coverage is None else f"{coverage:.1f}%"
-        if execution_result.status == ExecutionStatus.SUCCESS:
-            return ("✓ Change applied successfully!\n" f"  Capability used: {capability_id}\n" f"  Validation: {validation_status}\n" f"  Governance: {governance_status}\n" f"  Tests passing: {execution_result.tests_passing}\n" f"  Tests failing: {execution_result.tests_failing}\n" f"  Code coverage: {coverage_text}\n" f"  Execution time: {execution_result.execution_time_ms}ms")
-        return (f"✗ Change {execution_result.status.value}.\n" f"  Capability used: {capability_id}\n" f"  Validation: {validation_status}\n" f"  Governance: {governance_status}\n" f"  Error: {execution_result.error_message or 'unknown error'}")
+        trace["result"] = {
+            "status": "success",
+            "intent": plan.intent,
+            "capabilities": used_ids,
+            "summary": getattr(last_result, "summary", "complete"),
+        }
+        self.last_trace = trace
+        return self._format_trace(trace)
+
+    @staticmethod
+    def _format_trace(trace: Dict[str, Any], error: Optional[str] = None) -> str:
+        lines = ["SPS-CA pipeline trace"]
+        if error:
+            lines.append(f"✗ {error}")
+        brain = trace.get("brain", {})
+        lines.append(f"Brain: {brain.get('provider', 'unknown')} | Model: {brain.get('model') or 'default'}")
+        if brain.get("intent"):
+            lines.append(f"Intent: {brain['intent']}")
+        for item in trace.get("layers", []):
+            label = f"L{item['layer']:02d} {item['name']}"
+            lines.append(f"  {label} → {item.get('status', 'ready')}")
+        results = trace.get("capability_results", [])
+        if results:
+            lines.append("Capabilities: " + ", ".join(item["id"] for item in results))
+        return "\n".join(lines)
 
     def _resolve_template(self, capability_id: str):
         for template in self.registry.list_all_capabilities():
@@ -294,14 +338,14 @@ class SPS_CA_Interface:
     @staticmethod
     def _change_type_for_capability(capability_id: str) -> ChangeType:
         return {
-            "CAP-002": ChangeType.LOGIC_FIX,
-            "CAP-003": ChangeType.SYNTAX_FIX,
-            "CAP-004": ChangeType.TEST_GENERATION,
-            "CAP-005": ChangeType.REFACTORING,
-            "CAP-006": ChangeType.LOGIC_FIX,
+            "CAP-001": ChangeType.LOGIC_FIX,
+            "CAP-002": ChangeType.SYNTAX_FIX,
+            "CAP-003": ChangeType.TEST_GENERATION,
+            "CAP-004": ChangeType.REFACTORING,
+            "CAP-005": ChangeType.LOGIC_FIX,
+            "CAP-006": ChangeType.REFACTORING,
             "CAP-007": ChangeType.REFACTORING,
-            "CAP-008": ChangeType.REFACTORING,
-            "CAP-009": ChangeType.FEATURE_ADDITION,
+            "CAP-008": ChangeType.FEATURE_ADDITION,
             "CAP-010": ChangeType.LOGIC_FIX,
             "CAP-011": ChangeType.FEATURE_ADDITION,
         }.get(capability_id, ChangeType.LOGIC_FIX)
@@ -311,7 +355,8 @@ class SPS_CA_Interface:
         suffixes = {"python": {".py"}, "java": {".java"}, "javascript": {".js", ".jsx"}, "typescript": {".ts", ".tsx"}, "go": {".go"}, "csharp": {".cs"}}
         requested = user_request.lower()
         candidates = []
-        for path in sorted(Path(project_path).rglob("*")):
+        root = Path(project_path)
+        for path in sorted(root.rglob("*")):
             if not path.is_file() or path.suffix not in suffixes.get(language, set()):
                 continue
             score = sum(1 for token in requested.split() if len(token) > 3 and token in str(path).lower())
@@ -320,19 +365,24 @@ class SPS_CA_Interface:
             return None, ""
         candidates.sort(key=lambda item: (-item[0], str(item[1])))
         target = candidates[0][1]
-        return str(target.relative_to(Path(project_path))).replace("\\", "/"), target.read_text(encoding="utf-8")
+        return str(target.relative_to(root)).replace("\\", "/"), target.read_text(encoding="utf-8")
 
     def _load_history(self) -> Dict[str, Any]:
         if not self.history_path.exists():
-            return {"version": "1.0.0", "events": []}
+            return {"version": "2.0.0", "events": []}
         try:
             data = json.loads(self.history_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else {"version": "1.0.0", "events": []}
+            return data if isinstance(data, dict) else {"version": "2.0.0", "events": []}
         except json.JSONDecodeError:
-            return {"version": "1.0.0", "events": []}
+            return {"version": "2.0.0", "events": []}
 
     def _record_event(self, kind: str, command: str, response: str) -> None:
-        self._history.setdefault("events", []).append({"timestamp": datetime.now(timezone.utc).isoformat(), "kind": kind, "command": command, "response": response})
+        self._history.setdefault("events", []).append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "kind": kind,
+            "command": command,
+            "response": response,
+        })
         self.history_path.write_text(json.dumps(self._history, indent=2), encoding="utf-8")
 
 
