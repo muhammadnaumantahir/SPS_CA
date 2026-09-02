@@ -97,17 +97,17 @@ class TestSelectCandidateCapabilities:
     def test_filters_by_language(self):
         analysis = ProjectAnalysis(project_path="p", files=[], languages_detected=["python"])
         ids = {c.id for c in CognitiveCore(capability_loader=fake_capabilities).select_candidate_capabilities(analysis)}
-        assert ids == {"CAP-002", "CAP-004"}
+        assert ids == {"CAP-001", "CAP-003"}
 
     def test_keyword_hint_narrows_selection(self):
         analysis = ProjectAnalysis(project_path="p", files=[], languages_detected=["python"])
         ids = {c.id for c in CognitiveCore(capability_loader=fake_capabilities).select_candidate_capabilities(analysis, user_request="please fix this bug")}
-        assert ids == {"CAP-002"}
+        assert ids == {"CAP-001"}
 
     def test_no_keyword_match_falls_back_to_all_eligible(self):
         analysis = ProjectAnalysis(project_path="p", files=[], languages_detected=["python"])
         ids = {c.id for c in CognitiveCore(capability_loader=fake_capabilities).select_candidate_capabilities(analysis, user_request="do something vague")}
-        assert ids == {"CAP-002", "CAP-004"}
+        assert ids == {"CAP-001", "CAP-003"}
 
     def test_language_with_no_matches_returns_empty(self):
         analysis = ProjectAnalysis(project_path="p", files=[], languages_detected=["csharp"])
@@ -118,7 +118,7 @@ class TestPlanModificationStrategy:
     def test_builds_plan_with_default_subtask(self):
         analysis = ProjectAnalysis(project_path="proj", files=[], languages_detected=["python"])
         plan = CognitiveCore(capability_loader=fake_capabilities).plan_modification_strategy(analysis, fake_capabilities()[:2])
-        assert plan.selected_capability_ids == ["CAP-002", "CAP-004"]
+        assert plan.selected_capability_ids == ["CAP-001", "CAP-003"]
         assert len(plan.subtasks) == 1
         assert "proj" in plan.subtasks[0].description
 
@@ -138,5 +138,5 @@ class TestCognitiveCoreEndToEnd:
         caps = cc.select_candidate_capabilities(analysis, user_request=req.user_request)
         plan = cc.plan_modification_strategy(analysis, caps, subtasks)
         assert len(subtasks) == 2
-        assert "CAP-002" in plan.selected_capability_ids
+        assert "CAP-001" in plan.selected_capability_ids
         assert plan.subtasks == subtasks

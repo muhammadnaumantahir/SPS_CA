@@ -28,6 +28,7 @@ from layers.layer_06_validation import Validator  # noqa: E402
 from layers.layer_07_governance import ChangeType, DecisionStatus, GovernanceGate  # noqa: E402
 from layers.layer_09_capability_registry import CapabilityRegistryManager  # noqa: E402
 from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit  # noqa: E402
+from ui.sps_service import SPSScenarioService  # noqa: E402
 
 ARCHITECTURE = [
     (1, "Software DNA layer"),
@@ -67,6 +68,8 @@ class SPS_CA_Interface:
         registry_path: str = "capabilities/registry.json",
         llm_provider: Optional[Any] = None,
         llm_model: str = "",
+        trace_history_path: str | Path = "experience/traces/evolution_history.json",
+        trace_stage_path: str | Path = "experience/traces/stage_state.json",
     ) -> None:
         self.history_path = Path(history_path)
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,7 +78,7 @@ class SPS_CA_Interface:
         self.registry = CapabilityRegistryManager(registry_path)
         self.execution = ExecutionEngine()
         self.trace_store = EvolutionTraceStore(history_path=trace_history_path, stage_path=trace_stage_path)
-        self.supervisor = SupervisorScenarioService(
+        self.sps_service = SPSScenarioService(
             trace_history_path=trace_history_path,
             trace_stage_path=trace_stage_path,
             registry_path=registry_path,
@@ -146,9 +149,9 @@ class SPS_CA_Interface:
         return self.submit_submission(request, code, language, file_path=str(path))
 
     def submit_submission(self, user_request: str, code: str, language: str, *, file_path: str = "") -> str:
-        """Run the submitted scenario through the SPS Supervisor analysis path."""
+        """Run the submitted scenario through the SPS-CA analysis path."""
         try:
-            result = self.supervisor.analyze_submission(
+            result = self.sps_service.analyze_submission(
                 user_request=user_request,
                 code=code,
                 language=language,

@@ -1,20 +1,20 @@
-# SPS Supervisor Loop Implementation Plan
+# SPS SPS-CA Loop Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Connect supervisor-facing prompt+code scenarios to SPS task analysis and capability selection while preserving the existing ten-layer framework and preparing the path for generated capabilities.
+**Goal:** Connect SPS-CA-facing prompt+code scenarios to SPS task analysis and capability selection while preserving the existing ten-layer framework and preparing the path for generated capabilities.
 
 **Architecture:** Keep the existing ten layers and their names unchanged. Layer 3 remains Experience and persists scenario history; Layer 2 remains Cognitive Core and owns task/code analysis and candidate selection; Layer 8 remains Evolution and owns capability-gap planning/generation; Layer 9 remains Capability Registry and owns discovery/reuse; Layers 6/7/10 continue validation, governance, and execution.
 
 **Tech Stack:** Python 3.11+, existing SPS-CA modules, pytest, JSON persistence, existing provider-neutral model interface with Ollama/Qwen for later model-backed analysis.
 
-**Spec:** Supervisor requirements: chat prompt + code/file input, analyze prompt+code, modify code, use existing capabilities, develop a missing capability, store WHY/WHAT/WHEN/HOW/evolution trace in JSON, and defer web UI.
+**Spec:** SPS-CA requirements: chat prompt + code/file input, analyze prompt+code, modify code, use existing capabilities, develop a missing capability, store WHY/WHAT/WHEN/HOW/evolution trace in JSON, and defer web UI.
 
 ## Global Constraints
 
 - Preserve exactly 10 SPS layers and all existing layer names.
 - Do not replace the existing Layer 8 Evolution Engine or Layer 9 Capability Registry; extend them.
-- Keep web UI deferred until the core supervisor loop is demonstrated.
+- Keep web UI deferred until the core SPS-CA loop is demonstrated.
 - Keep runtime/research artifacts outside source-control-sensitive user data unless explicitly intended as research fixtures.
 - Every production behavior change must be covered by a failing test first, then implementation.
 
@@ -261,10 +261,10 @@ git commit -m "feat: route capability gaps into layer 8 evolution"
 
 ---
 
-### Task 4: Run the supervisor-loop integration test
+### Task 4: Run the SPS-CA-loop integration test
 
 **Files:**
-- Test: `testing/test_supervisor_loop.py`
+- Test: `testing/test_SPS-CA_loop.py`
 
 **Interfaces:**
 - Consumes: CLI submission, Layer 2 analysis, Layer 8 gap planning, trace store.
@@ -274,7 +274,7 @@ git commit -m "feat: route capability gaps into layer 8 evolution"
 
 ```python
 
-def test_supervisor_loop_records_stage_zero_to_capability_decision(tmp_path):
+def test_SPS-CA_loop_records_stage_zero_to_capability_decision(tmp_path):
     ui = SPS_CA_Interface(
         history_path=tmp_path / "history.json",
         trace_history_path=tmp_path / "evolution_history.json",
@@ -300,7 +300,7 @@ def test_supervisor_loop_records_stage_zero_to_capability_decision(tmp_path):
 
 Run:
 ```bash
-python -m pytest testing/test_supervisor_loop.py::test_supervisor_loop_records_stage_zero_to_capability_decision -q
+python -m pytest testing/test_SPS-CA_loop.py::test_SPS-CA_loop_records_stage_zero_to_capability_decision -q
 ```
 Expected: FAIL until Tasks 1–3 are integrated.
 
@@ -312,16 +312,16 @@ Reuse the Task 1–3 functions. Do not introduce a duplicate orchestration layer
 
 Run:
 ```bash
-python -m pytest testing/test_supervisor_loop.py::test_supervisor_loop_records_stage_zero_to_capability_decision -q
+python -m pytest testing/test_SPS-CA_loop.py::test_SPS-CA_loop_records_stage_zero_to_capability_decision -q
 ```
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add testing/test_supervisor_loop.py
+git add testing/test_SPS-CA_loop.py
 
-git commit -m "test: verify supervisor-driven SPS loop"
+git commit -m "test: verify SPS-CA-driven SPS loop"
 ```
 
 ---
@@ -339,7 +339,7 @@ git commit -m "test: verify supervisor-driven SPS loop"
 
 Run:
 ```bash
-python -m pytest ui/tests/test_cli_interface.py testing/test_missing_capability_evolution.py testing/test_supervisor_loop.py -q
+python -m pytest ui/tests/test_cli_interface.py testing/test_missing_capability_evolution.py testing/test_SPS-CA_loop.py -q
 ```
 Expected: all targeted tests PASS.
 
@@ -359,14 +359,14 @@ Verify the branch workflows complete successfully. Do not claim success until th
 
 Use a focused commit message such as:
 ```bash
-git commit -m "test: stabilize supervisor loop verification"
+git commit -m "test: stabilize SPS-CA loop verification"
 ```
 
 ---
 
 ## Requirement Coverage After This Plan
 
-Supervisor requirements addressed by this plan:
+SPS-CA requirements addressed by this plan:
 
 - User prompt + code/file intake: existing Step 1 foundation plus this plan's analysis connection.
 - Prompt + code analysis: Task 1.

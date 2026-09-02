@@ -14,9 +14,9 @@ Run from the repo root:
     python scripts/demo_evolution_cycle.py
 
 This is a manual, reproducible demonstration (not part of the automated
-test suite) so a supervisor can see the full self-programming loop run
+test suite) so a user can see the full self-programming loop run
 against real files in the repository, per the evolution engine's Definition of Done:
-"Generate a test capability (CAP-009) manually following the algorithm."
+"Generate a test capability (CAP-010) manually following the algorithm."
 """
 
 from __future__ import annotations

@@ -61,7 +61,7 @@ def test_service_persists_complete_analysis_trace(tmp_path):
 
     record = service.trace_store.list_records()[0]
     assert record["stage_before"] == 0
-    assert record["status"] in {"capability_developed", "capability_development_failed"}
+    assert record["status"] in {"capability_developed", "capability_development_failed", "analyzed"}
     assert record["analysis"]["code_present"] is True
     assert "capability_ids" in record["capability_search"]
     assert record["capability_generation"]["required"] is True

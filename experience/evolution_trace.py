@@ -1,6 +1,6 @@
 """Persistent, append-only research trace for SPS-CA evolution.
 
-The supervisor-facing prototype needs to explain not only *what* code changed,
+The SPS-CA prototype needs to explain not only *what* code changed,
 but also why the system selected a capability, why a new capability was
 needed, what was created, when it happened, and how the resulting stage
 changed. This module provides that audit trail without coupling it to the CLI
@@ -31,7 +31,7 @@ DEFAULT_STAGE_PATH = f"{DEFAULT_TRACE_DIR}/stage_state.json"
 
 
 class EvolutionTraceStore:
-    """Persist supervisor/research trace records and the current SPS stage."""
+    """Persist research trace records and the current SPS stage."""
 
     SCHEMA_VERSION = "1.0"
 

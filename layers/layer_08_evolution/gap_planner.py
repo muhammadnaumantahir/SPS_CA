@@ -1,6 +1,6 @@
 """Capability-gap planning within Layer 8 (Evolution).
 
-A capability gap is a first-class evolution trigger for the supervisor-facing
+A capability gap is a first-class evolution trigger for the SPS-CA
 prototype. Unlike the historical repeated-failure trigger, a gap can be
 identified immediately when the task requires a behavior absent from the
 registered capability set. This module only plans the capability; the existing

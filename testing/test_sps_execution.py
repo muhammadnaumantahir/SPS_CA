@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ui.supervisor_execution import SupervisorExecutionService
+from ui.sps_execution import SPSExecutionService
 
 
-def test_supervisor_execution_grows_capability_and_modifies_submitted_code(tmp_path: Path):
+def test_sps_execution_grows_capability_and_modifies_submitted_code(tmp_path: Path):
     history = tmp_path / "evolution_history.json"
     stage = tmp_path / "stage_state.json"
     registry = tmp_path / "registry.json"
@@ -16,7 +16,7 @@ def test_supervisor_execution_grows_capability_and_modifies_submitted_code(tmp_p
 
     # Use an isolated generated-capability registry while keeping the repository
     # seed metadata as the source for initial capability numbering.
-    service = SupervisorExecutionService(
+    service = SPSExecutionService(
         trace_history_path=history,
         trace_stage_path=stage,
         registry_path=str(registry),

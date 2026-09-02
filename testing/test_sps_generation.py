@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 
-from ui.supervisor_service import SupervisorScenarioService
+from ui.sps_service import SPSScenarioService
 
 
 def test_missing_capability_is_developed_and_recorded(tmp_path):
     registry_path = tmp_path / "registry.json"
-    service = SupervisorScenarioService(
+    service = SPSScenarioService(
         trace_history_path=tmp_path / "evolution_history.json",
         trace_stage_path=tmp_path / "stage_state.json",
         registry_path=str(registry_path),
