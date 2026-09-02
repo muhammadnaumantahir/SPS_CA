@@ -1,32 +1,24 @@
 # SPS-CA — Self-Programming Code Assistant
 
-**Version:** 0.7.0  
-**Status:** Phase 7 — User Interface & Prompt-Based Interaction  
+**Version:** 0.8.0  
+**Status:** Phase 8 — Target Projects  
 **Goal:** Research prototype for governed, traceable and reversible self-programming.
 
 SPS-CA investigates whether an AI coding system can improve future performance by accumulating experience, adapting strategies, and safely developing reusable capabilities.
 
-## Core research distinction
-
-A conventional coding agent is approximately:
-
-`Task → Model → Tools → Tests → Result`
-
-SPS-CA adds persistent experience, meta-learning, adaptation, governed evolution, capability lineage and feedback:
-
-`Task → Cognition → Context → Adaptation → Governance → Execution → Validation → Experience → Evolution → Reuse`
-
-Self-modification must never bypass governance or validation.
-
 ## Current implementation status
 
-Phases 0–6 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry, execution boundary and executable seed capabilities. **Phase 7 adds the prompt-based user interface and session interaction layer.**
+Phases 0–7 established the ten-layer foundation, validation/governance/evolution pipeline, capability registry, execution boundary, seed capabilities and prompt-based CLI. **Phase 8 adds three equivalent benchmark target projects.**
 
-- **CLI:** `python ui/cli_interface.py`
-- **Commands:** `load`, `show project`, `show registry`, `show experience`, `help`, `quit`.
-- **Session history:** persisted locally as `ui/session_history.json` at runtime.
-- **Request flow:** natural-language requests are routed through Cognitive Core, then through Validation and Governance before approved executable changes reach Layer 10.
-- **Response:** reports capability, validation/governance status, test counts, coverage when available, and execution time.
+- **Project A:** Python / FastAPI
+- **Project B:** Java / Spring Boot
+- **Project C:** TypeScript / Express
+- Shared Task API: health plus CRUD operations.
+- Shared seeded defect: `/tasks/{id}/exists` incorrectly ignores the requested ID.
+- Equivalent tests and standalone run instructions are included for each target.
+- `.github/workflows/phase8-tests.yml` verifies all three targets plus the TypeScript build.
+
+See [`docs/PHASE_8_STATUS.md`](docs/PHASE_8_STATUS.md) for the benchmark contract and requirement mapping.
 
 ## Architecture
 
@@ -36,16 +28,6 @@ The ten SPS layers are first-class packages under `layers/`. Cross-layer orchest
 SPS_CA/
 ├── core/                    # Orchestration, state, events, interfaces
 ├── layers/                  # Ten SPS layers; each owns its implementation
-│   ├── layer_01_software_dna/
-│   ├── layer_02_cognitive_core/
-│   ├── layer_03_experience/
-│   ├── layer_04_meta_learning/
-│   ├── layer_05_adaptation/
-│   ├── layer_06_validation/
-│   ├── layer_07_governance/
-│   ├── layer_08_evolution/
-│   ├── layer_09_capability_registry/
-│   └── layer_10_execution/
 ├── models/                  # Provider/model abstraction
 ├── coding/                  # Repository intelligence and code manipulation
 ├── capabilities/            # Capability lifecycle and lineage
@@ -53,7 +35,7 @@ SPS_CA/
 ├── governance/              # Policy/risk/approval infrastructure
 ├── validation/              # Verification infrastructure
 ├── memory/                  # Runtime conversations/experiences/memories/traces
-├── projects/                # User target projects; never mix with SPS source
+├── projects/                # Equivalent benchmark target projects
 ├── data/                    # Runtime database/users/sessions/exports
 ├── ui/                      # Prompt UI and future presentation layers
 ├── testing/                 # Cross-layer and research tests
@@ -61,70 +43,24 @@ SPS_CA/
 └── docs/                    # Architecture, research and experiment docs
 ```
 
-Architecture contract: [`docs/architecture/SPS_CA_ARCHITECTURE_V2.md`](docs/architecture/SPS_CA_ARCHITECTURE_V2.md).
-
-## Capability evolution
+## Target projects
 
 ```text
-Task / Failure
-      ↓
-Experience
-      ↓
-Pattern
-      ↓
-Adaptation Proposal
-      ↓
-Capability Candidate
-      ↓
-Governance
-      ↓
-Validation
-      ↓
-Capability Registry
-      ↓
-Execution
-      ↓
-Reuse / Measurement
+projects/
+├── project_a_python/        # FastAPI + pytest
+├── project_b_java/          # Spring Boot + JUnit/MockMvc
+└── project_c_typescript/    # Express + Vitest/Supertest
 ```
 
-Generated capabilities retain provenance, triggering task/experience identifiers, versions, validation evidence and activation history. This supports future capability genealogy and growth graphs.
+All three implement the same Task API so later phases can compare repair behavior across languages without changing the problem domain.
 
-## Model strategy
-
-SPS-CA uses a provider-neutral model interface. The initial local provider is Ollama.
-
-**Never commit API keys or model secrets.**
-
-## Setup
-
-Use [`SETUP.md`](SETUP.md) for the complete installation and verification procedure.
-
-Use [`REQUIREMENTS.md`](REQUIREMENTS.md) for hardware, software, model, runtime-data and research requirements.
-
-Quick start after cloning:
+## Phase 7 CLI
 
 ```bash
-python -m venv .venv
-# Windows: .venv\\Scripts\\activate
-# Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
-ollama pull qwen2.5-coder:7b
-pytest -q
 python ui/cli_interface.py
 ```
 
-## Phase 7 commands
-
-```text
-load projects/project_a_python
-show project
-show registry
-show experience
-help
-quit
-```
-
-Natural-language coding requests can be entered directly after loading a target project.
+Commands include `load`, `show project`, `show registry`, `show experience`, `help`, and `quit`.
 
 ## Development rules
 
@@ -133,19 +69,5 @@ Natural-language coding requests can be entered directly after loading a target 
 3. User code and runtime execution snapshots stay outside SPS source control.
 4. Generated capabilities require provenance and versioning.
 5. Evolution proposals pass Governance and Validation before activation.
-6. Research scenarios and baselines remain reproducible and separate from runtime code.
+6. Research scenarios, target projects and baselines remain reproducible and separate from runtime code.
 7. Every implementation phase requires tests and verification.
-
-## Research evaluation
-
-The intended comparison is:
-
-- **Baseline A:** naive LLM coding
-- **Baseline B:** conventional tool-augmented coding agent
-- **SPS-CA:** coding agent with experience, adaptation, capability evolution, governance and lineage
-
-Primary evidence should include repeat-task performance, capability reuse, failure recovery, validation success, rollback behavior and measurable evolution over time.
-
-## Status
-
-**Phase 7 UI implementation is in place.** The source includes the interactive CLI, required commands, session history, capability selection, validation/governance routing, execution reporting and a GitHub Actions verification workflow. Remote workflow execution remains subject to the repository's GitHub Actions availability.
