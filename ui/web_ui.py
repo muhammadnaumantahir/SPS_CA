@@ -222,7 +222,7 @@ launch()
 The launcher detects Colab and enables the Gradio share link. SPS processing remains inside the Colab runtime.
 
 ### Cell 6 — Run a first scenario
-In **SPS Supervisor**, enter a request such as `add input validation to this function`, paste source code, choose the language, and click **Run SPS Supervisor**.
+In **SPS-CA**, enter a request such as `add input validation to this function`, paste source code, choose the language, and click **Run SPS-CA**.
 
 ### Cell 7 — Inspect growth
 Open **Capabilities**, **Growth**, and **Evolution**. Check whether a capability was reused or generated, whether the code changed, validation/governance/execution results, and the Stage transition.
@@ -326,7 +326,7 @@ def build_app() -> gr.Blocks:
             refresh = gr.Button("Refresh Research Data", size="sm")
 
             with gr.Tabs():
-                with gr.Tab("🧠 SPS Supervisor"):
+                with gr.Tab("🧠 SPS-CA"):
                     with gr.Row():
                         with gr.Column(scale=5):
                             request = gr.Textbox(label="Task / Prompt", placeholder="Tell SPS-CA what should change…", lines=4)
@@ -335,7 +335,7 @@ def build_app() -> gr.Blocks:
                                 upload = gr.File(label="Upload code", file_count="single", scale=2)
                             code = gr.Code(label="Source Code", language="python", lines=22)
                             target = gr.Textbox(label="Target project directory (optional)", placeholder="Leave empty for a safe SPS workspace")
-                            run = gr.Button("Run SPS Supervisor", variant="primary")
+                            run = gr.Button("Run SPS-CA", variant="primary")
                         with gr.Column(scale=5):
                             result_status = gr.Textbox(label="Execution Summary", lines=6)
                             modified = gr.Code(label="Modified Code", language="python", lines=22)
