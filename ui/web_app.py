@@ -37,6 +37,10 @@ def capability_catalog() -> list[dict[str, Any]]:
     return service_for().capability_catalog()
 
 
+def capability_directory() -> list[dict[str, Any]]:
+    return service_for().capability_directory()
+
+
 def _load_feedback_log() -> list[dict[str, Any]]:
     path = Path(FEEDBACK_PATH)
     if not path.exists():
@@ -55,13 +59,16 @@ def _save_feedback_log(entries: list[dict[str, Any]]) -> None:
 
 def _get_growth_data() -> dict[str, Any]:
     """Build growth statistics from capabilities and experience."""
-    catalog = capability_catalog()
-    total = len(catalog)
-    seeds = sum(1 for c in catalog if not c.get("generated", False))
+    directory = capability_directory()
+    total = len(directory)
+    seeds = sum(1 for c in directory if not c.get("generated", False))
     generated = total - seeds
+    usable = sum(1 for c in directory if c.get("usable"))
+    deprecated = total - usable
 
     feedback = _load_feedback_log()
     disagreements = sum(1 for f in feedback if f.get("feedback") == "disagree")
+    agreements = sum(1 for f in feedback if f.get("feedback") == "agree")
 
     experience_path = Path(EXPERIENCE_PATH)
     tasks = []
@@ -84,14 +91,36 @@ def _get_growth_data() -> dict[str, Any]:
             "description": f"Turn {f.get('turn_id', '?')} — {f.get('request', '')[:80]}",
         })
 
+    # A simple chartable series: seed capability count is fixed, so any
+    # growth beyond it is capability creation triggered by disagreement.
+    # Build a running total of generated capabilities over each recorded
+    # disagreement event, seeded at the current generated count baseline.
+    growth_series: list[dict[str, Any]] = []
+    running = seeds
+    for f in feedback:
+        if f.get("feedback") == "disagree":
+            running_note = running
+            growth_series.append({
+                "timestamp": f.get("timestamp", ""),
+                "capabilities": running_note,
+            })
+    if not growth_series:
+        growth_series = [{"timestamp": "", "capabilities": total}]
+    else:
+        growth_series.append({"timestamp": "now", "capabilities": total})
+
     return {
         "total_capabilities": total,
         "seed_capabilities": seeds,
         "generated_capabilities": generated,
+        "usable_capabilities": usable,
+        "deprecated_capabilities": deprecated,
         "total_disagreements": disagreements,
+        "total_agreements": agreements,
         "total_tasks": total_tasks,
         "success_rate": success_rate,
         "timeline": timeline,
+        "growth_series": growth_series,
     }
 
 
@@ -125,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, architecture_manifest())
             return
         if self.path == "/api/capabilities":
-            self._send(200, {"capabilities": capability_catalog()})
+            self._send(200, {"capabilities": capability_directory()})
             return
         if self.path == "/api/growth":
             self._send(200, _get_growth_data())
@@ -243,7 +272,7 @@ def main() -> None:
     print(f"SPS-CA dashboard: http://{host}:{port}")
     print("Conversational coding mode: enabled")
     print("Brain: provider-neutral; Ollama is the default provider")
-    print("Tabs: Chat | Capabilities | Growth | Guide")
+    print("Tabs: Chat | Structure | Capabilities | Growth | Guide")
     ReusableHTTPServer((host, port), Handler).serve_forever()
 
 

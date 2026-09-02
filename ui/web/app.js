@@ -30,8 +30,52 @@ function switchView(view) {
   if (el) el.classList.add('active');
   const btn = document.querySelector(`.nav-btn[data-view="${view}"]`);
   if (btn) btn.classList.add('active');
+  if (view === 'structure') loadStructureView();
   if (view === 'capabilities') loadCapabilitiesView();
   if (view === 'growth') loadGrowthView();
+}
+
+// === STRUCTURE VIEW (live architecture manifest) ===
+let structureLoaded = false;
+async function loadStructureView() {
+  const pipeline = $('structurePipeline');
+  if (!pipeline) return;
+  if (structureLoaded) return;
+  try {
+    const resp = await fetch('/api/architecture');
+    const data = await resp.json();
+    const layers = data.layers || [];
+
+    pipeline.innerHTML = layers.map((l, idx) => `
+      <div class="structure-node">
+        <button class="structure-head" onclick="this.parentElement.classList.toggle('expanded')">
+          <span class="sn-num">L${String(l.number).padStart(2, '0')}</span>
+          <span class="sn-name">${esc(l.name)}</span>
+          <span class="sn-caret">▾</span>
+        </button>
+        <div class="structure-body">
+          <p>${esc(l.purpose || l.description || '')}</p>
+          ${(l.sub_components || []).length ? `<div class="sn-subs">${l.sub_components.map(s => `<span class="sn-sub">${esc(s)}</span>`).join('')}</div>` : ''}
+        </div>
+      </div>
+      ${idx < layers.length - 1 ? '<div class="structure-arrow">↓</div>' : ''}
+    `).join('');
+
+    const brain = data.brain || {};
+    $('structureBrainBody').innerHTML = `
+      <div class="info-row"><small>ROLE</small><strong>${esc(brain.role || '')}</strong></div>
+      <div class="info-row"><small>DEFAULT PROVIDER</small><strong>${esc(brain.default_provider || 'Ollama')}</strong></div>
+      <div class="info-row"><small>REPLACEABLE</small><strong>${brain.replaceable ? 'Yes — swap via models/' : 'No'}</strong></div>
+      <div class="info-row"><small>BOUNDARY</small><strong>${esc(brain.boundary || '')}</strong></div>
+    `;
+
+    const subsystems = data.supporting_subsystems || [];
+    $('structureSubsystemsBody').innerHTML = subsystems.map(s => `<span class="lang-chip">${esc(s)}</span>`).join('') || '<span class="muted-text">None listed.</span>';
+
+    structureLoaded = true;
+  } catch (e) {
+    pipeline.innerHTML = '<div class="muted-text">Failed to load architecture.</div>';
+  }
 }
 
 // === MINI PIPELINE ===
@@ -121,6 +165,46 @@ async function sendFeedback(turnId, type) {
 }
 
 // === CAPABILITIES VIEW ===
+let capsCache = [];
+let capsFilter = 'all';
+
+function capMatchesFilter(cap, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'usable') return !!cap.usable;
+  if (filter === 'deprecated') return !cap.usable;
+  if (filter === 'seed') return !cap.generated;
+  if (filter === 'generated') return !!cap.generated;
+  return true;
+}
+
+function renderCapsGrid() {
+  const grid = $('capsGrid');
+  if (!grid) return;
+  const caps = capsCache.filter(c => capMatchesFilter(c, capsFilter));
+  if (!caps.length) {
+    grid.innerHTML = '<div class="muted-text">No capabilities match this filter.</div>';
+    return;
+  }
+  grid.innerHTML = caps.map(cap => `
+    <div class="cap-card ${cap.generated ? 'generated' : 'seed'} ${cap.usable ? '' : 'cap-deprecated'}">
+      <div class="cap-card-top">
+        <div class="cap-id">${esc(cap.id)}</div>
+        <span class="cap-usable-badge ${cap.usable ? 'usable' : 'unusable'}">${cap.usable ? '● Usable' : '○ ' + esc(cap.status || 'inactive')}</span>
+      </div>
+      <h3>${esc(cap.name)}</h3>
+      <p>${esc(cap.description)}</p>
+      <div class="cap-meta">
+        <div><span>Version</span> <strong>${esc(cap.version)}</strong></div>
+        <div><span>Origin</span> <strong>${cap.generated ? 'Generated' : 'Seed'}</strong></div>
+        <div><span>Reused</span> <strong>${cap.reuse_count ?? 0}×</strong></div>
+        <div><span>Test coverage</span> <strong>${Math.round((cap.test_coverage || 0) * 100)}%</strong></div>
+      </div>
+      <div class="cap-langs">${(cap.supported_languages && cap.supported_languages.length ? cap.supported_languages : (cap.tags || [])).map(l => `<span class="lang-chip sm">${esc(l)}</span>`).join('') || '<span class="muted-text">all languages</span>'}</div>
+      ${cap.failure_pattern ? `<div class="cap-failure-pattern"><small>Grown from</small> ${esc(cap.failure_pattern)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
 async function loadCapabilitiesView() {
   const grid = $('capsGrid');
   if (!grid) return;
@@ -128,25 +212,62 @@ async function loadCapabilitiesView() {
   try {
     const resp = await fetch('/api/capabilities');
     const data = await resp.json();
-    const caps = data.capabilities || [];
-    grid.innerHTML = caps.map(cap => `
-      <div class="cap-card ${cap.generated ? 'generated' : 'seed'}">
-        <div class="cap-id">${esc(cap.id)}</div>
-        <h3>${esc(cap.name)}</h3>
-        <p>${esc(cap.description)}</p>
-        <div class="cap-meta">
-          <div><span>Version</span> <strong>${esc(cap.version)}</strong></div>
-          <div><span>Type</span> <strong>${cap.generated ? 'Generated' : 'Seed'}</strong></div>
-          <div><span>Languages</span> <strong>${(cap.tags || []).join(', ') || 'all'}</strong></div>
-        </div>
-      </div>
-    `).join('');
+    capsCache = data.capabilities || [];
+    renderCapsGrid();
   } catch (e) {
     grid.innerHTML = '<div class="muted-text">Failed to load capabilities.</div>';
   }
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const filterBar = $('capsFilter');
+  if (filterBar) {
+    filterBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.chip-filter');
+      if (!btn) return;
+      filterBar.querySelectorAll('.chip-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      capsFilter = btn.dataset.filter;
+      renderCapsGrid();
+    });
+  }
+});
+
 // === GROWTH VIEW ===
+function renderGrowthChart(series) {
+  const el = $('growthChart');
+  if (!el) return;
+  if (!series || series.length < 2) {
+    el.innerHTML = '<div class="muted-text">Not enough history yet — disagree with a result to start tracking growth.</div>';
+    return;
+  }
+  const values = series.map(p => p.capabilities);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const w = 640, h = 160, pad = 24;
+  const range = Math.max(max - min, 1);
+  const stepX = (w - pad * 2) / (series.length - 1);
+  const points = values.map((v, i) => {
+    const x = pad + i * stepX;
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = points.join(' ');
+  const area = `${pad},${h - pad} ${line} ${w - pad},${h - pad}`;
+  const dots = values.map((v, i) => {
+    const [x, y] = points[i].split(',');
+    return `<circle cx="${x}" cy="${y}" r="3.5" class="growth-dot"></circle>`;
+  }).join('');
+  el.innerHTML = `
+    <svg viewBox="0 0 ${w} ${h}" class="growth-svg" preserveAspectRatio="none">
+      <polygon points="${area}" class="growth-area"></polygon>
+      <polyline points="${line}" class="growth-line"></polyline>
+      ${dots}
+    </svg>
+    <div class="growth-chart-labels"><span>start</span><span>now — ${values[values.length - 1]} capabilities</span></div>
+  `;
+}
+
 async function loadGrowthView() {
   const stats = $('growthStats');
   const timeline = $('growthTimeline');
@@ -158,12 +279,16 @@ async function loadGrowthView() {
 
     stats.innerHTML = `
       <div class="stat-card"><div class="stat-value">${data.total_capabilities || 0}</div><div class="stat-label">Total Capabilities</div></div>
+      <div class="stat-card"><div class="stat-value">${data.usable_capabilities ?? data.total_capabilities ?? 0}</div><div class="stat-label">Usable Now</div></div>
       <div class="stat-card"><div class="stat-value">${data.seed_capabilities || 0}</div><div class="stat-label">Seed Capabilities</div></div>
       <div class="stat-card"><div class="stat-value">${data.generated_capabilities || 0}</div><div class="stat-label">Generated Capabilities</div></div>
       <div class="stat-card"><div class="stat-value">${data.total_disagreements || 0}</div><div class="stat-label">User Disagreements</div></div>
+      <div class="stat-card"><div class="stat-value">${data.total_agreements || 0}</div><div class="stat-label">User Agreements</div></div>
       <div class="stat-card"><div class="stat-value">${data.total_tasks || 0}</div><div class="stat-label">Total Tasks</div></div>
       <div class="stat-card"><div class="stat-value">${data.success_rate || '—'}</div><div class="stat-label">Success Rate</div></div>
     `;
+
+    renderGrowthChart(data.growth_series);
 
     if (data.timeline && data.timeline.length) {
       timeline.innerHTML = data.timeline.map(entry => `

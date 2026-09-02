@@ -19,6 +19,9 @@
       <button class="nav-btn active" data-view="chat" onclick="switchView('chat')">
         <span class="nav-icon">&#x1F4AC;</span> Chat
       </button>
+      <button class="nav-btn" data-view="structure" onclick="switchView('structure')">
+        <span class="nav-icon">&#x1F3D7;</span> Structure
+      </button>
       <button class="nav-btn" data-view="capabilities" onclick="switchView('capabilities')">
         <span class="nav-icon">&#x1F9E0;</span> Capabilities
       </button>
@@ -139,11 +142,39 @@
       </div>
     </section>
 
+    <!-- ===== STRUCTURE VIEW ===== -->
+    <section id="view-structure" class="view">
+      <div class="view-header">
+        <h1>Architecture</h1>
+        <p>The ten canonical SPS-CA layers, the Brain, and the supporting subsystems — read live from <code>layers/architecture.py</code>.</p>
+      </div>
+      <div class="structure-layout">
+        <div id="structurePipeline" class="structure-pipeline"><div class="muted-text">Loading architecture…</div></div>
+        <aside class="structure-side">
+          <div class="card compact-card" id="structureBrainCard">
+            <div class="card-head"><div><span class="step-icon brain-icon">🧠</span><div><h2>Brain</h2><p>Separate AI service — not a layer, not a capability.</p></div></div></div>
+            <div id="structureBrainBody" class="brain-info"></div>
+          </div>
+          <div class="card compact-card" id="structureSubsystemsCard">
+            <div class="card-head"><div><h2>Supporting subsystems</h2><p>Neither layers nor the Brain.</p></div></div>
+            <div id="structureSubsystemsBody" class="subsystem-chips"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
     <!-- ===== CAPABILITIES VIEW ===== -->
     <section id="view-capabilities" class="view">
       <div class="view-header">
         <h1>Capabilities</h1>
-        <p>Executable SPS skills — seeded at Stage 0, grown through evolution. Click any capability for details.</p>
+        <p>Executable SPS skills — seeded at Stage 0, grown through evolution. <strong>Usable</strong> means the capability is <code>active</code> and eligible to run right now; deprecated capabilities stay listed for lineage but are never selected for execution.</p>
+      </div>
+      <div class="caps-filter" id="capsFilter">
+        <button class="chip-filter active" data-filter="all">All</button>
+        <button class="chip-filter" data-filter="usable">Usable</button>
+        <button class="chip-filter" data-filter="seed">Seed</button>
+        <button class="chip-filter" data-filter="generated">Generated</button>
+        <button class="chip-filter" data-filter="deprecated">Deprecated</button>
       </div>
       <div id="capsGrid" class="caps-grid"></div>
     </section>
@@ -155,6 +186,10 @@
         <p>Track how SPS-CA evolves over time. Each disagreement or repeated failure can generate new capabilities.</p>
       </div>
       <div class="growth-stats" id="growthStats"></div>
+      <div class="card growth-chart-card">
+        <div class="card-head"><div><h2>Capability count over time</h2><p>Seed baseline plus every generated capability, tracked against disagreement events.</p></div></div>
+        <div id="growthChart" class="growth-chart"></div>
+      </div>
       <div class="growth-timeline" id="growthTimeline"></div>
     </section>
 
@@ -174,6 +209,7 @@
             <li><strong>Review the result</strong> — check the modified code and diff</li>
             <li><strong>Agree or Disagree</strong> — if you disagree, SPS-CA creates a new capability for that pattern</li>
           </ol>
+          <p>Use the <strong>Structure</strong> tab to explore the live ten-layer architecture, the <strong>Capabilities</strong> tab to see what's usable right now, and <strong>Growth</strong> to watch the system evolve over time.</p>
         </div>
 
         <div class="guide-card">

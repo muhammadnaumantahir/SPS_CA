@@ -82,6 +82,15 @@ class SpsAssistantService:
         self.timeout_seconds = timeout_seconds
 
     def capability_catalog(self) -> list[dict[str, Any]]:
+        """Active-only capability catalog used for real task execution.
+
+        Only ``status == "active"`` capabilities are eligible to be
+        selected and run against a user's code — this list feeds the
+        Knowledge Layer snapshot and capability selection, so it must
+        stay execution-safe. For a display-only view of *every*
+        capability (including deprecated ones), see
+        :meth:`capability_directory`.
+        """
         return [
             {
                 "id": cap.id,
@@ -93,6 +102,33 @@ class SpsAssistantService:
             }
             for cap in self.registry.list_all_capabilities()
             if cap.status == "active"
+        ]
+
+    def capability_directory(self) -> list[dict[str, Any]]:
+        """Every capability (any status), with usability details for the UI.
+
+        Unlike :meth:`capability_catalog`, this is never used to select a
+        capability for execution — it exists so the dashboard can show
+        which capabilities are usable right now versus deprecated, plus
+        reuse count, test coverage and supported languages.
+        """
+        return [
+            {
+                "id": cap.id,
+                "name": cap.name,
+                "description": cap.description,
+                "version": cap.version,
+                "generated": bool(cap.generated),
+                "origin": getattr(cap, "origin", "generated" if cap.generated else "seed"),
+                "status": cap.status,
+                "usable": cap.status == "active",
+                "tags": list(getattr(cap, "tags", []) or []),
+                "supported_languages": list(getattr(cap, "supported_languages", []) or []),
+                "reuse_count": int(getattr(cap, "reuse_count", 0) or 0),
+                "test_coverage": float(getattr(cap, "test_coverage", 0.0) or 0.0),
+                "failure_pattern": getattr(cap, "failure_pattern", None),
+            }
+            for cap in self.registry.list_all_capabilities()
         ]
 
     def run_turn(
