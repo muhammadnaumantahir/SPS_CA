@@ -3,12 +3,12 @@
 The supervisor-facing prototype needs to explain not only *what* code changed,
 but also why the system selected a capability, why a new capability was
 needed, what was created, when it happened, and how the resulting stage
-changed.  This module provides that audit trail without coupling it to the
-CLI or any particular LLM provider.
+changed. This module provides that audit trail without coupling it to the CLI
+or any particular LLM provider.
 
 Two JSON artifacts are maintained under the supplied root directory:
 
-* ``evolution_history.json`` -- append-only scenario records.
+* ``evolution_history.json`` -- scenario records.
 * ``stage_state.json`` -- current stage/scenario counters.
 
 The records are intentionally structured as research data rather than free-
@@ -45,22 +45,16 @@ class EvolutionTraceStore:
         self._lock = threading.RLock()
         self._ensure_files()
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def current_stage(self) -> int:
         """Return the current SPS stage, defaulting to Stage 0."""
         with self._lock:
-            state = self._load_stage_state()
-            return int(state.get("current_stage", 0))
+            return int(self._load_stage_state().get("current_stage", 0))
 
     def next_scenario_id(self) -> str:
         """Return the next deterministic scenario id (SC-001, SC-002, ...)."""
         with self._lock:
-            state = self._load_stage_state()
-            next_number = int(state.get("next_scenario_number", 1))
-            return f"SC-{next_number:03d}"
+            number = int(self._load_stage_state().get("next_scenario_number", 1))
+            return f"SC-{number:03d}"
 
     def start_scenario(
         self,
@@ -75,10 +69,9 @@ class EvolutionTraceStore:
     ) -> Dict[str, Any]:
         """Create a scenario-start record and reserve its id.
 
-        The caller can progressively add fields to the same scenario using
-        :meth:`complete_scenario`.  ``code`` itself is not persisted by
-        default; only a SHA-256 hash is stored so research traces remain
-        compact and do not unexpectedly duplicate user source files.
+        Source text is represented by a SHA-256 hash and length. The raw code
+        stays outside the trace unless a later storage policy explicitly keeps
+        source snapshots.
         """
         if not user_request.strip():
             raise ValueError("user_request must be non-empty")
@@ -115,6 +108,7 @@ class EvolutionTraceStore:
                 "governance": {},
                 "result": {},
                 "metadata": dict(metadata or {}),
+                "events": [],
             }
 
             self._append_history(record)
@@ -139,11 +133,7 @@ class EvolutionTraceStore:
         result: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Complete the most recent record matching ``scenario_id``.
-
-        This updates the existing JSON record rather than creating unrelated
-        log entries, leaving one auditable object per scenario.
-        """
+        """Complete the most recent record matching ``scenario_id``."""
         with self._lock:
             records = self._load_history()
             index = self._find_record_index(records, scenario_id)
@@ -168,12 +158,10 @@ class EvolutionTraceStore:
             if metadata is not None:
                 record.setdefault("metadata", {}).update(metadata)
 
-            previous_stage = int(record.get("stage_before", 0))
-            final_stage = previous_stage if stage_after is None else int(stage_after)
+            final_stage = int(record.get("stage_before", 0)) if stage_after is None else int(stage_after)
             record["stage_after"] = final_stage
             record["status"] = status
             record["timestamp_end"] = datetime.now(timezone.utc).isoformat()
-
             self._save_history(records)
 
             state = self._load_stage_state()
@@ -183,8 +171,15 @@ class EvolutionTraceStore:
             self._save_stage_state(state)
             return record
 
-    def append_event(self, scenario_id: str, event: str, details: Optional[Dict[str, Any]] = None) -> None:
-        """Append a timestamped event to a scenario's event trail."""
+    def append_event(
+        self,
+        scenario_id: str,
+        event: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Append a timestamped event to a scenario's trace."""
+        if not event.strip():
+            raise ValueError("event must be non-empty")
         with self._lock:
             records = self._load_history()
             index = self._find_record_index(records, scenario_id)
@@ -205,8 +200,8 @@ class EvolutionTraceStore:
         records = self._load_history()
         if stage is None:
             return records
-        stage = int(stage)
-        return [record for record in records if int(record.get("stage_before", 0)) == stage]
+        target_stage = int(stage)
+        return [record for record in records if int(record.get("stage_before", 0)) == target_stage]
 
     def save_stage(self, stage: int) -> int:
         """Set the current SPS stage explicitly and return it."""
@@ -217,11 +212,12 @@ class EvolutionTraceStore:
             state["current_stage"] = int(stage)
             state["updated_at"] = datetime.now(timezone.utc).isoformat()
             self._save_stage_state(state)
-        return stage
+        return int(stage)
 
-    # ------------------------------------------------------------------
-    # Persistence helpers
-    # ------------------------------------------------------------------
+    def _append_history(self, record: Dict[str, Any]) -> None:
+        records = self._load_history()
+        records.append(record)
+        self._save_history(records)
 
     def _ensure_files(self) -> None:
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
