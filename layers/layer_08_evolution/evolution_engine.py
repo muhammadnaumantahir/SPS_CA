@@ -200,14 +200,13 @@ class EvolutionEngine:
             )
             if parameter:
                 indent = line[: len(line) - len(line.lstrip())] + "    "
-                guard = (
-                    f"{indent}if {parameter} is None:\n"
-                    f"{indent}    raise ValueError('input validation failed: {parameter} is required')"
-                )
+                guard_line1 = f"{indent}if {parameter} is None:"
+                guard_line2 = f"{indent}    raise ValueError('input validation failed: {parameter} is required')"
+                guard = guard_line1 + chr(10) + guard_line2
                 lines.insert(index + 1, guard)
                 return CapabilityResult.ok(
                     summary="Added input validation.",
-                    modified_code="\n".join(lines),
+                    modified_code=chr(10).join(lines),
                     findings=[{"issue": "input-validation-added", "parameter": parameter}],
                 )
     return CapabilityResult.fail(error="No safe function parameter was found to validate.")
@@ -268,12 +267,12 @@ def run(context: CapabilityContext) -> CapabilityResult:
         match = re.match(r'^(\\s*)def\\s+(\\w+)\\s*\\(', line)
         if match:
             prefix = (
-                "import logging\\nlogger = logging.getLogger(__name__)\\n\\n"
+                "import logging" + chr(10) + "logger = logging.getLogger(__name__)" + chr(10) + chr(10)
                 if "import logging" not in context.code
                 else ""
             )
             log_line = f"{match.group(1)}    logger.info('{match.group(2)} called')"
-            updated = prefix + "\\n".join(
+            updated = prefix + chr(10).join(
                 lines[: index + 1] + [log_line] + lines[index + 1 :]
             )
             return CapabilityResult.ok(
