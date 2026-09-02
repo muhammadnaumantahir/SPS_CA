@@ -1,28 +1,40 @@
 {
-  "CAP-009": {
-    "id": "CAP-009",
-    "name": "Parse Error Handler",
-    "version": "1.0.0",
-    "description": "Generated from 3 repeated 'Parse error' failures (tasks: task_010, task_015, task_020).",
-    "entry_point": "capabilities.generated.cap_009.capability.run",
-    "origin": "generated",
-    "status": "active",
-    "target_languages": [
-      "python"
-    ],
-    "parent_capability_id": null,
-    "tags": [
-      "evolution",
-      "generated"
-    ],
-    "generated": true,
-    "failure_pattern": "Parse error",
-    "trigger_tasks": [
-      "task_010",
-      "task_015",
-      "task_020"
-    ],
-    "reuse_count": 0,
-    "test_coverage": 100.0
-  }
+  "version": "1.0.0",
+  "last_updated": "2026-09-02T00:00:00",
+  "capabilities": [
+    {
+      "id": "CAP-009",
+      "name": "Parse Error Handler",
+      "description": "Generated from 3 repeated 'Parse error' failures (tasks: task_010, task_015, task_020).",
+      "type": "parsing",
+      "entry_point": "capabilities.generated.cap_009.capability.run",
+      "supported_languages": [
+        "python"
+      ],
+      "version": "1.0.0",
+      "created_date": "2026-08-31T00:00:00",
+      "last_modified": "2026-09-02T00:00:00",
+      "generated": true,
+      "origin": "generated",
+      "failure_pattern": "Parse error",
+      "trigger_tasks": [
+        "task_010",
+        "task_015",
+        "task_020"
+      ],
+      "reuse_count": 0,
+      "test_coverage": 100.0,
+      "documentation_path": "capabilities/generated/CAP-009/README.md",
+      "metadata_path": "capabilities/generated/CAP-009/metadata.json",
+      "status": "active",
+      "extra_metadata": {
+        "tags": [
+          "evolution",
+          "generated"
+        ],
+        "parent_capability_id": null
+      }
+    }
+  ],
+  "usage_history": []
 }
