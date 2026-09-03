@@ -13,7 +13,7 @@ SPS-CA separates ten SPS responsibilities from the replaceable AI Brain and the 
 | L5 | Experience | `ExperienceLog` + traces | Historical task outcomes, feedback and runtime evidence |
 | L6 | Meta-Learning | `MetaLearner` + optimization services | Failure-pattern analysis and strategy improvement evidence |
 | L7 | Adaptation | `Adaptation` | Context-dependent parameter changes and capability reuse checks |
-| L8 | Evolution | `EvolutionEngine` + gap planner + registry | Structural self-growth, capability differentiation and governed capability creation |
+| L8 | Evolution | `EvolutionEngine` + `GrowthDecisionEngine` + gap planner + registry | Reasoned structural self-growth and capability lifecycle decisions |
 | L9 | Verification & Validation | `Validator` | Sandbox tests and safety/performance validation |
 | L10 | Execution | `ExecutionEngine` | Controlled real-world action, snapshots and rollback |
 
@@ -34,56 +34,80 @@ Stage-0 contains the ten canonical capabilities. Generated capabilities extend t
 ## Canonical user-to-execution flow
 
 ```text
-USER
-  │
-  │ prompt + source code / uploaded file + language
-  ▼
-CanonicalSPSPipeline
-  │
-  ├─ L1  Software DNA
-  │       request/scope constraints
-  │
-  ├─ L2  Governance context
-  │       change/evolution policy context
-  │
-  ├─ L3  Cognitive + Brain
-  │       understand → classify → reason → plan
-  │
-  ├─ L4  Knowledge
-  │       validated structured context
-  │
-  ├─ L5  Experience
-  │       prior outcomes + feedback evidence
-  │
-  ├─ L6  Meta-Learning
-  │       recurring-failure / strategy evidence
-  │
-  ├─ L7  Adaptation
-  │       context-specific parameters/reuse
-  │
-  ├─ L8  Evolution
-  │       reuse capability OR governed gap generation
-  │
-  ├─ L9  Verification & Validation
-  │       sandbox validation
-  │
-  ├─ L2  Governance authorization
-  │       authorize concrete change
-  │
-  ├─ L1  Software DNA final gate
-  │       independent final safety check
-  │
-  └─ L10 Execution
-          apply approved change + rollback snapshot
-  │
-  ▼
-result + modified source + layer trace + capability provenance
-  │
-  ▼
-Experience / trace / evolution evidence
+                         USER
+                          │
+                 Prompt + Code/File
+                          │
+                          ▼
+              CanonicalSPSPipeline
+                          │
+        ┌─────────────────┴─────────────────┐
+        │                                   │
+        ▼                                   ▼
+   SPS Architecture                    Brain boundary
+        │                                   │
+        ├─ L1 Software DNA                 │
+        ├─ L2 Governance                   │
+        ├─ L3 Cognitive ◄──────────── Brain │
+        ├─ L4 Knowledge                    │
+        ├─ L5 Experience                   │
+        ├─ L6 Meta-Learning                │
+        ├─ L7 Adaptation                   │
+        ├─ L8 Evolution ──► Capability     │
+        │                   reuse/create    │
+        ├─ L9 Verification                 │
+        └─ L10 Execution                   │
+                          │
+                          ▼
+              Result + Modified Code
+                          │
+                          ▼
+             Experience / Trace / Evidence
+                          │
+                          ▼
+                  Future Evolution
 ```
 
-L1 and L2 can be revisited at the concrete-change boundary because the final affected files, validation state and governance decision are only known after capability execution. These are revisits of the same canonical layers, not additional SPS layers.
+L1 and L2 can be revisited at the concrete-change boundary because the final affected files, validation state and governance decision are only known after capability analysis/execution. These are revisits of the same canonical layers, not additional SPS layers.
+
+## Layer-8 SPS Growth Decision
+
+Layer 8 is the structural-growth decision-maker. It must not implement `if disagreement >= N: create_capability()` logic. Instead, it evaluates evidence and chooses the least-structural action justified by the current state:
+
+```text
+Disagreement / Gap / Performance Signal
+                  ↓
+          Experience Evidence
+                  ↓
+       Meta-Learning Analysis
+                  ↓
+         Brain + Cognitive Reasoning
+                  ↓
+          SPS Growth Decision
+                  ↓
+     ┌────────────┼─────────────┐
+     ↓            ↓             ↓
+   Reuse        Adapt         Evolve
+                                │
+                    ┌───────────┼───────────┐
+                    ↓           ↓           ↓
+                 Improve     Compose      Create
+```
+
+The supported decisions are:
+
+- `reuse` — the existing capability is sufficient.
+- `adapt` — context-specific behavior can solve the task without structural growth.
+- `compose` — an established combination of capabilities deserves reusable composition.
+- `improve` — an existing capability should be strengthened rather than duplicated.
+- `create` — a genuine capability gap or persistent unmet pattern justifies structural growth.
+- `defer` — evidence is insufficient or growth should wait.
+
+### Disagreement invariant
+
+**Disagreement is evidence, not a creation command.** A single disagreement never directly creates a capability. Repeated disagreement can become evidence of a persistent capability gap, but Layer 8 still considers adaptation, composition, improvement and existing capability relevance before returning `create`.
+
+A `create` decision then passes through Governance, candidate generation/testing, registry persistence and subsequent real-world evaluation. The decision, reason code, reasoning and evidence are persisted for auditability.
 
 ## Canonical implementation boundary
 
@@ -98,6 +122,7 @@ A canonical pipeline result may contain:
 ```text
 brain
 pipeline.layers[]
+pipeline.growth_decision
 capability_id
 success
 validation
@@ -112,7 +137,7 @@ Each layer trace entry contains its canonical number/name, status, responsible c
 
 ## Feedback and evolution
 
-Expected-result evaluation is separate from the execution mechanism. A scenario's `agree` or `disagree` is recorded after the actual run. `disagree` creates Layer-8 evidence; it does not mean an immediate capability is created. Layer 8 analyzes recurring evidence and only a governed `create` decision proceeds to capability generation/testing/registration.
+Expected-result evaluation is separate from the execution mechanism. A scenario's `agree` or `disagree` is recorded after the actual run. `disagree` creates Layer-8 evidence; it does not mean an immediate capability is created. The evidence is analyzed by `GrowthDecisionEngine`, and only a `create` decision proceeds to capability generation/testing/registration.
 
 ```text
 Actual result
@@ -121,16 +146,19 @@ Expected match
    ├─ agree ──────► Experience evidence
    └─ disagree ──► Evolution evidence
                          ↓
-                      analyze()
+                  Growth Decision
                          ↓
-                create decision?
-                   ├─ no → retain/reuse
-                   └─ yes → generate → test → govern → register
+          reuse / adapt / compose / improve
+                         │
+                         └──────── create?
+                                  ↓
+                         generate → test
+                         → govern → register
 ```
 
 ## UI responsibilities
 
-The browser UI is presentation and observability. It collects the user's prompt/code/file, invokes `CanonicalSPSPipeline`, shows Brain metadata and the selected/generated capability, renders the canonical ten-layer trace, and exposes persisted capability/evolution history. It does not implement a second capability-selection or execution engine.
+The browser UI is presentation and observability. It collects the user's prompt/code/file, invokes `CanonicalSPSPipeline`, shows Brain metadata and the selected/generated capability, renders the canonical ten-layer trace including the Layer-8 growth decision, and exposes persisted capability/evolution history. It does not implement a second capability-selection or execution engine.
 
 ## Evaluation responsibilities
 
