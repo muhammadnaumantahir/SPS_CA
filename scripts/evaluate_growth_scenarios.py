@@ -31,8 +31,9 @@ def validate_structure(scenarios):
         missing = required - set(item)
         if missing:
             raise AssertionError(f"{item.get('id')}: missing {sorted(missing)}")
-    assert sum(s["scenario_type"] == "capability_routing" for s in scenarios) == 500
+    assert sum(s["scenario_type"] == "capability_routing" for s in scenarios) == 490
     assert sum(s["scenario_type"] == "autonomous_evolution" for s in scenarios) == 500
+    assert sum(s["scenario_type"] == "evolution_proof" for s in scenarios) == 10
 
 
 def validate_routing(scenarios):
@@ -49,7 +50,7 @@ def validate_routing(scenarios):
         if language != scenario["language"] or intent != scenario["expected"]["intent"]:
             failures.append({"id": scenario["id"], "language": (language, scenario["language"]), "intent": (intent, scenario["expected"]["intent"])})
     assert not failures, json.dumps(failures[:20], indent=2)
-    print("Brain routing validated: 500 scenarios")
+    print("Brain routing validated: 490 scenarios")
 
 
 def validate_evolution_contracts(scenarios):
