@@ -5,8 +5,9 @@ abstraction in ``models/``, never to a concrete provider directly. This
 module is that call site for Layer 2: it wraps an ``LLMProvider`` (Ollama
 by default, since that's the zero-cost local provider used for the
 prototype) and adds the query framing (code + context in, text out).
-Local inference has no default wall-clock timeout; callers may still opt
-into a finite timeout when needed for bounded environments.
+Local inference has no default wall-clock timeout. The historical 120-second
+project default is treated as unlimited for backward compatibility; callers
+may still opt into another finite timeout when a bounded environment needs it.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from models.base import (
 from models.ollama import OllamaProvider
 
 DEFAULT_TIMEOUT_SECONDS = None
+LEGACY_DEFAULT_TIMEOUT_SECONDS = 120.0
 
 _SYSTEM_PROMPT = (
     "You are the reasoning component of SPS-CA, a governed self-programming "
@@ -37,12 +39,7 @@ class LLMQueryError(Exception):
 
 
 class LLMInterface:
-    """Cognitive Core's entry point for querying a local LLM.
-
-    Kept deliberately thin: framing a prompt and delegating to whichever
-    ``LLMProvider`` was supplied. Defaults to :class:`OllamaProvider` so
-    Layer 2 works out of the box against a local ``ollama serve``.
-    """
+    """Cognitive Core's entry point for querying a local LLM."""
 
     def __init__(
         self,
@@ -50,6 +47,11 @@ class LLMInterface:
         timeout_seconds: Optional[float] = DEFAULT_TIMEOUT_SECONDS,
     ):
         self.provider = provider or OllamaProvider()
+        # Earlier releases propagated 120s through several callers. Treat that
+        # legacy default as unlimited so stale callers cannot reintroduce the
+        # hard cutoff while preserving support for an explicit non-default cap.
+        if timeout_seconds == LEGACY_DEFAULT_TIMEOUT_SECONDS:
+            timeout_seconds = None
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive or None")
         self.timeout_seconds = timeout_seconds
@@ -64,13 +66,7 @@ class LLMInterface:
         model: str = "",
         temperature: float = 0.2,
     ) -> str:
-        """Send code + an instruction to the LLM and return the raw text response.
-
-        Raises:
-            LLMQueryError: on timeout or provider unavailability, wrapping
-                the underlying ``models.base`` error so Layer 2 callers only
-                need to catch one exception type.
-        """
+        """Send code + an instruction to the LLM and return the raw text response."""
         prompt = f"{instruction}\n\n```\n{code}\n```"
         request = LLMRequest(
             prompt=prompt,
