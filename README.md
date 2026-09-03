@@ -1,10 +1,10 @@
 # SPS-CA — Self-Programming Code Assistant
 
-SPS-CA is a research prototype that wraps a coding assistant in a ten-layer Self-Programming Software (SPS) architecture. The AI Brain is replaceable and separate from executable capabilities.
+SPS-CA is a self-programming coding assistant built around a ten-layer Self-Programming Software (SPS) architecture. The Brain is replaceable and separate from executable capabilities.
 
-## Current baseline
+## Capabilities
 
-The project starts with exactly ten canonical capabilities:
+The system starts with ten intent-specific canonical capabilities:
 
 1. **CAP-001 — Code Generation**
 2. **CAP-002 — Code Modification**
@@ -17,80 +17,68 @@ The project starts with exactly ten canonical capabilities:
 9. **CAP-009 — Code Validation & Review**
 10. **CAP-010 — Project/File Operations**
 
-These are intent-specific. A request to create code is routed to CAP-001, while CAP-007 is reserved for explicit test-generation requests.
+These are intent-specific. A code-change request is routed to the modification capability, while test generation is reserved for explicit test requests.
+
+Generated capabilities use CAP-011 and above and retain their provenance and lineage.
 
 ## Brain routing
 
-The Brain infers programming language from the prompt/code/filename and classifies the user's intent before selecting a capability. Capability eligibility is enforced both before and after LLM planning, preventing a plain creation request from becoming a test-generation task.
+The Brain infers programming language from the prompt, source, and filename, classifies the user's intent, filters capability eligibility, and then plans the smallest suitable capability set. The result is checked again after model planning so a normal code request cannot accidentally become a test-generation task.
 
 Example:
 
 ```text
-User: Write Python code to add, subtract, multiply and divide numbers.
-      First ask how many numbers.
+User: Add input validation to this Python function.
 
 Brain: language=python
-       intent=code_generation
+       intent=code_modification
 
-Capability: CAP-001 Code Generation
+Capability: CAP-002 Code Modification
 ```
-
-Generated/evolved capabilities begin at **CAP-011+** and preserve provenance and lineage. CAP-011 is therefore reserved as the next available generated capability ID; it is not part of the canonical baseline until the evolution process actually creates it.
 
 ## Architecture
 
-SPS-CA has ten architectural layers: Software DNA, Governance, Cognitive, Knowledge, Experience, Meta-Learning, Adaptation, Evolution, Verification & Validation, and Execution. The Brain is a separate intelligence service. The Architecture view is the single UI surface for exploring these layers and their supporting components.
+SPS-CA has ten canonical layers:
 
-The layer names are intentionally stable. Phase 1 adds controlled self-programming inside **Layer 08 — Evolution** without renaming, removing, or collapsing any of the ten layers.
+1. Software DNA
+2. Governance
+3. Cognitive
+4. Knowledge
+5. Experience
+6. Meta-Learning
+7. Adaptation
+8. Evolution
+9. Verification & Validation
+10. Execution
 
-## Phase 1 — controlled self-programming
+The Brain is a separate intelligence service. The web application exposes the architecture, capabilities, conversations, feedback, trace data, and evolution history without changing the canonical layer model.
 
-Phase 1 adds a governed self-repair transaction for SPS-CA failures:
+## Self-programming
 
-```text
-Failure
-  ↓
-Diagnosis
-  ↓
-Regression case
-  ↓
-Repair candidate
-  ↓
-Layer 01 Software DNA
-  ↓
-Layer 02 Governance
-  ↓
-Layer 09 Verification & Validation
-  ↓
-Layer 10 Execution
-  ↓
-PASS → promote
-FAIL → rollback → preserve evidence
-```
+SPS-CA can use observed failures and capability gaps as evidence for controlled self-programming. The system can diagnose a bounded problem, create a regression case, generate a candidate, check Software DNA and Governance, validate the candidate, and use Layer 10 for controlled execution with rollback support.
 
-The new `SelfProgrammingEngine` is limited to an explicit file scope, a maximum of five edited files, and three candidate attempts. It cannot autonomously modify Software DNA, Governance, audit/traces, or runtime state. Candidates must remain inside the repository, Python files must compile before execution, and Layer 1 must verify that the validation, governance, sandbox, and rollback boundaries are established before execution.
+Generated capabilities are not treated as successful simply because they were created. Capability performance is measured from later real usage, so learning evidence remains tied to actual behavior.
 
-See `docs/SELF_PROGRAMMING_PHASE1.md` for the detailed design and `docs/PIPELINE.md` for the complete request/evolution lifecycle.
+Automatic evolution is deny-by-default. Explicitly enabled automation remains bounded by action limits, repository scope, Governance, validation, and rollback safeguards.
 
-## Web dashboard
+For controlled provider-backed self-programming, use `evaluation/live_self_programming.py` with the explicit confirmation flag and a temporary workspace.
 
-The browser UI is chat-first. Users can create, search, reopen, continue, and safely delete persistent conversations. Code can be pasted directly into a prompt or the collapsible working-code panel, and the UI reports Brain language inference and confidence.
+## Web application
 
-The **Capabilities** view contains the capability analysis panel, including seed vs generated population, active/inactive counts, reuse counts, and the most-reused capabilities. Individual capabilities remain clickable for provenance and lineage details. Architecture and Evolution remain separate detailed views.
+The browser UI is chat-first. Users can create, search, reopen, continue, and safely delete persistent conversations. Code can be pasted directly into a prompt or the working-code panel. Language detection, selected capabilities, trace information, and feedback are shown with each turn.
 
-Deleting a conversation requires explicit confirmation. The DELETE session API removes only the requested session; if the active conversation is deleted, the UI immediately creates and opens a fresh chat.
+While Ollama is processing, the chat displays an activity timeline with the current step and elapsed time instead of leaving the interface looking frozen. The timeline describes the expected request pipeline and stays visibly active until the response returns.
 
 ## Documentation
 
 - `docs/ARCHITECTURE.md` — system boundaries and request flow
-- `docs/capabilities/CANONICAL_CAPABILITIES.md` — ten capability contracts
+- `docs/capabilities/CANONICAL_CAPABILITIES.md` — canonical capability contracts
 - `docs/master.md` — research overview and SPS model
 - `docs/scenarios.md` — evaluation scenarios
-- `docs/PIPELINE.md` — request/feedback lifecycle
-- `docs/SELF_PROGRAMMING_PHASE1.md` — controlled self-programming design
-- `docs/superpowers/specs/2026-09-03-sps-control-center-design.md` — UI and deletion design
-- `docs/superpowers/plans/2026-09-03-sps-control-center-plan.md` — implementation plan
-- `SETUP.md` — local/Colab setup
+- `docs/PIPELINE.md` — request, feedback, learning, and self-programming flow
+- `docs/SELF_PROGRAMMING.md` — controlled self-programming design and operating model
+- `docs/WEB_UI_GUIDE.md` — browser workspace guide
+- `SETUP.md` — local and Colab setup
 - `REQUIREMENTS.md` — environment requirements
 
-Runtime session/evolution state is not source-controlled.
+Runtime conversation and evolution state is not source-controlled.
