@@ -1,29 +1,33 @@
-"""Canonical SPS-CA ten-layer architecture vocabulary.
+"""Authoritative SPS-CA ten-layer architecture vocabulary.
 
-Layer names are canonical and must not be changed. New behavior belongs in
-sub-components. The Brain is a separate replaceable model service and is not
-a layer or capability.
+The ten layer names are canonical. Sub-components describe responsibilities
+implemented by the corresponding layer packages. The Brain is a separate,
+replaceable reasoning service and is not a layer or capability.
 """
 from __future__ import annotations
 from typing import Final
 
 LAYERS = (
-    (1, "Software DNA Core", "Acts as the absolute source of truth, defining constraints and meta-rules that all evolution must obey", ("Goals", "Policies", "Constraints", "Learning Rules", "Repair Rules", "Safety Rules", "Ethical Rules", "Evolution Rules", "Meta-Rules")),
-    (2, "Governance Core", "Executive gatekeeper that authorizes proposed changes against the Software DNA before deployment", ("Authorization", "Evolution Approval", "Compliance Checking", "Risk Management")),
-    (3, "Cognitive core", "Synthesizes goals and system state into tactical decisions, reasoning, and plans", ("Goal Manager", "Reasoning Engine", "Planning Engine", "Decision Engine", "Explainability Engine")),
-    (4, "Knowledge core", "Manages structured, evolving domain knowledge", ("Knowledge Base", "Knowledge Acquisition Engine", "Knowledge Validation", "Knowledge Evolution")),
-    (5, "Experience core", "Collects and stores feedback and runtime signals as historical memory", ("Memory", "Feedback", "Monitoring", "Learning Engine")),
-    (6, "Meta-learning core", "Evaluates and improves the system's own learning process", ("Learning Evaluation", "Strategy Optimization", "Learning Improvement")),
-    (7, "Adaptation core", "Shifts behavior instantly by context, without modifying source code", ("Context Awareness", "Personalization", "Capability Activation", "Strategy Selection")),
-    (8, "Evolution core", "The engine of genuine structural self-growth", ("Self-Modification", "Self-Regeneration", "Capability Preservation", "Capability Differentiation", "Capability Creation", "SPS Growth Decision")),
-    (9, "Verification & Validation Core", "Screens new or mutated code in a sandbox before it reaches production", ("Testing", "Simulation", "Safety Validation", "Performance Validation")),
-    (10, "Execution Core", "Translates validated decisions into real, observable action", ("Action Executor", "Services", "APIs", "User Interaction")),
+    (1, "Software DNA Core", "Absolute source of truth for constraints and meta-rules", ("DNA Policy Rules", "Software DNA Model", "Capability Contract Templates")),
+    (2, "Governance Core", "Authorizes proposed changes against Software DNA before deployment", ("Governance Gate", "Risk Assessment", "Compliance & Decision Audit")),
+    (3, "Cognitive core", "Synthesizes goals and system state into reasoning, analysis, and plans", ("Cognitive Reasoning", "LLM Provider Interface", "Project Analyzer", "Cognitive Data Models")),
+    (4, "Knowledge core", "Manages structured and evolving domain knowledge", ("Knowledge Core", "Knowledge Snapshot", "Knowledge Validation")),
+    (5, "Experience core", "Stores runtime outcomes, feedback, and historical learning signals", ("Experience Log", "Long-Term Learning", "Experience Data Models")),
+    (6, "Meta-learning core", "Evaluates and improves how the system learns", ("Capability Evaluator", "Meta-Learner", "Strategy Policy", "A/B Experimentation", "Optimization Cycle Controller")),
+    (7, "Adaptation core", "Changes behavior by context without modifying source code", ("Adaptation Engine", "Adaptation Records", "Contextual Strategy Adjustment")),
+    (8, "Evolution core", "Performs governed structural self-growth and capability lifecycle management", ("Controlled Evolution Engine", "Evolution Cycle", "Capability Gap Planning", "SPS Growth Decision", "Evolution Evidence", "Evolution Transaction", "Evolution Execution Authority", "Self-Programming", "Capability Retirement")),
+    (9, "Verification & Validation Core", "Screens candidate changes before production execution", ("Validation Engine", "Validation Data Models", "Sandbox & Test Execution")),
+    (10, "Execution Core", "Translates validated decisions into observable action", ("Execution Engine", "Execution Data Models", "Action Execution")),
 )
-LAYER_NAMES: Final = {number: name for number, name, _, _ in LAYERS}
-LAYER_DESCRIPTIONS: Final = {number: purpose for number, _, purpose, _ in LAYERS}
-LAYER_SUBCOMPONENTS: Final = {number: list(subcomponents) for number, _, _, subcomponents in LAYERS}
-BRAIN = {"name": "SPS-CA Brain", "role": "reasoning, prompt analysis, planning, code generation, debugging, strategy analysis", "default_provider": "Ollama", "replaceable": True, "boundary": "separate model service"}
-SUPPORTING_SUBSYSTEMS = ("Capability Registry", "Capability Lineage", "LLM Provider Abstraction")
+LAYER_NAMES: Final = {n: name for n, name, _, _ in LAYERS}
+LAYER_DESCRIPTIONS: Final = {n: purpose for n, _, purpose, _ in LAYERS}
+LAYER_SUBCOMPONENTS: Final = {n: list(parts) for n, _, _, parts in LAYERS}
+BRAIN: Final = {"name": "SPS-CA Brain", "role": "reasoning, prompt analysis, planning, code generation, debugging, strategy analysis", "default_provider": "Ollama", "replaceable": True, "boundary": "separate model service"}
+SUPPORTING_SUBSYSTEMS: Final = ("Capability Registry", "Capability Lineage", "LLM Provider Abstraction")
 
 def architecture_manifest() -> dict:
-    return {"layers": [{"number": n, "name": name, "purpose": purpose, "description": purpose, "sub_components": list(parts)} for n, name, purpose, parts in LAYERS], "brain": dict(BRAIN), "supporting_subsystems": list(SUPPORTING_SUBSYSTEMS)}
+    return {
+        "layers": [{"number": n, "name": name, "purpose": purpose, "description": purpose, "sub_components": list(parts)} for n, name, purpose, parts in LAYERS],
+        "brain": dict(BRAIN),
+        "supporting_subsystems": list(SUPPORTING_SUBSYSTEMS),
+    }

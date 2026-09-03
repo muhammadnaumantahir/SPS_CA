@@ -1,38 +1,45 @@
-# SPS-CA Layers
+# SPS-CA Layer Architecture
 
-The public SPS-CA architecture has **ten layers**. These names are canonical for the UI, documentation, experiments, and trace output. **Layer names must never be renamed; new behavior is added as a sub-component.**
+SPS-CA uses ten canonical layers. The names below are authoritative and must not drift. The implementation packages use the corresponding `*_core` names.
 
-| # | Layer Name | Purpose / Core Capability | Sub-Components |
-|---|---|---|---|
-| 1 | **Software DNA Core** | Acts as the absolute source of truth, defining constraints and meta-rules that all evolution must obey | Goals, Policies, Constraints, Learning Rules, Repair Rules, Safety Rules, Ethical Rules, Evolution Rules, Meta-Rules |
-| 2 | **Governance Core** | Executive gatekeeper that authorizes proposed changes against the Software DNA before deployment | Authorization, Evolution Approval, Compliance Checking, Risk Management |
-| 3 | **Cognitive core** | Synthesizes goals and system state into tactical decisions, reasoning, and plans | Goal Manager, Reasoning Engine, Planning Engine, Decision Engine, Explainability Engine |
-| 4 | **Knowledge core** | Manages structured, evolving domain knowledge | Knowledge Base, Knowledge Acquisition Engine, Knowledge Validation, Knowledge Evolution |
-| 5 | **Experience core** | Collects and stores feedback and runtime signals as historical memory | Memory, Feedback, Monitoring, Learning Engine |
-| 6 | **Meta-learning core** | Evaluates and improves the system's own learning process | Learning Evaluation, Strategy Optimization, Learning Improvement |
-| 7 | **Adaptation core** | Shifts behavior instantly by context, without modifying source code | Context Awareness, Personalization, Capability Activation, Strategy Selection |
-| 8 | **Evolution core** | The engine of genuine structural self-growth | Self-Modification, Self-Regeneration, Capability Preservation, Capability Differentiation, Capability Creation, **SPS Growth Decision** |
-| 9 | **Verification & Validation Core** | Screens new or mutated code in a sandbox before it reaches production | Testing, Simulation, Safety Validation, Performance Validation |
-| 10 | **Execution Core** | Translates validated decisions into real, observable action | Action Executor, Services, APIs, User Interaction |
+| # | Canonical layer | Implemented sub-components |
+|---|---|---|
+| 1 | **Software DNA Core** | DNA Policy Rules; Software DNA Model; Capability Contract Templates |
+| 2 | **Governance Core** | Governance Gate; Risk Assessment; Compliance & Decision Audit |
+| 3 | **Cognitive core** | Cognitive Reasoning; LLM Provider Interface; Project Analyzer; Cognitive Data Models |
+| 4 | **Knowledge core** | Knowledge Core; Knowledge Snapshot; Knowledge Validation |
+| 5 | **Experience core** | Experience Log; Long-Term Learning; Experience Data Models |
+| 6 | **Meta-learning core** | Capability Evaluator; Meta-Learner; Strategy Policy; A/B Experimentation; Optimization Cycle Controller |
+| 7 | **Adaptation core** | Adaptation Engine; Adaptation Records; Contextual Strategy Adjustment |
+| 8 | **Evolution core** | Controlled Evolution Engine; Evolution Cycle; Capability Gap Planning; SPS Growth Decision; Evolution Evidence; Evolution Transaction; Evolution Execution Authority; Self-Programming; Capability Retirement |
+| 9 | **Verification & Validation Core** | Validation Engine; Validation Data Models; Sandbox & Test Execution |
+| 10 | **Execution Core** | Execution Engine; Execution Data Models; Action Execution |
 
-## SPS Growth Decision
+## Flow
 
-`SPS Growth Decision` is a **sub-component of Evolution core**, not a new layer. Layer 8 decides whether the system should reuse, adapt, compose, improve, create, or defer based on evidence and reasoning.
+```text
+USER prompt + code/file
+        ↓
+CanonicalSPSPipeline
+        ↓
+L1 Software DNA Core → L2 Governance Core
+        ↓
+L3 Cognitive core ← separate SPS-CA Brain
+        ↓
+L4 Knowledge core → L5 Experience core → L6 Meta-learning core
+        ↓
+L7 Adaptation core → L8 Evolution core
+        ↓
+L9 Verification & Validation Core → Governance revisit → DNA check
+        ↓
+L10 Execution Core
+        ↓
+result + modified code + trace/evidence
+        ↓
+Experience / future evolution
+```
 
-**Disagreement is evidence, not an automatic capability-creation command.**
+### Growth rule
+`DISAGREEMENT ≠ CAPABILITY CREATION`. Disagreement is evidence. Layer 8's **SPS Growth Decision** evaluates reuse, adaptation, composition, improvement, creation, or deferral using accumulated evidence and governance constraints.
 
-## Sub-components are modular
-
-The table defines the canonical architecture. A sub-component may be added, replaced, deferred, or omitted while the parent layer retains ownership of its responsibility. The ten layer names themselves remain stable.
-
-## Brain boundary
-
-The **Brain is separate from these ten layers**. It is a replaceable AI intelligence service, initially backed by Ollama through `models/`. It supports the Cognitive core with prompt understanding, reasoning, planning, code generation and debugging. It may also support Meta-learning core, Adaptation core and Evolution core reasoning.
-
-The Brain is **not** `CAP-001`, is not assigned a `CAP-NNN` identifier, and is not counted as layer 11.
-
-## Capability boundary
-
-Capabilities are executable SPS skills under `capabilities/`. They are selected/composed by the SPS process and may be seeded or generated. Capability Registry and Capability Lineage are supporting subsystems, not additional architectural layers.
-
-`layers/architecture.py` is the canonical machine-readable architecture manifest used by the dashboard/API.
+The Brain is a separate replaceable model service, not Layer 11 and not a capability. `layers/architecture.py` is the machine-readable source of truth consumed by UI and tests.

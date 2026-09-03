@@ -1,17 +1,17 @@
-# SPS-CA Testing
+# Testing Architecture
 
-Testing is separated from production implementation.
+Run the focused architecture test:
 
-## Scenario suite
+```bash
+pytest layers/tests/test_architecture_manifest.py
+```
 
-`test_sps_scenarios.py` is the single pytest entry point for scenario-level coverage. It expands `evaluation/scenarios/growth_500.json` into exactly **500 parametrized test cases** and validates language detection plus intent classification for every case.
+The test verifies exactly ten canonical layers, exact canonical names, the authoritative sub-component vocabulary, the separate Brain boundary, and the absence of legacy layer directory names.
 
-The full model-backed scenario runner remains available through `evaluation/scenario_runner.py` for end-to-end/research runs.
+Then run the full suite:
 
-For Google Colab, run `scripts/colab_test_suite.py`. It executes the canonical 500-case contract suite with per-test PASS/FAIL progress and can then run the model-backed growth suite to persist Layer-8 evidence for the dashboard.
+```bash
+pytest
+```
 
-## Code tests
-
-Implementation and subsystem tests remain separate and are kept close to the code they verify under `core/`, `brain/`, `capabilities/`, `layers/`, `runtime/`, and `ui/`.
-
-Layer-specific tests remain beside their layer under `layers/`.
+The architecture manifest is the source of truth; tests should import it rather than duplicate layer names.
