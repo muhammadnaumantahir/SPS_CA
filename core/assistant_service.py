@@ -1,8 +1,8 @@
 """Shared conversational coding-assistant service for SPS-CA.
 
 The web UI and CLI use this service so Brain planning, Knowledge context,
-Experience recording, Meta-learning evidence, Adaptation and capability
-execution follow one backend path.
+Experience recording, Meta-learning, Adaptation and capability execution
+follow one backend path.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from layers.layer_06_meta_learning import MetaLearner
 from layers.layer_07_adaptation import Adaptation
 from layers.layer_01_software_dna import SoftwareDNA
 from layers.capability_registry import CapabilityRegistryManager
+from core.optimization_cycle_service import OptimizationCycleService
 
 
 @dataclass
@@ -84,6 +85,7 @@ class SpsAssistantService:
         self.timeout_seconds = timeout_seconds
         self.dna = SoftwareDNA()
         self.trace_store = EvolutionTraceStore()
+        self.optimization_cycles = OptimizationCycleService(experience=self.experience)
 
     def capability_catalog(self) -> list[dict[str, Any]]:
         return [
@@ -290,6 +292,19 @@ class SpsAssistantService:
                 success=success,
                 outcome=assistant_message,
                 elapsed=perf_counter() - start,
+            )
+            optimization_plan = self.optimization_cycles.assess_after_task(
+                [cap.id for cap in self.registry.list_all_capabilities() if cap.status == "active"]
+            )
+            learning_context["optimization_cycle"] = optimization_plan.to_dict()
+            trace(
+                "Layer 6 · Meta-Learning",
+                "Assess threshold-triggered optimization",
+                "New Experience evidence can qualify the next controlled optimization cycle.",
+                "OptimizationCycleService evaluates thresholds and cooldown, then records only triggered plans.",
+                triggered=optimization_plan.triggered,
+                cycle_id=optimization_plan.cycle_id,
+                reasons=optimization_plan.reasons,
             )
             trace("Layer 8 · Evolution", "Evaluate reuse/growth opportunity", "Successful or failed use becomes evidence for controlled self-programming.", "Record the selected capability outcome for future evolution.", selected_capability=selected, changed=changed)
             trace("Layer 9 · Verification & Validation", "Record validation boundary", "A chat turn must expose whether code changed; project execution is a separate controlled service.", "Return source and capability outcome for the execution layer.", changed=changed)
