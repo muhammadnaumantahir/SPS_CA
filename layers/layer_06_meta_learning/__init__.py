@@ -1,20 +1,27 @@
-"""Layer 04: Meta-Learning.
+"""Layer 06: Meta-Learning.
 
-Reads Layer 3's ExperienceLog to detect recurring failure patterns,
-recommend capability strategy changes, and measure improvement over time.
-Never modifies code or capabilities directly (see Layer 8: Evolution).
+Reads Layer 05 Experience evidence to detect recurring failure patterns,
+compare observed capability behavior, recommend strategy changes, and measure
+improvement over time. Meta-Learning never modifies source directly; Layer 08
+Evolution owns structural self-growth.
 """
 
-from .meta_learner import (DEFAULT_DECISIONS_PATH,
-                           DEFAULT_FAILURE_RATE_THRESHOLD,
-                           DEFAULT_MIN_OCCURRENCES, MetaLearner,
-                           MetaLearningDecisionLog)
+from .capability_evaluator import CapabilityEvaluation, CapabilityEvaluator
+from .meta_learner import (
+    DEFAULT_DECISIONS_PATH,
+    DEFAULT_FAILURE_RATE_THRESHOLD,
+    DEFAULT_MIN_OCCURRENCES,
+    MetaLearner,
+    MetaLearningDecisionLog,
+)
 from .models import MetaLearningDecision
 
 __all__ = [
     "MetaLearner",
     "MetaLearningDecisionLog",
     "MetaLearningDecision",
+    "CapabilityEvaluation",
+    "CapabilityEvaluator",
     "DEFAULT_DECISIONS_PATH",
     "DEFAULT_MIN_OCCURRENCES",
     "DEFAULT_FAILURE_RATE_THRESHOLD",
