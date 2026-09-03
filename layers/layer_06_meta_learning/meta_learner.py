@@ -7,6 +7,7 @@ capability behavior, and persists auditable strategy recommendations.
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -55,9 +56,9 @@ class MetaLearner:
         )
 
     def create_decision(self, recommendation: StrategyRecommendation, *, triggered_by: str) -> MetaLearningDecision:
-        """Convert a recommendation and its measured evidence into an auditable record."""
+        """Convert a recommendation and measured evidence into an auditable record."""
         return MetaLearningDecision(
-            decision_id=f"meta_learning_decision_{len(triggered_by) + int(recommendation.current_score * 10000):05d}",
+            decision_id=f"meta_learning_decision_{uuid.uuid4().hex[:12]}",
             triggered_by=triggered_by,
             previous_strategy=recommendation.current_capability_id,
             new_strategy=recommendation.recommended_capability_id or recommendation.current_capability_id,
