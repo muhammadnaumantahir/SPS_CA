@@ -34,14 +34,14 @@ def run_command(command: list[str], *, timeout: int | None = None) -> subprocess
     return subprocess.run(command, cwd=REPO, text=True, capture_output=True, timeout=timeout)
 
 
-def print_pytest_progress(output: str) -> tuple[int, int, int, list[str]]:
+def print_pytest_progress(output: str) -> tuple[int, int, int, int, list[str]]:
     total = passed = failed = skipped = 0
     failures: list[str] = []
     for line in output.splitlines():
-        match = re.search(r"(PASSED|FAILED|SKIPPED).*::([^\s]+)$", line)
+        match = re.search(r"::([^\s]+)\s+(PASSED|FAILED|SKIPPED)\s*$", line)
         if not match:
             continue
-        status, test_name = match.groups()
+        test_name, status = match.groups()
         total += 1
         if status == "PASSED":
             passed += 1
@@ -107,17 +107,22 @@ def run_500_contract_tests() -> dict:
             "--tb=short",
             "-p",
             "no:cacheprovider",
-            f"--json-report",
+            "--json-report",
             f"--json-report-file={report_path}",
         ],
         timeout=300,
     )
 
     total, passed, failed, skipped, failures = print_pytest_progress(result.stdout + "\n" + result.stderr)
+    if total != 501:
+        raise AssertionError(f"Expected 501 collected tests (500 scenarios + guard), observed {total}")
+
     metrics = {
         "timestamp": datetime.now().isoformat(),
         "test_run_id": datetime.now().strftime("%Y%m%d_%H%M%S"),
         "suite": "canonical-scenario-suite",
+        "scenario_cases": 500,
+        "pytest_tests": total,
         "scenario_file": str(SCENARIO_FILE.relative_to(REPO)),
         "test_file": str(SCENARIO_TEST.relative_to(REPO)),
         "summary": {
@@ -136,7 +141,8 @@ def run_500_contract_tests() -> dict:
     print("\n" + "-" * 75)
     print("500-SCENARIO TEST SUMMARY")
     print("-" * 75)
-    print(f"Total Tests:     {total}")
+    print("Scenario Cases:   500")
+    print(f"Pytest Tests:     {total}")
     print(f"  ✓ Passed:      {passed}")
     print(f"  ✗ Failed:      {failed}")
     print(f"  ⊘ Skipped:     {skipped}")
@@ -194,9 +200,9 @@ print("\n" + "=" * 75)
 print("WEB UI / GROWTH ARTIFACTS")
 print("=" * 75)
 print(f"✓ Test metrics: {METRICS_FILE.relative_to(REPO)}")
-print(f"✓ Capability registry: capabilities/registry.json")
-print(f"✓ Evolution evidence: runtime/evolution_events.json")
-print(f"✓ Evolution trace: experience/traces/evolution_history.json")
+print("✓ Capability registry: capabilities/registry.json")
+print("✓ Evolution evidence: runtime/evolution_events.json")
+print("✓ Evolution trace: experience/traces/evolution_history.json")
 print("Refresh the Growth tab after the dashboard is running.")
 
 if contract_metrics["summary"]["failed"]:
