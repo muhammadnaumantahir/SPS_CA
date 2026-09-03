@@ -33,7 +33,7 @@ The major runtime components are:
 - **ExperienceLog** — historical task outcomes and feedback.
 - **MetaLearner** — failure-pattern and strategy evidence analysis.
 - **Adaptation** — context-dependent runtime parameter adjustment and capability reuse checks.
-- **EvolutionEngine** — capability-gap analysis and governed capability generation.
+- **EvolutionEngine + GrowthDecisionEngine** — capability-gap analysis and reasoned structural growth decisions.
 - **Capability Registry** — canonical and generated capability metadata/lineage.
 - **Validator** — sandboxed verification boundary.
 - **GovernanceGate** — authorization boundary.
@@ -42,59 +42,44 @@ The major runtime components are:
 
 ## Canonical user execution flow
 
-The browser UI and the model-backed scenario runner now share one entry point: `CanonicalSPSPipeline`.
+The browser UI and the model-backed scenario runner share one entry point: `CanonicalSPSPipeline`.
 
 ```text
-USER
-  │
-  │ Prompt + code / uploaded file + language
-  ▼
-CanonicalSPSPipeline
-  │
-  ├── L1  Software DNA
-  │       Hard/soft constraints and safety boundary
-  │
-  ├── L2  Governance
-  │       Authorization context and change policy
-  │
-  ├── L3  Cognitive + Brain
-  │       Understand → classify → reason → plan
-  │
-  ├── L4  Knowledge
-  │       Build and validate structured context
-  │
-  ├── L5  Experience
-  │       Read historical outcomes and reuse evidence
-  │
-  ├── L6  Meta-Learning
-  │       Detect recurring failures / strategy evidence
-  │
-  ├── L7  Adaptation
-  │       Adjust runtime behavior for current context
-  │
-  ├── L8  Evolution
-  │       Reuse capability OR evaluate/generate a capability gap
-  │
-  ├── L9  Verification & Validation
-  │       Sandbox tests and safety checks
-  │
-  ├── L2  Governance authorization
-  │       Approve / reject the concrete change
-  │
-  ├── L1  Software DNA final check
-  │       Final independent pre-execution gate
-  │
-  └── L10 Execution
-          Apply change, record execution state and rollback snapshot
-
-  ▼
-Result + modified code + layer trace + Brain metadata + capability provenance
-  │
-  ▼
-Experience / trace / evolution evidence for future turns
+                         USER
+                          │
+                 Prompt + Code/File
+                          │
+                          ▼
+              CanonicalSPSPipeline
+                          │
+        ┌─────────────────┴─────────────────┐
+        │                                   │
+        ▼                                   ▼
+   SPS Architecture                    Brain boundary
+        │                                   │
+        ├─ L1 Software DNA                 │
+        ├─ L2 Governance                   │
+        ├─ L3 Cognitive ◄──────────── Brain │
+        ├─ L4 Knowledge                    │
+        ├─ L5 Experience                   │
+        ├─ L6 Meta-Learning                │
+        ├─ L7 Adaptation                   │
+        ├─ L8 Evolution ──► Capability     │
+        │                   reuse/create    │
+        ├─ L9 Verification                 │
+        └─ L10 Execution                   │
+                          │
+                          ▼
+              Result + Modified Code
+                          │
+                          ▼
+             Experience / Trace / Evidence
+                          │
+                          ▼
+                  Future Evolution
 ```
 
-The architecture is intentionally represented as ten canonical responsibilities. Some control checks are revisited at the point where the concrete change becomes known; those repeated checks are still the same canonical layer, not additional layers.
+At the concrete-change boundary, L2 Governance and L1 Software DNA are revisited as the same canonical layers before L10 execution. They are not additional layers.
 
 ## One canonical implementation path
 
@@ -102,9 +87,56 @@ The architecture is intentionally represented as ten canonical responsibilities.
 
 The pipeline result exposes a `pipeline` object containing all ten layers, the component responsible for that layer, current status, artifact/evidence, and an explanatory detail. The UI renders this information instead of maintaining a separate layer vocabulary.
 
+## SPS Growth Decision — Layer 8 is a decision-maker
+
+Layer 8 is **not** a disagreement counter. It is the SPS structural-growth decision point. The `GrowthDecisionEngine` evaluates the current capability evidence and chooses the least-structural action justified by the evidence:
+
+| Decision | Meaning |
+|---|---|
+| `reuse` | Existing capability is sufficient; do not grow the system. |
+| `adapt` | Existing capability can solve the request through contextual/runtime adaptation. |
+| `compose` | Existing capabilities cover the primitives and a reusable composition is justified. |
+| `improve` | A relevant capability exists but should be improved rather than duplicated. |
+| `create` | A genuine capability gap or persistent unmet pattern justifies a new capability. |
+| `defer` | Evidence is insufficient or structural growth is not yet justified. |
+
+### Critical SPS invariant
+
+> **DISAGREEMENT ≠ CAPABILITY CREATION**
+
+A disagreement is experience evidence. It is accumulated, analyzed and combined with capability-match, recurrence, adaptation, composition and improvement evidence. Only a reasoned Layer-8 `create` decision may initiate capability generation.
+
+```text
+Disagreement
+     │
+     ▼
+Experience Evidence
+     │
+     ▼
+Meta-Learning / Pattern Analysis
+     │
+     ▼
+Brain + Cognitive Reasoning
+     │
+     ▼
+Capability Gap?
+     │
+     ▼
+SPS Growth Decision (Layer 8)
+     │
+     ├── reuse ───────► Existing capability
+     ├── adapt ───────► Runtime adaptation
+     ├── compose ─────► Reusable capability composition
+     ├── improve ─────► Improve existing capability
+     ├── defer ───────► Preserve evidence / wait for more evidence
+     └── create ──────► Govern → Generate → Test → Register
+```
+
+Examples of growth evidence include a previously unknown task with no suitable capability, repeated unmet patterns, recurring failure despite adaptation, repeated capability compositions that deserve a reusable skill, or a capability that needs structural improvement. A single disagreement is not sufficient by itself.
+
 ## Feedback and capability growth
 
-A scenario's `agree` or `disagree` is feedback evidence. `disagree` does **not** mean immediate capability creation. The evidence is passed to Layer 8, which analyzes recurring patterns and returns a governed decision. Only a `create` decision results in `record_creation()` and a generated capability.
+A scenario's `agree` or `disagree` is feedback evidence. `agree` strengthens confidence in reuse. `disagree` is recorded in the Layer-8 evidence ledger and analyzed by the Growth Decision Engine. Only a `create` decision results in capability generation.
 
 ```text
 Actual result
@@ -117,14 +149,15 @@ Expected-result comparison
      └── disagree ───► Layer-8 evidence store
                               │
                               ▼
-                         analyze pattern
+                         Growth Decision
                               │
-                     ┌────────┴────────┐
-                     │                 │
-                   reuse            create
-                     │                 │
-                     ▼                 ▼
-                keep portfolio   generate → test → govern → register
+             ┌──────────┬─────┴──────┬──────────┐
+             ▼          ▼            ▼          ▼
+           reuse      adapt       improve    create
+                                                   │
+                                                   ▼
+                                          generate → test
+                                          → govern → register
 ```
 
 Generated capabilities are not considered successful merely because they were created. Their quality is measured through subsequent real usage.
@@ -186,7 +219,7 @@ The second measurement is the one that demonstrates the real user-to-execution p
 
 ## Documentation
 
-- `docs/ARCHITECTURE.md` — system boundaries and canonical request flow
+- `docs/ARCHITECTURE.md` — system boundaries, canonical request flow, and Layer-8 growth decision
 - `docs/capabilities/CANONICAL_CAPABILITIES.md` — canonical capability contracts
 - `docs/master.md` — research overview and SPS model
 - `docs/scenarios.md` — evaluation scenarios
