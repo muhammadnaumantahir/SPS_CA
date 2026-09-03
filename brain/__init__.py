@@ -13,6 +13,14 @@ def _guarded_infer_intent_class(request: str, code: str = "", file_path: str = "
 
 
 def _compose_plan(self, plan: BrainPlan, kwargs: dict, *, allow_provider_plan: bool = True) -> BrainPlan:
+    """Use deterministic composition only as a provider-free fallback.
+
+    When an LLM provider is configured, the Brain is the authority for deciding
+    whether a request is one task or a dependency-aware multi-task plan. The
+    deterministic composer remains only for the local/no-provider fallback.
+    """
+    if allow_provider_plan and self.provider is not None:
+        return plan
     request = str(kwargs.get("request", "")).strip()
     code = str(kwargs.get("code", ""))
     catalog = list(kwargs.get("capability_catalog") or [])
@@ -66,7 +74,7 @@ def _fast_plan(self, **kwargs):
             language_confidence=max(0.0, min(1.0, confidence)),
             intent_class=intent_class,
         )
-        composed = _compose_plan(self, base, kwargs)
+        composed = _compose_plan(self, base, kwargs, allow_provider_plan=False)
         if composed.steps:
             return composed
         return base
@@ -74,11 +82,10 @@ def _fast_plan(self, **kwargs):
 
 
 def _learning_aware_plan(self, **kwargs):
-    """Plan safely, preserving explicit multi-action requests and learned routing."""
+    """Plan safely, preserving Brain-owned multi-action planning and learned routing."""
     plan = _fast_plan(self, **kwargs)
     if plan is None:
         plan = _original_plan(self, **kwargs)
-        plan = _compose_plan(self, plan, kwargs)
     if plan.intent_class in {"unknown", "mixed", "test_generation"} or not plan.steps:
         return plan
 
