@@ -32,12 +32,22 @@ _SEPARATE_ACTION_BOUNDARY = re.compile(
     re.IGNORECASE,
 )
 
-# Validation is a separate intent only when the user explicitly asks for a
-# validation action. A noun such as "validation" or a target such as
-# "input validation" belongs to the implementation request.
 _SEPARATE_VALIDATION_ACTION = re.compile(
     r"(?:^|\b(?:then|and then)\b|,\s*(?:then|and)?\s*)"
     r"(?:please\s+)?(?:validate|review|re-validate|check)\b",
+    re.IGNORECASE,
+)
+
+
+# A project operation must act directly on a project artifact. Requiring the
+# artifact to follow the operation verb prevents phrases such as
+# "create a Python function for file processing" from becoming project ops.
+_PROJECT_ARTIFACT_ACTION = re.compile(
+    r"\b(?:create|add|delete|remove|move|rename)\s+"
+    r"(?:a|an|the|new)?\s*(?:file|folder|directory|project|module|package|workspace|layout)\b"
+    r"|\b(?:set\s+up|restructure|reorganize)\s+(?:the\s+)?(?:project|workspace|repo(?:sitory)?|directory|layout)\b"
+    r"|\b(?:configure)\s+(?:the\s+)?(?:project|workspace|repo(?:sitory)?|environment)\b"
+    r"|\b(?:project\s+operation|project\s+structure|deployment\s+layout|directory\s+convention)\b",
     re.IGNORECASE,
 )
 
@@ -65,10 +75,6 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
         r"(?:.{0,80}\b(root\s+cause|bug|error|issue|exception|failure|defect|problem|risk|race\s+condition|deadlock|memory\s+leak|vulnerability|corruption)\b)?",
     )
     add("bug_fixing", r"\b(fix|repair|resolve|patch)\b")
-
-    # Refactoring must represent an explicit code action. Phrases such as
-    # "resource cleanup" are implementation details of another requested task,
-    # not a separate refactoring intent.
     add(
         "refactoring",
         r"\brefactor\b|\boptimi[sz]e\b|\bimprove\s+performance\b|"
@@ -107,27 +113,8 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
         )):
             add("code_modification", _MODIFICATION_TARGET.pattern)
 
-    # Project operations require an operation whose object is a project/file
-    # artifact. Merely mentioning "file", "folder", "repo", or "module" as
-    # context must never turn a code-generation/modification request into mixed.
-    project_action = bool(
-        re.search(
-            r"\b(?:create|add|delete|remove|move|rename)\b.{0,50}"
-            r"\b(?:file|folder|directory|project|module|package|workspace|layout)\b",
-            req,
-            re.IGNORECASE,
-        )
-        or re.search(
-            r"\b(?:project\s+operation|project\s+structure|set\s+up|configure|restructure|reorganize|workspace|repo(?:sitory)?|deployment\s+layout|directory\s+convention)\b",
-            req,
-            re.IGNORECASE,
-        )
-    )
-    if project_action:
-        add(
-            "project_operations",
-            r"\b(?:project\s+operation|project\s+structure|set\s+up|configure|restructure|reorganize|workspace|repo(?:sitory)?|deployment\s+layout|directory\s+convention|(?:create|add|delete|remove|move|rename)\b.{0,50}\b(?:file|folder|directory|project|module|package|workspace|layout))\b",
-        )
+    if _PROJECT_ARTIFACT_ACTION.search(req):
+        add("project_operations", _PROJECT_ARTIFACT_ACTION.pattern)
 
     # Supporting validation language in a generation/modification request is
     # part of the requested implementation unless validation is a separate
@@ -152,11 +139,11 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
         signals.remove("analysis")
 
     # Generation/modification takes precedence over project context unless the
-    # user explicitly requests a project/file operation as another action.
+    # project artifact action is explicitly requested as another task.
     if "project_operations" in signals and (
         "code_generation" in signals or "code_modification" in signals
     ) and not re.search(
-        r"\b(?:then|after\s+that|afterwards)\b|,\s*(?:then|and\s+then)\b|\band\s+(?:also\s+)?(?:create|add|delete|remove|move|rename)\s+(?:a\s+)?(?:file|folder|directory|project|module|package|workspace)\b",
+        r"\b(?:then|after\s+that|afterwards)\b|,\s*(?:then|and\s+then)\b|\band\s+(?:also\s+)?(?:create|add|delete|remove|move|rename)\s+(?:a|an|the|new)?\s*(?:file|folder|directory|project|module|package|workspace|layout)\b",
         req,
         re.IGNORECASE,
     ):
