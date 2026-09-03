@@ -64,7 +64,10 @@ class EvolutionTransaction:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(backup, target)
             elif target.exists():
-                target.unlink()
+                if target.is_dir():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink()
         for target, backup in reversed(self.dir_backups):
             if target.exists():
                 shutil.rmtree(target)
