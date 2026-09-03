@@ -138,7 +138,7 @@ def _test_assertion(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
         return f"assert {call} is not None"
 
 
-def test_generation(context: CapabilityContext) -> CapabilityResult:
+def generate_tests(context: CapabilityContext) -> CapabilityResult:
     request = str(context.metadata.get("request", "")).lower()
     if not re.search(r"\b(test|pytest|unit test|tests)\b", request):
         return CapabilityResult.fail(error="Test Generation requires an explicit test-generation request.")
@@ -222,10 +222,7 @@ def validation(context: CapabilityContext) -> CapabilityResult:
         findings.append({"category": "structure", "severity": "error", "message": "Unbalanced delimiters."})
     if syntax_ok and not findings:
         findings.append({"category": "syntax", "severity": "info", "message": "Source passed basic validation."})
-    return CapabilityResult.ok(
-        summary="Validation completed." if syntax_ok and not any(f["severity"] == "error" for f in findings) else "Validation found issues.",
-        findings=findings,
-    )
+    return CapabilityResult.ok(summary="Validation completed." if syntax_ok and not any(f["severity"] == "error" for f in findings) else "Validation found issues.", findings=findings)
 
 
 def project_operations(context: CapabilityContext) -> CapabilityResult:
@@ -233,15 +230,7 @@ def project_operations(context: CapabilityContext) -> CapabilityResult:
     if not request:
         return CapabilityResult.fail(error="Project/File Operations requires a request.")
     try:
-        output = _provider(context).query(
-            code=context.code,
-            instruction=(
-                "Plan the requested project/file operation without applying it. Return JSON only with keys "
-                "operation, target, files, and notes. Never invent credentials or destructive commands.\n\nUSER REQUEST:\n" + request
-            ),
-            model=_model(context),
-            temperature=0.0,
-        )
+        output = _provider(context).query(code=context.code, instruction=("Plan the requested project/file operation without applying it. Return JSON only with keys operation, target, files, and notes. Never invent credentials or destructive commands.\n\nUSER REQUEST:\n" + request), model=_model(context), temperature=0.0)
     except LLMQueryError as exc:
         return CapabilityResult.fail(error=str(exc))
     raw = str(output or "").strip()
@@ -253,18 +242,7 @@ def project_operations(context: CapabilityContext) -> CapabilityResult:
     return CapabilityResult.ok(summary="Project/file operation plan prepared; no filesystem mutation was performed.", findings=[data])
 
 
-DISPATCH = {
-    "CAP-001": code_generation,
-    "CAP-002": code_modification,
-    "CAP-003": code_analysis,
-    "CAP-004": bug_diagnosis,
-    "CAP-005": bug_fixing,
-    "CAP-006": refactoring,
-    "CAP-007": test_generation,
-    "CAP-008": documentation,
-    "CAP-009": validation,
-    "CAP-010": project_operations,
-}
+DISPATCH = {"CAP-001": code_generation, "CAP-002": code_modification, "CAP-003": code_analysis, "CAP-004": bug_diagnosis, "CAP-005": bug_fixing, "CAP-006": refactoring, "CAP-007": generate_tests, "CAP-008": documentation, "CAP-009": validation, "CAP-010": project_operations}
 
 
 def run_canonical(capability_id: str, context: CapabilityContext) -> CapabilityResult:
