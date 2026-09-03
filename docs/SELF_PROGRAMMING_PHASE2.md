@@ -53,7 +53,7 @@ The Layer-8 execution boundary is `EvolutionExecutionAuthority`. It is default-d
 
 When authority is absent or disabled, SPS-CA still records the trigger and action plan but performs no Evolution mutation. When authority is enabled, the optimization-cycle service executes the prepared action through the existing candidate generation → tests → Software DNA → Governance → registration/promotion or rollback path. The execution decision and result are persisted for auditability.
 
-Successful or failed controlled Evolution execution is also recorded as a Layer-5 Experience event. That event records whether the candidate was promoted; subsequent real task outcomes remain the evidence used to determine whether the new capability actually improves behavior.
+Evolution lifecycle events are kept separate from Layer 5 capability-performance observations. A capability is **not** counted as successful merely because it was promoted. Only subsequent real task execution contributes to its behavioral score.
 
 `OptimizationActionPlanner` converts triggered plans into explicit `CapabilityPlan` objects. It does not implement, register, execute, or retire anything itself.
 
@@ -61,9 +61,7 @@ Successful or failed controlled Evolution execution is also recorded as a Layer-
 
 `evaluation/self_improvement_benchmark.py` provides a deterministic before/after measurement harness. It requires both successful promotion/registration and a configured minimum behavioral score delta (default `+0.05`) before reporting that Evolution actually improved the capability.
 
-`evaluation/tests/test_end_to_end_self_improvement.py` exercises the complete control path without an external LLM: Layer 6 triggers from failure evidence, `EvolutionExecutionAuthority` authorizes one action, Layer 8 receives the planned capability through the execution service, and the benchmark verifies that post-Evolution evidence is measurably better.
-
-This benchmark is deliberately deterministic and does not mutate production source; it proves the control flow and measurement contract before live provider-backed Evolution is used.
+The benchmark is deliberately deterministic and does not mutate production source; it proves the control flow and measurement contract before live provider-backed Evolution is used.
 
 ## Live Brain routing
 
@@ -88,9 +86,9 @@ Explicit execution authority
     ↓
 Candidate generation → tests → DNA → Governance → promotion/rollback
     ↓
-Evolution outcome recorded in Experience
+Evolution lifecycle telemetry (not capability-performance credit)
     ↓
-Self-improvement benchmark / subsequent task evidence
+Subsequent real task evidence measures whether the evolved capability improved behavior
     ↓
 Conservative routing / retirement
 ```
@@ -105,7 +103,7 @@ Any structural self-change still follows the Phase 1 Software DNA → Governance
 
 The repository contains intentionally seeded defects used to validate self-programming. Those benchmark targets remain available as observable Evolution inputs rather than being silently removed from the project.
 
-The evaluation workflow runs the deterministic benchmark tests as part of `evaluation/tests`, keeping self-improvement proof separate from any provider-dependent runtime experiments.
+The evaluation workflow runs deterministic benchmark tests as part of `evaluation/tests`, keeping self-improvement proof separate from provider-dependent runtime experiments.
 
 ## Phase 2 status
 
@@ -127,7 +125,7 @@ Completed:
 - governed Layer 8 action planning from triggered optimization cycles;
 - explicit default-deny execution authority for automatic Evolution;
 - automatic authorized handoff through the existing governed Evolution pipeline;
-- Experience recording of controlled Evolution outcomes;
+- auditable Evolution lifecycle outcome records;
 - deterministic self-improvement measurement;
 - end-to-end trigger → authorization → Evolution → measurement regression coverage;
 - separation of seeded benchmark targets from normal architecture quality checks.
@@ -136,4 +134,5 @@ Next work:
 
 - persist richer A/B and retirement outcome telemetry;
 - improve long-horizon evidence aggregation without expanding conversational prompt history;
-- connect the benchmark to real provider-backed Evolution runs in a controlled, explicitly authorized integration environment.
+- connect the deterministic benchmark to real provider-backed Evolution runs in a controlled, explicitly authorized integration environment;
+- run and verify the complete GitHub Actions suite after the Colab import regression fixes.
