@@ -1,6 +1,6 @@
 """Canonical 500-case scenario contract suite.
 
-Scenario cases live in evaluation/scenarios/growth_500.json.  The repository's
+Scenario cases live in evaluation/scenarios/growth_500.json. The repository's
 implementation/unit tests remain colocated with their production modules;
 this file is intentionally the single scenario-level pytest entry point.
 
