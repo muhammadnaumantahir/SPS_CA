@@ -14,7 +14,6 @@ EVENTS_PATH = ROOT / "runtime" / "evolution_events.json"
 
 class EvolutionEvidenceStore:
     """Persistent evidence ledger for explainable Layer-8 decisions."""
-
     def __init__(self, path: str | Path = EVENTS_PATH, registry_path: str | Path = ROOT / "capabilities" / "registry.json") -> None:
         self.path = Path(path)
         self.registry = CapabilityRegistryManager(str(registry_path))
@@ -40,23 +39,9 @@ class EvolutionEvidenceStore:
     def _next_id(events: list[dict[str, Any]]) -> str:
         return f"EVOL-{len(events) + 1:05d}"
 
-    def record_disagreement(
-        self,
-        *,
-        session_id: str,
-        turn_id: int,
-        request: str,
-        language: str,
-        language_confidence: float,
-        previous_capability_id: str,
-        code: str = "",
-    ) -> dict[str, Any]:
+    def record_disagreement(self, *, session_id, turn_id, request, language, language_confidence, previous_capability_id, code=""):
         events = self._load()
-        same_cap = [
-            e for e in events
-            if e.get("event_type") == "disagreement"
-            and e.get("previous_capability_id") == previous_capability_id
-        ]
+        same_cap = [e for e in events if e.get("event_type") == "disagreement" and e.get("previous_capability_id") == previous_capability_id]
         count = len(same_cap) + 1
         evidence = {
             "event_id": self._next_id(events),
@@ -76,7 +61,7 @@ class EvolutionEvidenceStore:
         self._save(events)
         return evidence
 
-    def analyze(self, event: dict[str, Any]) -> dict[str, Any]:
+    def analyze(self, event):
         count = int(event.get("disagreement_count") or 0)
         parent = event.get("previous_capability_id") or ""
         if not parent:
@@ -91,23 +76,17 @@ class EvolutionEvidenceStore:
         else:
             decision = "defer"
             reasoning = f"Only one disagreement is available for {parent}; preserve the evidence and avoid capability proliferation until the pattern repeats."
-        result = dict(event)
-        result.update({
-            "decision": decision,
-            "reasoning": reasoning,
-            "validation_status": "pending" if decision == "create" else "not_applicable",
-        })
         events = self._load()
-        result["event_type"] = "evolution_analysis"
-        result["event_id"] = self._next_id(events)
-        result["timestamp"] = self._now()
+        result = dict(event)
+        result.update({"decision": decision, "reasoning": reasoning, "validation_status": "pending" if decision == "create" else "not_applicable", "event_type": "evolution_analysis", "event_id": self._next_id(events), "timestamp": self._now()})
         events.append(result)
         self._save(events)
         return result
 
-    def record_creation(self, analysis: dict[str, Any]) -> dict[str, Any]:
+    def record_creation(self, analysis):
         events = self._load()
-        next_num = max([int(c.id.split("-")[-1]) for c in self.registry.list_all_capabilities() if c.id.startswith("CAP-") and c.id.split("-")[-1].isdigit()] or [0]) + 1
+        existing = [int(c.id.split("-")[-1]) for c in self.registry.list_all_capabilities() if c.id.startswith("CAP-") and c.id.split("-")[-1].isdigit()]
+        next_num = max([10, *existing]) + 1
         cap_id = f"CAP-{next_num:03d}"
         parent = analysis.get("previous_capability_id") or None
         name = self._capability_name(analysis.get("request", ""), parent, cap_id)
@@ -138,30 +117,35 @@ class EvolutionEvidenceStore:
             "reuse_count": 0,
             "test_coverage": 0.0,
             "status": "active",
+            "canonical": False,
             "extra_metadata": {"provenance": provenance, "tags": ["evolved", "explainable"]},
         }
         self.registry.register_from_dict(metadata)
         creation = dict(analysis)
-        creation.update({
-            "event_type": "capability_created",
-            "event_id": self._next_id(events),
-            "timestamp": self._now(),
-            "created_capability_id": cap_id,
-            "validation_status": "registered",
-            "capability_name": name,
-        })
+        creation.update({"event_type": "capability_created", "event_id": self._next_id(events), "timestamp": self._now(), "created_capability_id": cap_id, "validation_status": "registered", "capability_name": name, "provenance": provenance})
         events.append(creation)
         self._save(events)
         return creation
 
-    def list_events(self, limit: int = 100) -> list[dict[str, Any]]:
+    def list_events(self, limit=100):
         return self._load()[-max(1, limit):][::-1]
 
-    def get_capability_lineage(self, capability_id: str) -> dict[str, Any]:
+    def get_capability_lineage(self, capability_id):
         capability = self.registry.get_capability(capability_id)
         events = self._load()
         related = [e for e in events if e.get("created_capability_id") == capability_id]
         provenance = ((capability.extra_metadata or {}).get("provenance") if capability else None) or {}
+        if not provenance and related:
+            created = related[-1]
+            provenance = dict(created.get("provenance") or {})
+            provenance.setdefault("decision", "create")
+            provenance.setdefault("created_at", created.get("timestamp"))
+            provenance.setdefault("parent_capability_id", created.get("previous_capability_id") or None)
+            provenance.setdefault("trigger_event_ids", [created.get("event_id", "")])
+            provenance.setdefault("reasoning", created.get("reasoning", ""))
+            provenance.setdefault("evidence_summary", created.get("evidence_summary", ""))
+            provenance.setdefault("validation_status", created.get("validation_status", "registered"))
+            provenance.setdefault("source_request", created.get("request", ""))
         return {
             "capability": capability.to_dict() if capability else None,
             "provenance": provenance,
@@ -170,27 +154,20 @@ class EvolutionEvidenceStore:
         }
 
     @staticmethod
-    def _failure_pattern(request: str, code: str) -> str:
+    def _failure_pattern(request, code):
         text = f"{request} {code}".lower()
-        keywords = [
-            ("parameter", "parameterized test/behavior pattern"),
-            ("async", "asynchronous code pattern"),
-            ("validation", "input validation pattern"),
-            ("type", "type-handling pattern"),
-            ("exception", "exception-handling pattern"),
-            ("test", "test-generation pattern"),
-        ]
+        keywords = [("parameter", "parameterized test/behavior pattern"), ("async", "asynchronous code pattern"), ("validation", "input validation pattern"), ("type", "type-handling pattern"), ("exception", "exception-handling pattern"), ("test", "test-generation pattern")]
         for token, label in keywords:
             if token in text:
                 return label
         return "repeated unmet user requirement"
 
     @staticmethod
-    def _evidence_summary(capability_id: str, count: int) -> str:
+    def _evidence_summary(capability_id, count):
         return f"{count} disagreement(s) associated with {capability_id or 'no capability'} were observed; evidence is accumulated before structural evolution."
 
     @staticmethod
-    def _capability_name(request: str, parent: str | None, cap_id: str) -> str:
+    def _capability_name(request, parent, cap_id):
         words = [w.strip(".,:;!?\"'") for w in request.split() if w.strip()]
         title = " ".join(words[:5]).title() if words else "Evolved Coding Skill"
         return f"{title} ({cap_id})"
