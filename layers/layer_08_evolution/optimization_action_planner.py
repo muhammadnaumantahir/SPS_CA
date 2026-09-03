@@ -26,6 +26,7 @@ class EvolutionActionPlan:
     source_capabilities: List[str] = field(default_factory=list)
     capability_plans: List[CapabilityPlan] = field(default_factory=list)
     rationale: List[str] = field(default_factory=list)
+    action: str = "no_action"
 
     def to_dict(self) -> dict:
         return {
@@ -34,6 +35,7 @@ class EvolutionActionPlan:
             "source_capabilities": list(self.source_capabilities),
             "capability_plans": [plan.__dict__ for plan in self.capability_plans],
             "rationale": list(self.rationale),
+            "action": self.action,
         }
 
 
@@ -66,9 +68,9 @@ class OptimizationActionPlanner:
         for evaluation in optimization_plan.candidates:
             source_capabilities.append(evaluation.capability_id)
             reason = (
-                f"Optimization cycle {optimization_plan.cycle_id} identified "
-                f"{evaluation.capability_id} as underperforming: score="
-                f"{evaluation.score:.3f}, observations={evaluation.observations}."
+                f"Optimization cycle {optimization_plan.cycle_id}: capability "
+                f"{evaluation.capability_id} is underperforming with score="
+                f"{evaluation.score:.3f} after {evaluation.observations} observations."
             )
             capability_plans.append(
                 self.gap_planner.plan(
@@ -86,6 +88,7 @@ class OptimizationActionPlanner:
             source_capabilities=source_capabilities,
             capability_plans=capability_plans,
             rationale=rationale,
+            action=("optimize_existing_capability" if source_capabilities else "create_new_capability"),
         )
 
 
