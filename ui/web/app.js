@@ -1,593 +1,68 @@
 const $ = (id) => document.getElementById(id);
-const EXT = {python:'py',javascript:'js',typescript:'ts',java:'java',go:'go',csharp:'cs'};
-const STORAGE_KEY = 'sps-ca-chat-session';
+const state = { sessionId: null, sessions: [], conversation: [], code: '', filename: 'main.py', language: 'unknown', confidence: 0, model: 'qwen2.5-coder:7b', turn: 0, view: 'chat', capabilities: [], events: [] };
+const esc = (v='') => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const defaultLayers = [
-  ['Software DNA Layer','Constraints and meta-rules.'],
-  ['Governance Layer','Decision gates and risk assessment.'],
-  ['Cognitive Layer','Reasoning and planning — Brain interface.'],
-  ['Knowledge Layer','Structured domain knowledge.'],
-  ['Experience Layer','Historical memory and feedback.'],
-  ['Meta-Learning Layer','Strategy improvement.'],
-  ['Adaptation Layer','Context-aware behavior adjustment.'],
-  ['Evolution Layer','Capability creation from failure patterns.'],
-  ['Verification & Validation Layer','Sandboxed testing.'],
-  ['Execution Layer','Applies validated changes.']
-];
-
-let session = loadSession();
-let lastTurnData = null;
-
-function esc(value = '') {
-  return String(value).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function markdown(s='') {
+  const pieces = String(s).split(/```([\w+-]*)\n([\s\S]*?)```/g); let out='';
+  for(let i=0;i<pieces.length;i+=3){ out += `<div class="rich-text">${esc(pieces[i]).replace(/\n/g,'<br>')}</div>`; if(pieces[i+1]!==undefined) out += `<div class="code-block"><div class="code-head"><span>${esc(pieces[i+1]||'code')}</span><button onclick="copyCode(this)">Copy</button></div><pre>${esc(pieces[i+2]||'')}</pre></div>`; }
+  return out;
 }
+function copyCode(btn){ navigator.clipboard.writeText(btn.closest('.code-block').querySelector('pre').textContent); btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1200); }
+function timeLabel(v){ if(!v) return ''; const d=new Date(v); return Number.isNaN(d.getTime())?'':d.toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function showDrawer(title, body){ $('drawerTitle').textContent=title; $('drawerBody').innerHTML=body; $('drawer').classList.remove('hidden'); }
+function closeDrawer(){ $('drawer').classList.add('hidden'); }
 
-// === VIEW SWITCHING ===
-function switchView(view) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  const el = $(`view-${view}`);
-  if (el) el.classList.add('active');
-  const btn = document.querySelector(`.nav-btn[data-view="${view}"]`);
-  if (btn) btn.classList.add('active');
-  if (view === 'structure') loadStructureView();
-  if (view === 'capabilities') loadCapabilitiesView();
-  if (view === 'growth') loadGrowthView();
+async function api(url, options={}){ const r=await fetch(url, options); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Request failed'); return d; }
+
+function renderSessions(){
+  const q=($('sessionSearch').value||'').toLowerCase(); const list=$('sessionList');
+  const rows=state.sessions.filter(s=>(s.title+' '+s.preview).toLowerCase().includes(q));
+  list.innerHTML=rows.length?rows.map(s=>`<button class="session-item ${s.id===state.sessionId?'selected':''}" onclick="openSession('${s.id}')"><div class="session-item-title">${esc(s.title)}</div><div class="session-item-meta">${esc(s.detected_language||'unknown')} · ${s.message_count||0} messages · ${esc(timeLabel(s.updated_at))}</div></button>`).join(''):`<div class="empty-side">No saved chats yet.</div>`;
 }
-
-// === STRUCTURE VIEW (live architecture manifest) ===
-let structureLoaded = false;
-async function loadStructureView() {
-  const pipeline = $('structurePipeline');
-  if (!pipeline) return;
-  if (structureLoaded) return;
-  try {
-    const resp = await fetch('/api/architecture');
-    const data = await resp.json();
-    const layers = data.layers || [];
-
-    pipeline.innerHTML = layers.map((l, idx) => `
-      <div class="structure-node">
-        <button class="structure-head" onclick="this.parentElement.classList.toggle('expanded')">
-          <span class="sn-num">L${String(l.number).padStart(2, '0')}</span>
-          <span class="sn-name">${esc(l.name)}</span>
-          <span class="sn-caret">▾</span>
-        </button>
-        <div class="structure-body">
-          <p>${esc(l.purpose || l.description || '')}</p>
-          ${(l.sub_components || []).length ? `<div class="sn-subs">${l.sub_components.map(s => `<span class="sn-sub">${esc(s)}</span>`).join('')}</div>` : ''}
-        </div>
-      </div>
-      ${idx < layers.length - 1 ? '<div class="structure-arrow">↓</div>' : ''}
-    `).join('');
-
-    const brain = data.brain || {};
-    $('structureBrainBody').innerHTML = `
-      <div class="info-row"><small>ROLE</small><strong>${esc(brain.role || '')}</strong></div>
-      <div class="info-row"><small>DEFAULT PROVIDER</small><strong>${esc(brain.default_provider || 'Ollama')}</strong></div>
-      <div class="info-row"><small>REPLACEABLE</small><strong>${brain.replaceable ? 'Yes — swap via models/' : 'No'}</strong></div>
-      <div class="info-row"><small>BOUNDARY</small><strong>${esc(brain.boundary || '')}</strong></div>
-    `;
-
-    const subsystems = data.supporting_subsystems || [];
-    $('structureSubsystemsBody').innerHTML = subsystems.map(s => `<span class="lang-chip">${esc(s)}</span>`).join('') || '<span class="muted-text">None listed.</span>';
-
-    structureLoaded = true;
-  } catch (e) {
-    pipeline.innerHTML = '<div class="muted-text">Failed to load architecture.</div>';
-  }
+async function refreshSessions(){ state.sessions=(await api('/api/sessions')).sessions||[]; renderSessions(); }
+async function newChat(){ const s=await api('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'New chat'})}); state.sessionId=s.id; state.conversation=[]; state.code=''; state.filename='main.py'; state.language='unknown'; state.confidence=0; state.turn=0; $('code').value=''; $('request').value=''; $('filename').value='main.py'; $('languageChip').textContent='Auto · waiting'; $('sessionTitle').textContent=s.title; renderMessages(); refreshSessions(); switchView('chat'); }
+async function openSession(id){ const s=await api('/api/sessions/'+id); state.sessionId=s.id; state.conversation=s.conversation||[]; state.code=s.code||''; state.filename=s.filename||'main.py'; state.language=s.detected_language||'unknown'; state.confidence=s.language_confidence||0; state.model=s.model||state.model; state.turn=Math.floor(state.conversation.length/2); $('code').value=state.code; $('filename').value=state.filename; $('sessionTitle').textContent=s.title; $('languageChip').textContent=`Auto · ${state.language}`; renderMessages(); renderSessions(); switchView('chat'); }
+function renderMessages(){
+  const box=$('messages'); if(!state.conversation.length){ box.innerHTML=`<div class="empty-chat"><div class="hero-icon">✦</div><h2>Build, debug, and evolve — in one chat.</h2><p>Paste code into your message or open the Code panel. SPS-CA will infer the language, reason over the request, and reuse or grow capabilities when evidence justifies it.</p><div class="starter-row"><button onclick="starter('Review this code and find the most important bug.')">Review my code</button><button onclick="starter('Add validation and explain the changes.')">Improve code</button><button onclick="starter('Generate tests for this code.')">Generate tests</button></div></div>`; return; }
+  box.innerHTML=state.conversation.map((m,i)=>{
+    const user=m.role==='user'; const td=m.turnData; const actions=!user&&td?`<div class="message-tools"><button onclick="feedback(${i},'agree')">👍 Agree</button><button onclick="feedback(${i},'disagree')">👎 Disagree</button>${td.diff?`<button onclick='showDrawer("Diff",${JSON.stringify(JSON.stringify(td.diff))})'>Diff</button>`:''}<button onclick='showDrawer("Reasoning trace",${JSON.stringify(JSON.stringify(td,null,2))})'>Trace</button></div>`:'';
+    return `<article class="message ${user?'user':'assistant'}"><div class="avatar">${user?'You':'S'}</div><div class="message-main"><div class="message-label">${user?'You':'SPS-CA'}</div><div class="bubble">${user?`<div class="rich-text">${esc(m.content).replace(/\n/g,'<br>')}</div>`:markdown(m.content)}</div>${td?`<div class="turn-badges"><span>Auto · ${esc(td.language||'unknown')}</span>${td.capability_results?.length?`<span>Capability · ${esc(td.capability_results.at(-1)?.name||td.capability_results.at(-1)?.id)}</span>`:''}<span>${td.language_confidence?`${Math.round(td.language_confidence*100)}% confidence`:''}</span></div>`:''}${actions}</div></article>`;
+  }).join(''); box.scrollTop=box.scrollHeight;
 }
+function starter(t){ $('request').value=t; $('request').focus(); }
 
-// === MINI PIPELINE ===
-function renderMiniPipeline(layers) {
-  const el = $('miniPipeline');
-  if (!el) return;
-  el.innerHTML = (layers || defaultLayers.map((x,i) => ({number:i+1,name:x[0],status:'ready'}))).map(l =>
-    `<div class="mini-layer"><span class="ml-num">L${String(l.number).padStart(2,'0')}</span><span>${esc(l.name)}</span><span class="ml-status">${esc(l.status||'ready')}</span></div>`
-  ).join('');
+async function send(){
+  const request=$('request').value.trim(); if(!request) return; if(!state.sessionId) await newChat();
+  const code=$('code').value; state.code=code; $('sendBtn').disabled=true; $('sendBtn').textContent='Thinking…';
+  const conversation=state.conversation.map(m=>({role:m.role,content:m.content}));
+  try{
+    const d=await api('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:state.sessionId,request,code,filename:$('filename').value||'main.py',model:state.model,conversation})});
+    state.language=d.language||'unknown'; state.confidence=d.language_confidence||0; state.code=d.output_code||code; state.conversation=(d.conversation||[]).map((m)=>({role:m.role,content:m.content}));
+    // Attach turn data to the matching assistant message so feedback is per-turn.
+    const last=state.conversation.at(-1); if(last?.role==='assistant') last.turnData=d;
+    state.turn=Math.floor(state.conversation.length/2); $('request').value=''; $('code').value=state.code; $('languageChip').textContent=`Auto · ${state.language}`; $('sessionTitle').textContent=d.session?.title||$('sessionTitle').textContent; $('turnPill').textContent=`Turn ${state.turn}`; renderMessages(); await refreshSessions();
+  }catch(e){ state.conversation.push({role:'assistant',content:`I could not complete this turn.\n\n${e.message}`}); renderMessages(); }
+  finally{ $('sendBtn').disabled=false; $('sendBtn').textContent='Send ↗'; }
 }
-
-// === MARKDOWN-LITE RENDERING (fenced code blocks, like a normal chatbot) ===
-let codeBlockCounter = 0;
-
-function renderCodeBlock(lang, code) {
-  const id = `codeblock-${++codeBlockCounter}`;
-  return `<div class="code-block">
-    <div class="code-block-head">
-      <span class="code-block-lang">${esc(lang || 'code')}</span>
-      <button type="button" class="code-copy-btn" onclick="copyCodeBlock('${id}', this)">Copy</button>
-    </div>
-    <pre><code id="${id}">${esc(code)}</code></pre>
-  </div>`;
+async function feedback(messageIndex,type){
+  const m=state.conversation[messageIndex]; if(!m?.turnData) return; const td=m.turnData; const capability=td.capability_results?.at(-1)?.capability_id||'';
+  try{
+    const d=await api('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:state.sessionId,turn_id:Math.ceil(messageIndex/2),feedback:type,request:td.intent||'',code:td.output_code||state.code,language:td.language||state.language,language_confidence:td.language_confidence||state.confidence,capability_id:capability})});
+    if(type==='disagree'){ const ev=d.evolution||{}; showDrawer(ev.decision==='create'?'Capability created':'Evolution analysis', evolutionPanel(ev)); await refreshEvolution(); }
+  }catch(e){ showDrawer('Feedback error',`<p>${esc(e.message)}</p>`); }
 }
+function evolutionPanel(e){ return `<div class="evidence-grid"><div><span>Decision</span><strong class="decision ${esc(e.decision||'defer')}">${esc(e.decision||'defer')}</strong></div><div><span>Disagreements</span><strong>${esc(e.disagreement_count)}</strong></div><div><span>Pattern</span><strong>${esc(e.failure_pattern||'—')}</strong></div></div><h3>Why</h3><p>${esc(e.reasoning||'No reasoning supplied.')}</p><h3>Evidence</h3><p>${esc(e.evidence_summary||'—')}</p>${e.created_capability_id?`<div class="created-callout"><strong>${esc(e.created_capability_id)} · ${esc(e.capability_name||'New capability')}</strong><p>This capability was registered through the Evolution layer and can now be reused.</p></div>`:''}<pre class="trace-pre">${esc(JSON.stringify(e,null,2))}</pre>`; }
 
-function renderInlineText(text) {
-  if (!text || !text.trim()) return '';
-  const withInlineCode = esc(text).replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-  const paragraphs = withInlineCode.trim().split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`);
-  return paragraphs.join('');
-}
+async function loadArchitecture(){ const d=await api('/api/architecture'); $('architectureFlow').innerHTML=(d.layers||[]).map((l,i)=>`<button class="layer-card ${i===0?'first':''}" onclick='showDrawer(${JSON.stringify(esc(l.name))},${JSON.stringify(`<p>${esc(l.purpose)}</p><div class="chip-row">${(l.sub_components||[]).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`)})'><span>L${String(l.number).padStart(2,'0')}</span><div><strong>${esc(l.name)}</strong><small>${esc(l.purpose)}</small></div><b>›</b></button>`).join('<div class="flow-line">↓</div>'); $('architectureAside').innerHTML=`<div class="eyebrow">SEPARATE SERVICE</div><h2>🧠 Brain</h2><p>The model intelligence remains separate from the ten layers and from executable capabilities.</p><div class="evidence-grid"><div><span>Provider</span><strong>${esc(d.brain?.default_provider||'Ollama')}</strong></div><div><span>Replaceable</span><strong>${d.brain?.replaceable?'Yes':'No'}</strong></div></div><h3>Supporting subsystems</h3><div class="chip-row">${(d.supporting_subsystems||[]).map(x=>`<span>${esc(x)}</span>`).join('')}</div>`; }
+async function loadCapabilities(){ state.capabilities=(await api('/api/capabilities')).capabilities||[]; renderCapabilities(); }
+function renderCapabilities(){ const q=($('capSearch').value||'').toLowerCase(); const caps=state.capabilities.filter(c=>(c.name+' '+c.description+' '+c.id).toLowerCase().includes(q)); $('capGrid').innerHTML=caps.map(c=>`<article class="cap-card" onclick='showCapability(${JSON.stringify(c.id)})'><div class="cap-top"><span class="cap-id">${esc(c.id)}</span><span class="status ${c.usable?'active':'inactive'}">● ${esc(c.status)}</span></div><h3>${esc(c.name)}</h3><p>${esc(c.description)}</p><div class="cap-stats"><span>${c.generated?'Generated':'Seed'}</span><span>${esc(c.version)}</span><span>${c.reuse_count||0} uses</span></div>${c.failure_pattern?`<div class="grown-from">Grown from · ${esc(c.failure_pattern)}</div>`:''}</article>`).join('')||'<div class="empty-state">No capabilities match your search.</div>'; }
+async function showCapability(id){ const c=state.capabilities.find(x=>x.id===id); if(!c) return; const lineage=await api('/api/evolution/capability/'+id); const p=lineage.provenance||{}; showDrawer(`${c.id} · ${c.name}`,`<div class="detail-stack"><div class="evidence-grid"><div><span>Status</span><strong>${esc(c.status)}</strong></div><div><span>Origin</span><strong>${esc(c.generated?'Generated':'Seed')}</strong></div><div><span>Created</span><strong>${esc(timeLabel(c.created_date))}</strong></div></div><h3>What it does</h3><p>${esc(c.description)}</p><h3>Why it exists</h3><p>${esc(p.reasoning||c.failure_pattern||'Seed capability defined by the SPS baseline.')}</p><h3>How it was created</h3><div class="flow-mini">${['Experience evidence','Meta-learning','Adaptation','Evolution reasoning','Validation','Capability Registry'].map(x=>`<span>${x}</span>`).join('→')}</div><h3>Lineage</h3><p>Parent: <strong>${esc(p.parent_capability_id||'Seed / no parent')}</strong></p><h3>Evidence</h3><p>${esc(p.evidence_summary||'—')}</p><h3>Trigger events</h3><pre class="trace-pre">${esc(JSON.stringify(lineage.events||[],null,2))}</pre></div>`); }
+async function refreshEvolution(){ const d=await api('/api/evolution'); state.events=d.events||[]; const created=state.events.filter(e=>e.event_type==='capability_created').length; const disagreements=state.events.filter(e=>e.event_type==='disagreement').length; $('evolutionStats').innerHTML=[['Events',state.events.length],['Disagreements',disagreements],['Created',created]].map(x=>`<div class="stat"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join(''); $('evolutionTimeline').innerHTML=state.events.map(e=>`<article class="timeline-item"><div class="timeline-dot"></div><div><div class="timeline-top"><strong>${esc(e.event_type.replaceAll('_',' '))}</strong><span>${esc(timeLabel(e.timestamp))}</span></div><p>${esc(e.reasoning||e.evidence_summary||e.request||'')}</p>${e.created_capability_id?`<button onclick='showCapability(${JSON.stringify(e.created_capability_id)})'>Open ${esc(e.created_capability_id)} →</button>`:''}</div></article>`).join('')||'<div class="empty-state">Evolution history will appear here after feedback.</div>'; }
 
-function renderMarkdown(content) {
-  if (!content) return '';
-  const parts = String(content).split(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g);
-  let html = '';
-  for (let i = 0; i < parts.length; i++) {
-    if (i % 3 === 0) {
-      html += renderInlineText(parts[i]);
-    } else {
-      html += renderCodeBlock(parts[i], parts[i + 1] || '');
-      i += 1;
-    }
-  }
-  return html;
-}
+function switchView(view){ state.view=view; document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); document.querySelectorAll('.side-nav').forEach(v=>v.classList.toggle('active',v.dataset.view===view)); const target=$(`view-${view}`); if(target) target.classList.add('active'); $('pageTitle').textContent=view[0].toUpperCase()+view.slice(1); if(view==='architecture') loadArchitecture(); if(view==='capabilities') loadCapabilities(); if(view==='evolution') refreshEvolution(); }
 
-function copyCodeBlock(id, btn) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  navigator.clipboard.writeText(el.textContent).then(() => {
-    const original = btn.textContent;
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
-  });
-}
-
-function toggleDetail(id) {
-  const el = $(id);
-  if (el) el.classList.toggle('hidden');
-}
-
-// === MESSAGES ===
-function renderMessages() {
-  const messages = $('messages');
-  if (!session.conversation.length) {
-    messages.innerHTML = `<div class="welcome-msg"><div class="welcome-icon">✦</div><div><strong>Hello — I'm SPS-CA.</strong><p>Attach code, describe the task, and keep talking — I'll reply with explanation and code together, right here in the chat. Every response has Agree/Disagree — disagree to trigger capability evolution.</p></div></div>`;
-    return;
-  }
-  let html = '';
-  session.conversation.forEach((msg, idx) => {
-    const isUser = msg.role === 'user';
-    html += `<div class="message-row ${isUser ? 'user-message' : 'assistant-message'}">
-      <div class="message-avatar">${isUser ? 'U' : 'S'}</div>
-      <div class="message-content">
-        <div class="message-role">${isUser ? 'You' : 'SPS-CA'}</div>
-        <div class="message-bubble">${isUser ? `<p>${esc(msg.content).replace(/\n/g, '<br>')}</p>` : renderMarkdown(msg.content)}</div>
-      </div>
-    </div>`;
-    // Add feedback + diff/trace toggles after assistant messages from this session
-    if (!isUser && msg.content && msg.turnData) {
-      const tid = msg.turnId || idx;
-      const hasDiff = msg.turnData.diff && msg.turnData.diff.trim();
-      html += `<div class="feedback-row" id="feedback-${tid}">
-        <button class="feedback-btn agree" onclick="sendFeedback(${tid}, 'agree')" id="agree-${tid}">👍 Agree</button>
-        <button class="feedback-btn disagree" onclick="sendFeedback(${tid}, 'disagree')" id="disagree-${tid}">👎 Disagree — create capability</button>
-        ${hasDiff ? `<button class="feedback-btn detail-toggle" onclick="toggleDetail('diff-${tid}')">🔍 Diff</button>` : ''}
-        <button class="feedback-btn detail-toggle" onclick="toggleDetail('trace-${tid}')">🧬 Trace</button>
-      </div>
-      ${hasDiff ? `<pre class="detail-block hidden" id="diff-${tid}">${esc(msg.turnData.diff)}</pre>` : ''}
-      <pre class="detail-block hidden" id="trace-${tid}">${esc(JSON.stringify(msg.turnData, null, 2))}</pre>`;
-    }
-  });
-  messages.innerHTML = html;
-  messages.scrollTop = messages.scrollHeight;
-}
-
-// === FEEDBACK (AGREE / DISAGREE) ===
-async function sendFeedback(turnId, type) {
-  const agreeBtn = $(`agree-${turnId}`);
-  const disagreeBtn = $(`disagree-${turnId}`);
-  if (agreeBtn) agreeBtn.disabled = true;
-  if (disagreeBtn) disagreeBtn.disabled = true;
-
-  try {
-    const response = await fetch('/api/feedback', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        turn_id: turnId,
-        feedback: type,
-        request: lastTurnData?.intent || '',
-        code: $('code').value,
-        language: session.language,
-        capability_id: lastTurnData?.capability_results?.slice(-1)?.[0]?.capability_id || '',
-      }),
-    });
-    const data = await response.json();
-
-    if (type === 'disagree' && data.evolution) {
-      // Show evolution notification
-      const fb = $(`feedback-${turnId}`);
-      if (fb) {
-        const note = document.createElement('div');
-        note.className = 'muted-text';
-        note.style.cssText = 'margin-top:6px;font-size:11px;';
-        note.textContent = data.evolution.capability_id
-          ? `🔄 Evolution triggered — new capability ${data.evolution.capability_id} is being analyzed.`
-          : `🔄 Disagreement recorded. Pattern will trigger evolution after repeated failures.`;
-        fb.appendChild(note);
-      }
-      if (agreeBtn) agreeBtn.style.display = 'none';
-      if (disagreeBtn) { disagreeBtn.classList.add('sent'); disagreeBtn.textContent = '👎 Disagreed'; }
-    } else {
-      if (agreeBtn) { agreeBtn.classList.add('sent'); agreeBtn.textContent = '👍 Agreed'; }
-      if (disagreeBtn) disagreeBtn.style.display = 'none';
-    }
-  } catch (e) {
-    console.error('Feedback error:', e);
-    if (agreeBtn) agreeBtn.disabled = false;
-    if (disagreeBtn) disagreeBtn.disabled = false;
-  }
-}
-
-// === CAPABILITIES VIEW ===
-let capsCache = [];
-let capsFilter = 'all';
-
-function capMatchesFilter(cap, filter) {
-  if (filter === 'all') return true;
-  if (filter === 'usable') return !!cap.usable;
-  if (filter === 'deprecated') return !cap.usable;
-  if (filter === 'seed') return !cap.generated;
-  if (filter === 'generated') return !!cap.generated;
-  return true;
-}
-
-function renderCapsGrid() {
-  const grid = $('capsGrid');
-  if (!grid) return;
-  const caps = capsCache.filter(c => capMatchesFilter(c, capsFilter));
-  if (!caps.length) {
-    grid.innerHTML = '<div class="muted-text">No capabilities match this filter.</div>';
-    return;
-  }
-  grid.innerHTML = caps.map(cap => `
-    <div class="cap-card ${cap.generated ? 'generated' : 'seed'} ${cap.usable ? '' : 'cap-deprecated'}">
-      <div class="cap-card-top">
-        <div class="cap-id">${esc(cap.id)}</div>
-        <span class="cap-usable-badge ${cap.usable ? 'usable' : 'unusable'}">${cap.usable ? '● Usable' : '○ ' + esc(cap.status || 'inactive')}</span>
-      </div>
-      <h3>${esc(cap.name)}</h3>
-      <p>${esc(cap.description)}</p>
-      <div class="cap-meta">
-        <div><span>Version</span> <strong>${esc(cap.version)}</strong></div>
-        <div><span>Origin</span> <strong>${cap.generated ? 'Generated' : 'Seed'}</strong></div>
-        <div><span>Reused</span> <strong>${cap.reuse_count ?? 0}×</strong></div>
-        <div><span>Test coverage</span> <strong>${Math.round((cap.test_coverage || 0) * 100)}%</strong></div>
-      </div>
-      <div class="cap-langs">${(cap.supported_languages && cap.supported_languages.length ? cap.supported_languages : (cap.tags || [])).map(l => `<span class="lang-chip sm">${esc(l)}</span>`).join('') || '<span class="muted-text">all languages</span>'}</div>
-      ${cap.failure_pattern ? `<div class="cap-failure-pattern"><small>Grown from</small> ${esc(cap.failure_pattern)}</div>` : ''}
-    </div>
-  `).join('');
-}
-
-async function loadCapabilitiesView() {
-  const grid = $('capsGrid');
-  if (!grid) return;
-  grid.innerHTML = '<div class="muted-text">Loading capabilities…</div>';
-  try {
-    const resp = await fetch('/api/capabilities');
-    const data = await resp.json();
-    capsCache = data.capabilities || [];
-    renderCapsGrid();
-  } catch (e) {
-    grid.innerHTML = '<div class="muted-text">Failed to load capabilities.</div>';
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const filterBar = $('capsFilter');
-  if (filterBar) {
-    filterBar.addEventListener('click', (e) => {
-      const btn = e.target.closest('.chip-filter');
-      if (!btn) return;
-      filterBar.querySelectorAll('.chip-filter').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      capsFilter = btn.dataset.filter;
-      renderCapsGrid();
-    });
-  }
+document.addEventListener('DOMContentLoaded', async()=>{
+  $('newChatBtn').onclick=newChat; $('sessionSearch').oninput=renderSessions; $('chatForm').onsubmit=e=>{e.preventDefault();send();}; $('codeToggle').onclick=()=> $('codePanel').classList.toggle('hidden'); $('clearCode').onclick=()=>{$('code').value='';state.code='';}; $('drawerClose').onclick=closeDrawer; $('drawer').querySelector('.drawer-backdrop').onclick=closeDrawer; $('capSearch').oninput=renderCapabilities; $('mobileMenu').onclick=()=>document.body.classList.toggle('sidebar-open');
+  document.querySelectorAll('.side-nav').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+  await refreshSessions(); if(state.sessions[0]) await openSession(state.sessions[0].id); else await newChat();
 });
-
-// === GROWTH VIEW ===
-function renderGrowthChart(series) {
-  const el = $('growthChart');
-  if (!el) return;
-  if (!series || series.length < 2) {
-    el.innerHTML = '<div class="muted-text">Not enough history yet — disagree with a result to start tracking growth.</div>';
-    return;
-  }
-  const values = series.map(p => p.capabilities);
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const w = 640, h = 160, pad = 24;
-  const range = Math.max(max - min, 1);
-  const stepX = (w - pad * 2) / (series.length - 1);
-  const points = values.map((v, i) => {
-    const x = pad + i * stepX;
-    const y = h - pad - ((v - min) / range) * (h - pad * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const line = points.join(' ');
-  const area = `${pad},${h - pad} ${line} ${w - pad},${h - pad}`;
-  const dots = values.map((v, i) => {
-    const [x, y] = points[i].split(',');
-    return `<circle cx="${x}" cy="${y}" r="3.5" class="growth-dot"></circle>`;
-  }).join('');
-  el.innerHTML = `
-    <svg viewBox="0 0 ${w} ${h}" class="growth-svg" preserveAspectRatio="none">
-      <polygon points="${area}" class="growth-area"></polygon>
-      <polyline points="${line}" class="growth-line"></polyline>
-      ${dots}
-    </svg>
-    <div class="growth-chart-labels"><span>start</span><span>now — ${values[values.length - 1]} capabilities</span></div>
-  `;
-}
-
-async function loadGrowthView() {
-  const stats = $('growthStats');
-  const timeline = $('growthTimeline');
-  if (!stats || !timeline) return;
-
-  try {
-    const resp = await fetch('/api/growth');
-    const data = await resp.json();
-
-    stats.innerHTML = `
-      <div class="stat-card"><div class="stat-value">${data.total_capabilities || 0}</div><div class="stat-label">Total Capabilities</div></div>
-      <div class="stat-card"><div class="stat-value">${data.usable_capabilities ?? data.total_capabilities ?? 0}</div><div class="stat-label">Usable Now</div></div>
-      <div class="stat-card"><div class="stat-value">${data.seed_capabilities || 0}</div><div class="stat-label">Seed Capabilities</div></div>
-      <div class="stat-card"><div class="stat-value">${data.generated_capabilities || 0}</div><div class="stat-label">Generated Capabilities</div></div>
-      <div class="stat-card"><div class="stat-value">${data.total_disagreements || 0}</div><div class="stat-label">User Disagreements</div></div>
-      <div class="stat-card"><div class="stat-value">${data.total_agreements || 0}</div><div class="stat-label">User Agreements</div></div>
-      <div class="stat-card"><div class="stat-value">${data.total_tasks || 0}</div><div class="stat-label">Total Tasks</div></div>
-      <div class="stat-card"><div class="stat-value">${data.success_rate || '—'}</div><div class="stat-label">Success Rate</div></div>
-    `;
-
-    renderGrowthChart(data.growth_series);
-
-    if (data.timeline && data.timeline.length) {
-      timeline.innerHTML = data.timeline.map(entry => `
-        <div style="padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--panel3);">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong style="font-size:13px;">${esc(entry.event || 'Task')}</strong>
-            <span style="font-size:10px;color:var(--muted);">${esc(entry.timestamp || '')}</span>
-          </div>
-          <p style="margin:4px 0 0;font-size:11px;color:var(--muted);">${esc(entry.description || '')}</p>
-        </div>
-      `).join('');
-    } else {
-      timeline.innerHTML = '<div class="timeline-empty">No evolution events yet. Use the chat and disagree with results to trigger capability growth.</div>';
-    }
-  } catch (e) {
-    stats.innerHTML = '<div class="muted-text">Failed to load growth data.</div>';
-    timeline.innerHTML = '';
-  }
-}
-
-// === SESSION ===
-const STORAGE_KEY_HISTORY = 'sps-ca-chat-history';
-const MAX_HISTORY = 30;
-
-function loadSession() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return {
-      conversation: Array.isArray(saved.conversation) ? saved.conversation : [],
-      code: typeof saved.code === 'string' ? saved.code : 'def add(a, b):\n    return a + b\n',
-      language: saved.language || 'python',
-      filename: saved.filename || 'main.py',
-      turns: Number(saved.turns || 0),
-    };
-  } catch { return {conversation:[], code:'def add(a, b):\n    return a + b\n', language:'python', filename:'main.py', turns:0}; }
-}
-function saveSession() { localStorage.setItem(STORAGE_KEY, JSON.stringify(session)); }
-function syncSessionMeta() {
-  $('turnCount').textContent = `Turn ${session.turns}`;
-  $('sessionTurns').textContent = String(session.turns);
-  $('sessionLanguage').textContent = session.language;
-  $('sessionFile').textContent = session.filename;
-}
-
-// === CHAT HISTORY (backups of past chats, kept in localStorage) ===
-function loadHistory() {
-  try {
-    const list = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
-    return Array.isArray(list) ? list : [];
-  } catch { return []; }
-}
-function saveHistory(list) {
-  localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(list.slice(0, MAX_HISTORY)));
-}
-function sessionTitle(sess) {
-  const firstUser = sess.conversation.find(m => m.role === 'user');
-  if (!firstUser || !firstUser.content) return 'Untitled chat';
-  const text = firstUser.content.trim().replace(/\s+/g, ' ');
-  return text.length > 48 ? text.slice(0, 48) + '…' : text;
-}
-function backupCurrentSession() {
-  if (!session.conversation.length) return; // nothing to back up
-  const history = loadHistory();
-  history.unshift({
-    id: `chat-${Date.now()}`,
-    title: sessionTitle(session),
-    timestamp: new Date().toISOString(),
-    turns: session.turns,
-    language: session.language,
-    session: JSON.parse(JSON.stringify(session)),
-  });
-  saveHistory(history);
-}
-function renderHistoryPanel() {
-  const panel = $('historyPanel');
-  if (!panel) return;
-  const history = loadHistory();
-  if (!history.length) {
-    panel.innerHTML = '<div class="muted-text history-empty">No backed-up chats yet. Starting a new chat backs up the current one here.</div>';
-    return;
-  }
-  panel.innerHTML = history.map(h => `
-    <div class="history-item">
-      <div class="history-item-main" onclick="restoreSession('${h.id}')">
-        <div class="history-item-title">${esc(h.title)}</div>
-        <div class="history-item-meta">${esc(h.language)} · ${h.turns} turn${h.turns === 1 ? '' : 's'} · ${new Date(h.timestamp).toLocaleString()}</div>
-      </div>
-      <button class="history-delete" onclick="deleteHistoryItem(event, '${h.id}')" title="Delete backup">✕</button>
-    </div>
-  `).join('');
-}
-function toggleHistoryPanel() {
-  const panel = $('historyPanel');
-  panel.classList.toggle('hidden');
-  if (!panel.classList.contains('hidden')) renderHistoryPanel();
-}
-function restoreSession(id) {
-  const history = loadHistory();
-  const entry = history.find(h => h.id === id);
-  if (!entry) return;
-  backupCurrentSession(); // don't lose whatever's currently open
-  session = entry.session;
-  saveSession();
-  $('language').value = session.language;
-  $('code').value = session.code;
-  renderMessages();
-  syncSessionMeta();
-  $('historyPanel').classList.add('hidden');
-}
-function deleteHistoryItem(event, id) {
-  event.stopPropagation();
-  saveHistory(loadHistory().filter(h => h.id !== id));
-  renderHistoryPanel();
-}
-
-// === SEND MESSAGE ===
-async function sendMessage(event) {
-  event?.preventDefault();
-  const request = $('request').value.trim();
-  const code = $('code').value;
-  if (!request || !code || $('runBtn').disabled) return;
-
-  session.language = $('language').value;
-  session.filename = `main.${EXT[session.language] || 'txt'}`;
-  session.code = code;
-  $('runBtn').disabled = true;
-  $('runBtn').innerHTML = 'Thinking… <span class="spinner"></span>';
-  $('pipelineState').textContent = 'Reasoning';
-
-  try {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        request, code, language: session.language,
-        filename: session.filename, model: $('model').value,
-        conversation: session.conversation,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok && !data.assistant_message) throw new Error(data.error || 'Request failed');
-
-    const turnId = session.turns;
-    const assistantMsg = data.assistant_message || data.error || 'No response.';
-
-    session.conversation = Array.isArray(data.conversation)
-      ? data.conversation.map((m, i) => {
-          // Mark the last assistant message with turnData for feedback buttons
-          if (m.role === 'assistant' && i === data.conversation.length - 1) {
-            return {...m, turnData: data, turnId: turnId};
-          }
-          return m;
-        })
-      : [
-          ...session.conversation,
-          {role:'user', content:request},
-          {role:'assistant', content:assistantMsg, turnData:data, turnId:turnId},
-        ];
-
-    lastTurnData = data;
-    session.code = data.output_code || code;
-    session.turns += 1;
-    $('code').value = session.code;
-    $('request').value = '';
-    saveSession();
-    renderMessages();
-    syncSessionMeta();
-    applyTurn(data);
-  } catch (error) {
-    $('pipelineState').textContent = 'Failed';
-    $('reasoning').innerHTML = `<span class="error-text">${esc(error.message)}</span>`;
-  } finally {
-    $('runBtn').disabled = false;
-    $('runBtn').innerHTML = 'Send <span>&#x2197;</span>';
-  }
-}
-
-// === APPLY TURN RESULTS ===
-function applyTurn(data) {
-  $('pipelineState').textContent = data.success ? 'Complete' : 'Needs attention';
-  const layers = data.layers || defaultLayers.map((x,i) => ({number:i+1,name:x[0],status:'ready'}));
-  renderMiniPipeline(layers);
-  $('brainProvider').textContent = data.brain?.provider || 'Ollama';
-  $('providerText').textContent = data.brain?.provider || 'Ollama';
-  $('modelText').textContent = data.brain?.model || $('model').value;
-  $('reasoning').innerHTML = `<b>Intent</b><p>${esc(data.intent)}</p><b>Reasoning</b><p>${esc(data.reasoning || 'The Brain produced the plan.')}</p>`;
-}
-
-// === NEW CHAT ===
-function newChat() {
-  backupCurrentSession();
-  session = {conversation:[], code:$('code').value, language:$('language').value, filename:`main.${EXT[$('language').value]||'txt'}`, turns:0};
-  localStorage.removeItem(STORAGE_KEY);
-  lastTurnData = null;
-  renderMessages();
-  syncSessionMeta();
-  $('request').value = '';
-  $('pipelineState').textContent = 'Ready';
-  $('reasoning').innerHTML = '<span class="muted-text">Waiting for your first request…</span>';
-  renderMiniPipeline();
-}
-
-// === LOAD SAMPLE ===
-function loadSample() {
-  const code = `def divide(a, b):\n    return a / b\n`;
-  $('code').value = code;
-  $('request').value = 'Add input validation to this function so division by zero is handled safely.';
-  session.code = code;
-  session.language = 'python';
-  session.filename = 'main.py';
-  saveSession();
-  syncSessionMeta();
-}
-
-// === EVENT LISTENERS ===
-$('chatForm').addEventListener('submit', sendMessage);
-$('newChatBtn').addEventListener('click', newChat);
-$('historyBtn').addEventListener('click', toggleHistoryPanel);
-$('sampleBtn').addEventListener('click', loadSample);
-$('collapseCodeBtn').addEventListener('click', () => {
-  $('codeDock').classList.toggle('collapsed');
-  $('collapseCodeBtn').textContent = $('codeDock').classList.contains('collapsed') ? 'Open' : 'Close';
-});
-$('attachCodeBtn').addEventListener('click', () => {
-  $('codeDock').classList.remove('collapsed');
-  $('collapseCodeBtn').textContent = 'Close';
-  $('codeDock').scrollIntoView({behavior:'smooth', block:'center'});
-});
-$('language').addEventListener('change', () => {
-  session.language = $('language').value;
-  session.filename = `main.${EXT[session.language]||'txt'}`;
-  syncSessionMeta(); saveSession();
-});
-$('model').addEventListener('input', () => $('modelText').textContent = $('model').value);
-$('code').addEventListener('input', () => { session.code = $('code').value; saveSession(); });
-
-// === INIT ===
-(function init() {
-  $('language').value = session.language;
-  $('code').value = session.code;
-  $('modelText').textContent = $('model').value;
-  renderMessages();
-  syncSessionMeta();
-  renderMiniPipeline();
-})();
