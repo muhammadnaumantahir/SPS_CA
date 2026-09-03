@@ -45,7 +45,9 @@ def run_live(
     language: str,
     keep_workspace: bool,
 ) -> dict:
+    """Run one provider-backed Evolution cycle inside a disposable workspace."""
     source = repo_root.resolve()
+    original_cwd = Path.cwd()
     workspace = Path(tempfile.mkdtemp(prefix="sps_ca_live_evolution_"))
     try:
         shutil.copytree(
@@ -92,6 +94,7 @@ def run_live(
             "temporary_workspace": str(target),
         }
     finally:
+        os.chdir(original_cwd)
         if not keep_workspace:
             shutil.rmtree(workspace, ignore_errors=True)
 
