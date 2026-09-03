@@ -9,6 +9,7 @@ from .controlled_evolution import ControlledEvolutionEngine
 from .evolution_engine import EvolutionError
 from .gap_planner import CapabilityGapPlanner
 from .governed_self_programming import SelfProgrammingEngine
+from .optimization_action_planner import EvolutionActionPlan, OptimizationActionPlanner
 from .retirement import GovernedRetirementManager, RetirementRecommendation
 from .self_programming import FailureDiagnosis, SelfProgrammingError, SelfRepairResult
 from .models import (
@@ -28,9 +29,12 @@ __all__ = [
     "ControlledEvolutionEngine",
     "EvolutionError",
     "CapabilityGapPlanner",
+    "OptimizationActionPlanner",
+    "EvolutionActionPlan",
     "SelfProgrammingEngine",
     "SelfProgrammingError",
-    "SelfRepairResult",
+    "FailureDiagnosis",
+    "SelfRepairError" if False else "SelfRepairResult",
     "GovernedRetirementManager",
     "RetirementRecommendation",
     "CapabilityPlan",
