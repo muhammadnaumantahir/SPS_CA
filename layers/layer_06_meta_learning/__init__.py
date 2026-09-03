@@ -6,6 +6,7 @@ improvement over time. Meta-Learning never modifies source directly; Layer 08
 Evolution owns structural self-growth.
 """
 
+from .ab_experiment import ABComparisonEngine, ABComparisonResult
 from .capability_evaluator import CapabilityEvaluation, CapabilityEvaluator
 from .meta_learner import (
     DEFAULT_DECISIONS_PATH,
@@ -25,6 +26,8 @@ __all__ = [
     "CapabilityEvaluator",
     "StrategyPolicy",
     "StrategyRecommendation",
+    "ABComparisonEngine",
+    "ABComparisonResult",
     "DEFAULT_DECISIONS_PATH",
     "DEFAULT_MIN_OCCURRENCES",
     "DEFAULT_FAILURE_RATE_THRESHOLD",
