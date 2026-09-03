@@ -15,6 +15,7 @@ from .meta_learner import (
     MetaLearningDecisionLog,
 )
 from .models import MetaLearningDecision
+from .strategy_policy import StrategyPolicy, StrategyRecommendation
 
 __all__ = [
     "MetaLearner",
@@ -22,6 +23,8 @@ __all__ = [
     "MetaLearningDecision",
     "CapabilityEvaluation",
     "CapabilityEvaluator",
+    "StrategyPolicy",
+    "StrategyRecommendation",
     "DEFAULT_DECISIONS_PATH",
     "DEFAULT_MIN_OCCURRENCES",
     "DEFAULT_FAILURE_RATE_THRESHOLD",
