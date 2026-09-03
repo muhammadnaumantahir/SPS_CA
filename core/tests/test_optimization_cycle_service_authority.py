@@ -1,3 +1,4 @@
+from layers.layer_05_experience import ExperienceLog
 from layers.layer_08_evolution import CapabilityPlan, EvolutionActionPlan, EvolutionExecutionAuthority
 from core.optimization_cycle_service import OptimizationCycleService
 
@@ -35,7 +36,7 @@ def _action():
 def test_authorized_action_executes_through_evolution(tmp_path):
     evolution = FakeEvolution()
     service = OptimizationCycleService(
-        experience=__import__("layers.layer_05_experience", fromlist=["ExperienceLog"]).ExperienceLog(),
+        experience=ExperienceLog(),
         evolution=evolution,
         execution_authority=EvolutionExecutionAuthority(enabled=True, max_actions_per_cycle=1, source="test"),
         state_path=str(tmp_path / "state.json"),
@@ -49,7 +50,7 @@ def test_authorized_action_executes_through_evolution(tmp_path):
 def test_unauthorized_action_does_not_execute(tmp_path):
     evolution = FakeEvolution()
     service = OptimizationCycleService(
-        experience=__import__("layers.layer_05_experience", fromlist=["ExperienceLog"]).ExperienceLog(),
+        experience=ExperienceLog(),
         evolution=evolution,
         execution_authority=EvolutionExecutionAuthority(enabled=False, max_actions_per_cycle=1, source="test"),
         state_path=str(tmp_path / "state.json"),
