@@ -36,6 +36,11 @@ def test_security_review_then_patch_is_mixed():
     assert Brain.infer_intent_class(request, "def load(value):\n    return value\n", "main.py") == "mixed"
 
 
+def test_analysis_plus_project_documentation_is_mixed_not_modification():
+    request = "Analyze this module, then add project-level documentation for it."
+    assert Brain.infer_intent_class(request, "def add(a, b):\n    return a + b\n", "main.py") == "mixed"
+
+
 def test_validation_only_stays_validation():
     request = "Validate this code for syntax correctness and report the result without rewriting it."
     assert Brain.infer_intent_class(request, "def add(a, b):\n    return a + b\n", "main.py") == "validation"
