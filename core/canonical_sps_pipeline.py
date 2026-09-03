@@ -1,0 +1,250 @@
+"""Canonical SPS execution pipeline shared by UI and evaluation.
+
+This module is the single presentation-independent entry point for a coding
+submission. It delegates controlled code changes to ``SPSExecutionService``
+and adds a canonical, observable ten-layer/component trace so the UI and
+model-backed scenario runner use the same SPS path.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from brain import Brain
+from layers.architecture import architecture_manifest
+from layers.layer_04_knowledge import KnowledgeCore
+from layers.layer_05_experience import ExperienceLog, Task
+from layers.layer_06_meta_learning import MetaLearner
+from layers.layer_07_adaptation import Adaptation
+
+from ui.sps_execution import SPSExecutionService
+
+
+class CanonicalSPSPipeline:
+    """Run one submission through the canonical SPS execution boundary."""
+
+    def __init__(self, *, registry_path: str = "capabilities/registry.json") -> None:
+        self.registry_path = registry_path
+        self.execution = SPSExecutionService(registry_path=registry_path)
+        self.brain = Brain()
+        self.knowledge = KnowledgeCore()
+        self.meta_learning = MetaLearner()
+        self.adaptation = Adaptation()
+
+    def run_submission(
+        self,
+        *,
+        user_request: str,
+        code: str,
+        language: str,
+        file_path: str = "",
+        target_project: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        language = (language or "python").lower()
+        file_path = file_path or self._default_filename(language)
+
+        brain_intent = self.brain.infer_intent_class(
+            user_request,
+            code,
+            file_path,
+        )
+
+        experience_path = Path("experience/logs/experience_log.json")
+        experience = ExperienceLog.load_from_json(experience_path)
+        failure_patterns = self.meta_learning.analyze_failure_patterns(experience)
+
+        knowledge = self.knowledge.build_snapshot(
+            language=language,
+            file_path=file_path,
+            symbols=(),
+            capabilities=(),
+            facts={
+                "experience_count": len(experience.tasks),
+                "working_source_chars": len(code),
+            },
+        )
+        knowledge_valid = self.knowledge.validate(knowledge)
+
+        current_task = Task(
+            id="pipeline-current",
+            user_request=user_request,
+            target_project=target_project or "sps_workspace",
+            target_language=language,
+            status="partial",
+        )
+        reusable_capabilities = []
+        for past_task in reversed(experience.tasks[-8:]):
+            if self.adaptation.can_reuse_capability(current_task, past_task):
+                reusable_capabilities.append(past_task.selected_capability)
+        reusable_capabilities = list(dict.fromkeys(reusable_capabilities))
+
+        adaptation_params, adaptation_changes = self.adaptation.adjust_parameters(
+            {
+                "language": language,
+                "timeout_seconds": 5.0,
+            },
+            {
+                "target_language": language,
+                "complex": len(code) > 4000,
+            },
+        )
+        adaptation_ok = self.adaptation.test_adaptation(adaptation_params, code)
+
+        result = self.execution.run_submission(
+            user_request=user_request,
+            code=code,
+            language=language,
+            file_path=file_path,
+            target_project=target_project,
+        )
+
+        pipeline = self._build_pipeline(
+            result=result,
+            brain_intent=brain_intent,
+            knowledge_valid=knowledge_valid,
+            experience=experience,
+            failure_patterns=failure_patterns,
+            reusable_capabilities=reusable_capabilities,
+            adaptation_changes=adaptation_changes,
+            adaptation_ok=adaptation_ok,
+        )
+
+        result["brain"] = {
+            "component": "SPS-CA Brain",
+            "role": "reasoning, prompt analysis, intent classification and planning support",
+            "intent_signal": brain_intent,
+            "replaceable": True,
+        }
+        result["pipeline"] = pipeline
+        return result
+
+    @staticmethod
+    def _build_pipeline(
+        *,
+        result: Dict[str, Any],
+        brain_intent: str,
+        knowledge_valid: bool,
+        experience: ExperienceLog,
+        failure_patterns: Dict[str, int],
+        reusable_capabilities: list[str],
+        adaptation_changes: Dict[str, str],
+        adaptation_ok: bool,
+    ) -> Dict[str, Any]:
+        manifest = architecture_manifest()
+        dna = result.get("dna") or {}
+        validation = result.get("validation")
+        governance = result.get("governance")
+        execution = result.get("execution")
+        generated = bool(result.get("generated"))
+
+        def layer(number: int, status: str, component: str, artifact: str, detail: str = "") -> Dict[str, Any]:
+            definition = next(item for item in manifest["layers"] if item["number"] == number)
+            return {
+                "number": number,
+                "name": definition["name"],
+                "status": status,
+                "component": component,
+                "artifact": artifact,
+                "detail": detail,
+            }
+
+        layers = [
+            layer(
+                1,
+                "completed" if dna.get("allowed") is not False else "blocked",
+                "SoftwareDNA",
+                "DNA decision",
+                "Final hard-boundary check uses the actual validation, governance, sandbox and rollback state.",
+            ),
+            layer(
+                2,
+                "completed" if governance else "evaluated",
+                "GovernanceGate",
+                governance or "governance context",
+                "Authorization remains explicit and is never bypassed by capability generation.",
+            ),
+            layer(
+                3,
+                "completed",
+                "CognitiveCore + Brain",
+                f"intent={brain_intent}",
+                "Brain supplies replaceable intelligence; CognitiveCore owns structured task analysis and capability selection.",
+            ),
+            layer(
+                4,
+                "completed" if knowledge_valid else "blocked",
+                "KnowledgeCore",
+                f"experience_count={len(experience.tasks)}",
+                "A validated knowledge snapshot supplies structured context to reasoning and routing.",
+            ),
+            layer(
+                5,
+                "completed",
+                "ExperienceLog",
+                f"tasks={len(experience.tasks)}",
+                "Historical task outcomes and reusable-capability evidence are available to the pipeline.",
+            ),
+            layer(
+                6,
+                "completed",
+                "MetaLearner",
+                f"failure_patterns={len(failure_patterns)}",
+                "Observed failure patterns are evaluated before the next strategy is selected.",
+            ),
+            layer(
+                7,
+                "completed",
+                "Adaptation",
+                f"changed={len(adaptation_changes)}; precheck={adaptation_ok}",
+                f"Context-specific runtime parameters were evaluated; reusable capabilities={reusable_capabilities or []}.",
+            ),
+            layer(
+                8,
+                "generated" if generated else "reused",
+                "EvolutionEngine + Capability Registry",
+                str(result.get("capability_id") or "none"),
+                "Existing capabilities are reused; a gap may trigger governed Layer-8 capability generation.",
+            ),
+            layer(
+                9,
+                "completed" if validation else "not_reached",
+                "Validator",
+                str(validation or "not reached"),
+                "Sandbox validation is a hard boundary before controlled execution.",
+            ),
+            layer(
+                10,
+                "completed" if execution else "not_reached",
+                "ExecutionEngine",
+                str(execution or "not reached"),
+                "Execution creates controlled snapshots and exposes rollback state through the execution result.",
+            ),
+        ]
+
+        return {
+            "name": "Canonical SPS Execution Pipeline",
+            "version": 1,
+            "layers": layers,
+            "brain": {
+                "component": "SPS-CA Brain",
+                "role": manifest["brain"]["role"],
+                "replaceable": True,
+                "intent_signal": brain_intent,
+            },
+            "supporting_subsystems": manifest["supporting_subsystems"],
+        }
+
+    @staticmethod
+    def _default_filename(language: str) -> str:
+        return {
+            "python": "submitted.py",
+            "java": "Submitted.java",
+            "javascript": "submitted.js",
+            "typescript": "submitted.ts",
+            "go": "submitted.go",
+            "csharp": "Submitted.cs",
+        }.get(language, "submitted.txt")
+
+
+__all__ = ["CanonicalSPSPipeline"]

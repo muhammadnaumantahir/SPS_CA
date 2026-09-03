@@ -1,8 +1,8 @@
 """SPS-CA research dashboard web UI.
 
-Presentation-only Gradio application. The ten SPS layers remain the system of
-record; this module reads their persisted artifacts and presents them for
-research, demonstration, and supervised code-change experiments.
+Presentation-only Gradio application. The canonical SPS pipeline remains the
+system of record; this module presents its ten-layer trace, Brain boundary,
+capability state, feedback, and evolution history.
 """
 
 from __future__ import annotations
@@ -21,21 +21,11 @@ import gradio as gr
 import pandas as pd
 import plotly.graph_objects as go
 
-from ui.sps_execution import SPSExecutionService
+from core.canonical_sps_pipeline import CanonicalSPSPipeline
+from layers.architecture import architecture_manifest
 
 LANGUAGES = ["python", "java", "javascript", "typescript", "go", "csharp"]
-LAYERS = [
-    (1, "Software DNA"),
-    (2, "Cognitive Core"),
-    (3, "Experience"),
-    (4, "Meta-Learning"),
-    (5, "Adaptation"),
-    (6, "Validation"),
-    (7, "Governance"),
-    (8, "Evolution"),
-    (9, "Capability Registry"),
-    (10, "Execution"),
-]
+LAYERS = architecture_manifest()["layers"]
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -168,12 +158,31 @@ def _scenario_detail(scenario_id: str) -> str:
     return json.dumps(matches[-1], indent=2, ensure_ascii=False, default=str)
 
 
-def _layer_html() -> str:
-    items = "".join(
-        f'<div class="layer-row"><span class="layer-num">{number:02d}</span><span class="layer-name">{name}</span></div>'
-        for number, name in LAYERS
-    )
-    return f"<div class='layer-list'>{items}</div>"
+def _layer_html(pipeline: Optional[dict[str, Any]] = None) -> str:
+    layers = (pipeline or {}).get("layers") if pipeline else None
+    if not layers:
+        layers = [
+            {
+                "number": item["number"],
+                "name": item["name"],
+                "status": "ready",
+                "component": "",
+                "artifact": "",
+                "detail": item.get("purpose", ""),
+            }
+            for item in LAYERS
+        ]
+    items = []
+    for item in layers:
+        component = f" · {item.get('component')}" if item.get("component") else ""
+        artifact = f"<div class='layer-artifact'>{item.get('artifact', '')}</div>" if item.get("artifact") else ""
+        items.append(
+            f'<div class="layer-row"><span class="layer-num">L{int(item.get("number", 0)):02d}</span>'
+            f'<div><div class="layer-name">{item.get("name", "")} <span class="layer-status">{item.get("status", "")}</span></div>'
+            f'<div class="layer-component">{component.lstrip(" ·")}</div>{artifact}'
+            f'<div class="layer-detail">{item.get("detail", "")}</div></div></div>'
+        )
+    return "<div class='layer-list'>" + "".join(items) + "</div>"
 
 
 def _experiment_table() -> pd.DataFrame:
@@ -191,11 +200,23 @@ def _guide_markdown() -> str:
     return """
 # SPS-CA Run Guide
 
+## Canonical user flow
+
+1. **User** provides a prompt and source code or an uploaded file.
+2. **Brain / Cognitive** understand the task, infer intent, and reason about the requested change.
+3. **Knowledge / Experience / Meta-Learning / Adaptation** provide structured context and reuse evidence.
+4. **Evolution** either reuses a registered capability or creates a new candidate when a governed capability gap exists.
+5. **Validation** tests the proposed change in a sandbox.
+6. **Governance** authorizes the proposed change.
+7. **Software DNA** performs the final non-bypassable safety check.
+8. **Execution** applies the approved change using a rollback-capable execution boundary.
+9. The resulting outcome is persisted as trace/experience evidence for future learning.
+
+The browser UI and model-backed scenario runner both call the same `CanonicalSPSPipeline` entry point.
+
 ## Google Colab
 
-Use the Colab notebook to install requirements, prepare Ollama, choose and pull a model, verify the ten layers, run tests, and launch the dashboard.
-
-The dashboard uses the SPS-CA scenario service and keeps the SPS framework at exactly ten layers.
+Use the Colab notebook to install requirements, prepare Ollama, choose and pull a model, run the deterministic routing contract, and run the model-backed ten-layer experiment.
 """
 
 
@@ -223,7 +244,7 @@ def _run_sps(request: str, code: str, language: str, uploaded: Optional[Any], ta
         raise gr.Error("Paste code or upload a source file.")
     if language == "python":
         code = textwrap.dedent(code)
-    result = SPSExecutionService().run_submission(
+    result = CanonicalSPSPipeline().run_submission(
         user_request=request,
         code=code,
         language=language,
@@ -231,13 +252,15 @@ def _run_sps(request: str, code: str, language: str, uploaded: Optional[Any], ta
         target_project=target_project or None,
     )
     modified = result.get("modified_code", code)
+    brain = result.get("brain", {})
     summary = (
         f"Scenario {result.get('scenario_id', '-')}  |  Stage {result.get('stage_before', '-')} → {result.get('stage_after', '-')}\n"
+        f"Brain: {brain.get('component', 'SPS-CA Brain')}  |  Intent: {brain.get('intent_signal', '-')}\n"
         f"Capability: {result.get('capability_id', '-')}  |  Generated: {result.get('generated', False)}\n"
-        f"Validation: {result.get('validation', '-')}  |  Governance: {result.get('governance', '-')}  |  Execution: {result.get('execution', '-')}\n"
+        f"Validation: {result.get('validation', '-')}  |  Governance: {result.get('governance', '-')}  |  DNA: {(result.get('dna') or {}).get('allowed', '-')}  |  Execution: {result.get('execution', '-')}\n"
         f"Success: {result.get('success', False)}"
     )
-    return summary, modified, json.dumps(result, indent=2, default=str), _kpi_html(_metrics()), _growth_figure(), _reuse_figure(), _capability_table(), _evolution_table()
+    return summary, modified, json.dumps(result, indent=2, default=str), _layer_html(result.get("pipeline")), _kpi_html(_metrics()), _growth_figure(), _reuse_figure(), _capability_table(), _evolution_table()
 
 
 def _refresh_dashboard():
@@ -255,9 +278,13 @@ def build_app() -> gr.Blocks:
     .kpi-label {font-size:11px; letter-spacing:.08em; opacity:.65;}
     .kpi-value {font-size:26px; font-weight:700; margin-top:4px;}
     .layer-list {display:grid; gap:8px; margin-top:12px;}
-    .layer-row {display:flex; gap:12px; align-items:center; border:1px solid #ddd; border-radius:10px; padding:9px 11px;}
-    .layer-num {font-family:monospace; opacity:.65; width:26px;}
-    .layer-name {font-weight:600;}
+    .layer-row {display:flex; gap:12px; align-items:flex-start; border:1px solid #ddd; border-radius:10px; padding:10px 12px;}
+    .layer-num {font-family:monospace; opacity:.65; width:30px; padding-top:2px;}
+    .layer-name {font-weight:700;}
+    .layer-status {font-size:11px; margin-left:6px; opacity:.65; text-transform:uppercase;}
+    .layer-component {font-size:12px; margin-top:3px; opacity:.8;}
+    .layer-artifact {font-family:monospace; font-size:11px; margin-top:4px; opacity:.8;}
+    .layer-detail {font-size:12px; margin-top:4px; opacity:.7;}
     @media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,minmax(100px,1fr));}}
     """
     with gr.Blocks(css=css, title="SPS-CA Research Dashboard") as app:
@@ -279,8 +306,9 @@ def build_app() -> gr.Blocks:
                             run = gr.Button("Run SPS-CA", variant="primary")
                         with gr.Column(scale=5):
                             result_status = gr.Textbox(label="Execution Summary", lines=6)
+                            layer_run_view = gr.HTML(_layer_html())
                             modified = gr.Code(label="Modified Code", language="python", lines=22)
-                            result_json = gr.Code(label="Scenario Result", language="json", lines=12)
+                            result_json = gr.Code(label="Canonical Pipeline Result", language="json", lines=14)
 
                 with gr.Tab("🧩 Capabilities"):
                     gr.Markdown("### Capability Registry")
@@ -291,6 +319,7 @@ def build_app() -> gr.Blocks:
                     with gr.Row():
                         growth_plot = gr.Plot(_growth_figure(), label="Capability Growth")
                         reuse_plot = gr.Plot(_reuse_figure(), label="Capability Reuse")
+                    gr.Markdown("### Canonical Ten-Layer Architecture")
                     layer_view = gr.HTML(_layer_html())
 
                 with gr.Tab("🔄 Evolution"):
@@ -302,12 +331,12 @@ def build_app() -> gr.Blocks:
                 with gr.Tab("🧪 Experiments"):
                     gr.Markdown("### Reproducible Evaluation Catalog")
                     gr.Dataframe(value=_experiment_table(), interactive=False, wrap=True)
-                    gr.Markdown("The evaluation layer remains the source of truth for the 25-scenario benchmark catalog and comparison baselines.")
+                    gr.Markdown("The deterministic 500-case contract and model-backed scenario runner are separate research measurements but share the same canonical execution service.")
 
                 with gr.Tab("📖 Guide"):
                     gr.Markdown(_guide_markdown())
 
-            run.click(_run_sps, [request, code, language, upload, target], [result_status, modified, result_json, kpis, growth_plot, reuse_plot, cap_table, evo_table])
+            run.click(_run_sps, [request, code, language, upload, target], [result_status, modified, result_json, layer_run_view, kpis, growth_plot, reuse_plot, cap_table, evo_table])
             refresh.click(_refresh_dashboard, outputs=[kpis, growth_plot, reuse_plot, cap_table, evo_table, layer_view])
             inspect.click(_scenario_detail, inputs=scenario_id, outputs=scenario_detail)
             language.change(lambda lang: gr.Code(language=lang or "python"), inputs=language, outputs=code)

@@ -24,18 +24,45 @@ class LongTermLearningStore:
     def __init__(self, path: str | Path = DEFAULT_LONG_TERM_PATH) -> None:
         self.path = Path(path)
 
-    def rebuild(self, tasks: Iterable[Task], *, feedback: Iterable[dict[str, Any]] = (), evolution: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
-        task_list = list(tasks)
-        by_capability: dict[str, dict[str, Any]] = defaultdict(lambda: {"uses": 0, "successes": 0, "failures": 0, "partial": 0, "last_used": None, "requests": []})
+    def rebuild(
+        self,
+        tasks: Iterable[Task] | Any,
+        *,
+        feedback: Iterable[dict[str, Any]] = (),
+        evolution: Iterable[dict[str, Any]] = (),
+    ) -> dict[str, Any]:
+        """Rebuild summaries from either an iterable of Tasks or ExperienceLog.
+
+        ``AssistantService`` passes the append-only ``ExperienceLog`` object,
+        while callers such as tests and migration code may pass ``log.tasks``.
+        Accepting both forms keeps the store focused on the Task records rather
+        than coupling it to one container type.
+        """
+        if hasattr(tasks, "tasks"):
+            tasks = tasks.tasks
+        task_list = list(tasks or [])
+        by_capability: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {
+                "uses": 0,
+                "successes": 0,
+                "failures": 0,
+                "partial": 0,
+                "last_used": None,
+                "requests": [],
+            }
+        )
         failures = Counter()
         languages = Counter()
         for task in task_list:
             if task.selected_capability:
                 item = by_capability[task.selected_capability]
                 item["uses"] += 1
-                if task.status == "success": item["successes"] += 1
-                elif task.status == "failure": item["failures"] += 1
-                else: item["partial"] += 1
+                if task.status == "success":
+                    item["successes"] += 1
+                elif task.status == "failure":
+                    item["failures"] += 1
+                else:
+                    item["partial"] += 1
                 item["last_used"] = task.timestamp.isoformat()
                 if task.user_request and len(item["requests"]) < 8:
                     item["requests"].append(task.user_request[:240])
@@ -52,20 +79,34 @@ class LongTermLearningStore:
                 "success_rate": round(item["successes"] / uses, 4),
             }
 
-        feedback_counts = Counter(str(x.get("feedback", "")).lower() for x in feedback if x.get("feedback"))
+        feedback_counts = Counter(
+            str(x.get("feedback", "")).lower()
+            for x in feedback
+            if x.get("feedback")
+        )
         evolution_events = list(evolution)[-100:]
         payload = {
             "schema_version": self.SCHEMA_VERSION,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "total_tasks": len(task_list),
-            "overall_success_rate": round(sum(t.status == "success" for t in task_list) / len(task_list), 4) if task_list else 0.0,
+            "overall_success_rate": round(
+                sum(t.status == "success" for t in task_list) / len(task_list), 4
+            )
+            if task_list
+            else 0.0,
             "capabilities": capability_summary,
             "failure_patterns": dict(failures),
             "languages": dict(languages),
             "feedback": dict(feedback_counts),
             "evolution_events": evolution_events,
             "recent_outcomes": [
-                {"id": t.id, "status": t.status, "capability_id": t.selected_capability, "failure_category": t.failure_category, "timestamp": t.timestamp.isoformat()}
+                {
+                    "id": t.id,
+                    "status": t.status,
+                    "capability_id": t.selected_capability,
+                    "failure_category": t.failure_category,
+                    "timestamp": t.timestamp.isoformat(),
+                }
                 for t in task_list[-20:]
             ],
         }
@@ -90,11 +131,20 @@ class LongTermLearningStore:
     def context(self, *, max_capabilities: int = 12) -> dict[str, Any]:
         data = self.load()
         caps = data.get("capabilities", {})
-        ranked = sorted(caps.items(), key=lambda item: (float(item[1].get("success_rate", 0.0)), int(item[1].get("uses", 0))), reverse=True)
+        ranked = sorted(
+            caps.items(),
+            key=lambda item: (
+                float(item[1].get("success_rate", 0.0)),
+                int(item[1].get("uses", 0)),
+            ),
+            reverse=True,
+        )
         return {
             "total_tasks": data.get("total_tasks", 0),
             "overall_success_rate": data.get("overall_success_rate", 0.0),
-            "top_capabilities": [{"capability_id": k, **v} for k, v in ranked[:max_capabilities]],
+            "top_capabilities": [
+                {"capability_id": k, **v} for k, v in ranked[:max_capabilities]
+            ],
             "failure_patterns": data.get("failure_patterns", {}),
             "feedback": data.get("feedback", {}),
             "updated_at": data.get("updated_at"),
