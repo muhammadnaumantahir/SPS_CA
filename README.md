@@ -39,13 +39,13 @@ Generated/evolved capabilities begin at **CAP-011+** and preserve provenance and
 
 ## Architecture
 
-SPS-CA has ten architectural layers: Software DNA, Governance, Cognitive, Knowledge, Experience, Meta-Learning, Adaptation, Evolution, Verification & Validation, and Execution. The Brain is a separate intelligence service.
+SPS-CA has ten architectural layers: Software DNA, Governance, Cognitive, Knowledge, Experience, Meta-Learning, Adaptation, Evolution, Verification & Validation, and Execution. The Brain is a separate intelligence service. The Architecture view is the single UI surface for exploring these layers and their supporting components.
 
 ## Web dashboard
 
 The browser UI is chat-first. Users can create, search, reopen, continue, and safely delete persistent conversations. Code can be pasted directly into a prompt or the collapsible working-code panel, and the UI reports Brain language inference and confidence.
 
-The **SPS Overview** control center exposes live metrics, an interactive `User → Brain → Capability Registry → 10 Layers → Execution` graph, seed/generated capability analytics, reuse counts, evolution activity, and a recent activity feed. Architecture, Capabilities, and Evolution remain available as detailed views.
+The **Capabilities** view now contains the capability analysis panel, including seed vs generated population, active/inactive counts, reuse counts, and the most-reused capabilities. Individual capabilities remain clickable for provenance and lineage details. Architecture and Evolution remain separate detailed views.
 
 Deleting a conversation requires explicit confirmation. The DELETE session API removes only the requested session; if the active conversation is deleted, the UI immediately creates and opens a fresh chat.
 
@@ -56,7 +56,7 @@ Deleting a conversation requires explicit confirmation. The DELETE session API r
 - `docs/master.md` — research overview and SPS model
 - `docs/scenarios.md` — evaluation scenarios
 - `docs/PIPELINE.md` — request/feedback lifecycle
-- `docs/superpowers/specs/2026-09-03-sps-control-center-design.md` — control-center and deletion design
+- `docs/superpowers/specs/2026-09-03-sps-control-center-design.md` — UI and deletion design
 - `docs/superpowers/plans/2026-09-03-sps-control-center-plan.md` — implementation plan
 - `SETUP.md` — local/Colab setup
 - `REQUIREMENTS.md` — environment requirements
