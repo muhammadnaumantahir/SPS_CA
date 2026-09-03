@@ -19,10 +19,11 @@ The Brain remains a separate replaceable intelligence service.
 
 ## What Phase 2 adds
 
-Layer 6 now provides two complementary controls:
+Layer 6 now provides three complementary controls:
 
 - `CapabilityEvaluator` measures observed behavior from Layer 5 Experience;
-- `StrategyPolicy` decides whether an alternative is strong enough to recommend.
+- `StrategyPolicy` decides whether an alternative is strong enough to recommend;
+- `ABComparisonEngine` provides deterministic, evidence-gated A/B comparison for compatible capability arms.
 
 For every observed capability, the evaluator derives observation count, raw success rate, partial-outcome rate, mean task duration, evidence confidence, and a bounded behavioral score from 0.0 to 1.0.
 
@@ -35,6 +36,14 @@ Small samples are shrunk toward a neutral 50% success prior so one lucky or unlu
 `StrategyPolicy` adds a second guard: the best alternative must beat the current capability by at least a configurable score margin (0.08 by default). A strategy switch is therefore based on both sufficient evidence and a meaningful behavioral advantage.
 
 A short routing cooldown also suppresses immediate switching back to a capability that was just selected, reducing strategy oscillation.
+
+## Controlled A/B comparison
+
+`ABComparisonEngine` compares two compatible capability versions using only Layer 5 Experience evidence. Assignment is deterministic: the experiment identifier and task identifier are hashed to select arm `A` or `B`, so the experiment cannot be biased by an LLM decision at request time.
+
+A future-routing winner is withheld until both arms have at least five observations by default and the sample counts are reasonably balanced. Even then, the better arm must clear the same conservative 0.08 behavioral-score margin used by strategy switching.
+
+The comparison result is an auditable value containing both arm evaluations, balance status, score margin, winner, and evidence sufficiency. It does not mutate code or the registry and cannot bypass Governance.
 
 ## Live Brain routing
 
@@ -81,7 +90,7 @@ Experience record
     ↓
 Capability behavioral evaluation
     ↓
-Evidence-aware ranking
+Evidence-aware ranking / controlled A-B comparison
     ↓
 Conservative strategy recommendation
     ↓
@@ -96,7 +105,7 @@ Evolution only when a genuine capability gap remains
 
 ## Safety boundary
 
-The evaluator and strategy policy are read-only with respect to source code and capabilities. They operate on Experience records and produce plain recommendation objects.
+The evaluator, strategy policy, and A/B comparison engine are read-only with respect to source code and capability registry state. They operate on Experience records and produce recommendation/comparison objects.
 
 Any structural self-change still follows the Phase 1 Software DNA → Governance → Verification & Validation → Layer 10 execution/rollback boundary. Layer 6 cannot authorize a source mutation by itself.
 
@@ -119,12 +128,12 @@ Completed:
 - generated-capability intent metadata exposure;
 - evidence-qualified generated-capability routing in the Brain boundary;
 - persisted evidence-backed meta-learning decisions;
+- deterministic controlled A/B capability comparison with minimum evidence and balance gates;
 - regression/unit coverage for the new learning policy;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
 Next work:
 
-- run controlled A/B comparisons between competing generated capability versions;
 - introduce governed retirement/deactivation of persistently poor generated capabilities;
 - add scheduled or threshold-triggered optimization cycles;
 - use those measurements to drive the next Evolution improvements.
