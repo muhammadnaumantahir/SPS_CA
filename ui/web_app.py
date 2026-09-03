@@ -33,7 +33,7 @@ def dashboard_data()->dict[str,Any]:
     return {
         "metrics": {
             "layers": len(architecture.get("layers",[])),
-            "core_capabilities": len(caps),
+            "core_capabilities": sum(1 for c in caps if not c.get("generated")),
             "active_capabilities": sum(1 for c in caps if c.get("usable")),
             "conversations": len(saved_sessions),
             "evolution_events": len(events),
