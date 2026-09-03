@@ -78,7 +78,14 @@ def run_suite(path: str | Path, *, model: str = "", live_evolve: bool = False, m
         request = str(scenario.get("request", "")).strip()
         turn = pipeline.run_submission(user_request=request, code=str(scenario.get("code", "")), language=str(scenario.get("language", "python")), file_path=str(scenario.get("filename", "main.py")))
         capability_id = str(turn.get("capability_id") or "")
-        result = {"run_id": run_id, "index": index, "scenario_id": str(scenario.get("id", f"scenario-{index:03d}")), "request": request, "language": str(scenario.get("language", "python")), "filename": str(scenario.get("filename", "main.py")), "expected": scenario.get("expected", {}), "actual": {"intent": turn.get("brain", {}).get("intent_signal", ""), "capability_id": capability_id, "capability_ids": [capability_id] if capability_id else [], "status": "success" if turn.get("success") else "failure", "elapsed_ms": turn.get("elapsed_ms")}, "passed": False, "assertion_failures": [], "output_code": turn.get("modified_code", str(scenario.get("code", ""))), "language_confidence": 0.0, "trace": turn.get("pipeline") or {}, "brain": turn.get("brain") or {}}
+        dna = turn.get("dna") or {}
+        governance = str(turn.get("governance") or "")
+        actual_status = "success" if turn.get("success") else (
+            "blocked" if governance and governance.lower() not in {"auto_approved", "approved"} else (
+                "blocked" if dna.get("allowed") is False else "failure"
+            )
+        )
+        result = {"run_id": run_id, "index": index, "scenario_id": str(scenario.get("id", f"scenario-{index:03d}")), "request": request, "language": str(scenario.get("language", "python")), "filename": str(scenario.get("filename", "main.py")), "expected": scenario.get("expected", {}), "actual": {"intent": turn.get("brain", {}).get("intent_signal", ""), "capability_id": capability_id, "capability_ids": [capability_id] if capability_id else [], "status": actual_status, "elapsed_ms": turn.get("elapsed_ms")}, "passed": False, "assertion_failures": [], "output_code": turn.get("modified_code", str(scenario.get("code", ""))), "language_confidence": 0.0, "trace": turn.get("pipeline") or {}, "brain": turn.get("brain") or {}}
         passed, failures = _match_expected(result, dict(scenario.get("expected", {}))); result["passed"] = passed; result["assertion_failures"] = failures
         if record_feedback: _record_feedback(evolution, result, scenario.get("feedback"))
         output["scenarios"].append(result); output["passed"] += int(passed); output["failed"] += int(not passed)
