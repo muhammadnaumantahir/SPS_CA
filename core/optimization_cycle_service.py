@@ -7,11 +7,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from layers.layer_05_experience import ExperienceLog, Task
+from layers.layer_05_experience import ExperienceLog
 from layers.layer_06_meta_learning import OptimizationCycleController, OptimizationCyclePlan
 from layers.layer_08_evolution import (
     CapabilityGapPlanner,
     EvolutionActionPlan,
+    EvolutionCycleOutcome,
     EvolutionEngine,
     EvolutionExecutionAuthority,
     OptimizationActionPlanner,
@@ -156,6 +157,18 @@ class OptimizationCycleService:
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         }
         if not allowed:
+            outcomes = [
+                EvolutionCycleOutcome(
+                    cycle_id=action.cycle_id,
+                    capability_id=(item["plan"].capability_id if hasattr(item["plan"], "capability_id") else "evolution"),
+                    source_capability_id=item.get("source_capability_id", ""),
+                    authorized=False,
+                    executed=False,
+                    result={"reason": reason},
+                ).to_dict()
+                for item in candidates
+            ]
+            state["last_execution_results"] = outcomes
             self._save_state(state)
             return [{
                 "cycle_id": action.cycle_id,
@@ -167,12 +180,23 @@ class OptimizationCycleService:
         results: list[dict[str, Any]] = []
         for candidate in candidates:
             result = self.execute_candidate(candidate, project_root=project_root)
+            outcome = EvolutionCycleOutcome(
+                cycle_id=candidate["cycle_id"],
+                capability_id=str(result.get("capability_id") or candidate["plan"].capability_id),
+                source_capability_id=candidate.get("source_capability_id", ""),
+                authorized=True,
+                executed=True,
+                promoted=bool(result.get("promoted")),
+                rolled_back=bool(result.get("rolled_back")),
+                result=result,
+            )
             results.append({
                 "cycle_id": candidate["cycle_id"],
                 "source_capability_id": candidate["source_capability_id"],
                 "authorized": True,
                 "executed": True,
                 "result": result,
+                "evolution_outcome": outcome.to_dict(),
             })
         state = self._load_state()
         state["last_execution_results"] = results[-10:]
@@ -194,28 +218,7 @@ class OptimizationCycleService:
         })
         state["execution_history"] = history[-50:]
         self._save_state(state)
-        self._record_evolution_experience(candidate, result)
         return result
-
-    def _record_evolution_experience(self, candidate: dict[str, Any], result: dict[str, Any]) -> None:
-        capability_id = str(result.get("capability_id") or candidate.get("source_capability_id") or "evolution")
-        successful = bool(result.get("promoted") or result.get("registered"))
-        self.experience.add_task(Task(
-            id=f"evolution_{candidate.get('cycle_id', 'unknown')}_{capability_id}",
-            user_request=f"Controlled Evolution for optimization cycle {candidate.get('cycle_id', 'unknown')}",
-            target_project="sps-ca",
-            target_language="python",
-            status="success" if successful else "failure",
-            selected_capability=capability_id,
-            outcome=json.dumps(result, default=str, sort_keys=True),
-            failure_category=None if successful else "EvolutionExecutionFailure",
-            time_taken_seconds=0.0,
-        ))
-        experience_path = Path("experience/logs/experience_log.json")
-        try:
-            self.experience.save_to_json(experience_path)
-        except OSError:
-            pass
 
     @staticmethod
     def _candidates_from_action(action: EvolutionActionPlan) -> list[dict[str, Any]]:
