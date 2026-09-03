@@ -14,9 +14,9 @@ from layers.layer_02_governance.governance import GovernanceGate
 from layers.layer_02_governance.models import ChangeType, DecisionStatus
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 from layers.layer_10_execution.execution_engine import ExecutionEngine
-from layers.layer_10_execution.models import ExecutionStatus
+from layers.layer_10_execution.models import Change, FileEdit, ExecutionStatus
 
-from .models import Change, FailureDiagnosis, FileEdit, SelfRepairResult
+from .models import FailureDiagnosis, SelfRepairResult
 
 MAX_REPAIR_ATTEMPTS = 3
 MAX_FILES_PER_REPAIR = 5
