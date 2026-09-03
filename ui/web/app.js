@@ -367,6 +367,9 @@ async function loadGrowthView() {
 }
 
 // === SESSION ===
+const STORAGE_KEY_HISTORY = 'sps-ca-chat-history';
+const MAX_HISTORY = 30;
+
 function loadSession() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -385,6 +388,77 @@ function syncSessionMeta() {
   $('sessionTurns').textContent = String(session.turns);
   $('sessionLanguage').textContent = session.language;
   $('sessionFile').textContent = session.filename;
+}
+
+// === CHAT HISTORY (backups of past chats, kept in localStorage) ===
+function loadHistory() {
+  try {
+    const list = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function saveHistory(list) {
+  localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(list.slice(0, MAX_HISTORY)));
+}
+function sessionTitle(sess) {
+  const firstUser = sess.conversation.find(m => m.role === 'user');
+  if (!firstUser || !firstUser.content) return 'Untitled chat';
+  const text = firstUser.content.trim().replace(/\s+/g, ' ');
+  return text.length > 48 ? text.slice(0, 48) + '…' : text;
+}
+function backupCurrentSession() {
+  if (!session.conversation.length) return; // nothing to back up
+  const history = loadHistory();
+  history.unshift({
+    id: `chat-${Date.now()}`,
+    title: sessionTitle(session),
+    timestamp: new Date().toISOString(),
+    turns: session.turns,
+    language: session.language,
+    session: JSON.parse(JSON.stringify(session)),
+  });
+  saveHistory(history);
+}
+function renderHistoryPanel() {
+  const panel = $('historyPanel');
+  if (!panel) return;
+  const history = loadHistory();
+  if (!history.length) {
+    panel.innerHTML = '<div class="muted-text history-empty">No backed-up chats yet. Starting a new chat backs up the current one here.</div>';
+    return;
+  }
+  panel.innerHTML = history.map(h => `
+    <div class="history-item">
+      <div class="history-item-main" onclick="restoreSession('${h.id}')">
+        <div class="history-item-title">${esc(h.title)}</div>
+        <div class="history-item-meta">${esc(h.language)} · ${h.turns} turn${h.turns === 1 ? '' : 's'} · ${new Date(h.timestamp).toLocaleString()}</div>
+      </div>
+      <button class="history-delete" onclick="deleteHistoryItem(event, '${h.id}')" title="Delete backup">✕</button>
+    </div>
+  `).join('');
+}
+function toggleHistoryPanel() {
+  const panel = $('historyPanel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) renderHistoryPanel();
+}
+function restoreSession(id) {
+  const history = loadHistory();
+  const entry = history.find(h => h.id === id);
+  if (!entry) return;
+  backupCurrentSession(); // don't lose whatever's currently open
+  session = entry.session;
+  saveSession();
+  $('language').value = session.language;
+  $('code').value = session.code;
+  renderMessages();
+  syncSessionMeta();
+  $('historyPanel').classList.add('hidden');
+}
+function deleteHistoryItem(event, id) {
+  event.stopPropagation();
+  saveHistory(loadHistory().filter(h => h.id !== id));
+  renderHistoryPanel();
 }
 
 // === SEND MESSAGE ===
@@ -462,6 +536,7 @@ function applyTurn(data) {
 
 // === NEW CHAT ===
 function newChat() {
+  backupCurrentSession();
   session = {conversation:[], code:$('code').value, language:$('language').value, filename:`main.${EXT[$('language').value]||'txt'}`, turns:0};
   localStorage.removeItem(STORAGE_KEY);
   lastTurnData = null;
@@ -488,6 +563,7 @@ function loadSample() {
 // === EVENT LISTENERS ===
 $('chatForm').addEventListener('submit', sendMessage);
 $('newChatBtn').addEventListener('click', newChat);
+$('historyBtn').addEventListener('click', toggleHistoryPanel);
 $('sampleBtn').addEventListener('click', loadSample);
 $('collapseCodeBtn').addEventListener('click', () => {
   $('codeDock').classList.toggle('collapsed');

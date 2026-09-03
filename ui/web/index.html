@@ -50,13 +50,17 @@
           <div class="card compact-card">
             <div class="card-head">
               <div><h2>Session</h2><p>Your current conversation.</p></div>
-              <button id="newChatBtn" class="ghost-sm">New</button>
+              <div class="session-actions">
+                <button id="historyBtn" class="ghost-sm">History</button>
+                <button id="newChatBtn" class="ghost-sm">New</button>
+              </div>
             </div>
             <div class="session-meta">
               <div><span>TURNS</span><b id="sessionTurns">0</b></div>
               <div><span>LANG</span><b id="sessionLanguage">python</b></div>
               <div><span>FILE</span><b id="sessionFile">main.py</b></div>
             </div>
+            <div id="historyPanel" class="history-panel hidden"></div>
           </div>
 
           <div class="card compact-card brain-card">
