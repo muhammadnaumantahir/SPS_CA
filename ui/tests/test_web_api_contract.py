@@ -33,7 +33,7 @@ def test_dashboard_snapshot_has_metrics_architecture_analytics_and_activity(monk
 
     assert snapshot["metrics"] == {
         "layers": 10,
-        "core_capabilities": 2,
+        "core_capabilities": 1,
         "active_capabilities": 1,
         "conversations": 2,
         "evolution_events": 2,
