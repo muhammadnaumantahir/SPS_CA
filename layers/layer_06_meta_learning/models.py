@@ -1,26 +1,22 @@
-"""Data models for Layer 4 (Meta-Learning)."""
+"""Data models for Layer 6 (Meta-Learning)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass
 class MetaLearningDecision:
-    """A single strategy-change decision made by :class:`MetaLearner`.
-
-    Mirrors the ``meta_learning_decision_NNN`` records described in
-    the design, kept as a first-class model so they
-    can be validated, persisted, and unit tested like any other record.
-    """
+    """Auditable strategy-change decision backed by measured evidence."""
 
     decision_id: str
     triggered_by: str
     previous_strategy: str
     new_strategy: str
     rationale: str
+    evidence: Optional[dict[str, Any]] = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
@@ -28,6 +24,8 @@ class MetaLearningDecision:
             raise ValueError("MetaLearningDecision.decision_id must be non-empty")
         if isinstance(self.timestamp, str):
             self.timestamp = datetime.fromisoformat(self.timestamp)
+        if self.evidence is not None and not isinstance(self.evidence, dict):
+            raise ValueError("MetaLearningDecision.evidence must be a mapping")
 
     @classmethod
     def from_dict(cls, data: dict) -> "MetaLearningDecision":
@@ -37,6 +35,7 @@ class MetaLearningDecision:
             previous_strategy=data.get("previous_strategy", ""),
             new_strategy=data.get("new_strategy", ""),
             rationale=data.get("rationale", ""),
+            evidence=data.get("evidence"),
             timestamp=data.get("timestamp", datetime.now(timezone.utc).isoformat()),
         )
 
@@ -47,5 +46,6 @@ class MetaLearningDecision:
             "previous_strategy": self.previous_strategy,
             "new_strategy": self.new_strategy,
             "rationale": self.rationale,
+            "evidence": self.evidence or {},
             "timestamp": self.timestamp.isoformat(),
         }
