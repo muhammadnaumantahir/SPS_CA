@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from dataclasses import dataclass, field
@@ -10,7 +11,6 @@ from typing import Any, Optional
 from capabilities.canonical import CANONICAL_BY_ID, INTENT_CLASSES, capability_ids_for_intent
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 
-_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 _CODE_FENCE_RE = re.compile(r"```([\w+#.-]*)\s*\n([\s\S]*?)```", re.MULTILINE)
 
 _SYSTEM_PROMPT = """You are the AI Brain of SPS-CA, a governed self-programming coding assistant.
@@ -127,13 +127,7 @@ class Brain:
 
     @staticmethod
     def infer_intent_class(request: str, code: str = "", file_path: str = "") -> str:
-        """Classify task intent before capability selection.
-
-        Explicit modification language takes priority over generic validation
-        language when working source is present. For example, "add input
-        validation to this function" changes source and is therefore a
-        code_modification task, not a read-only validation task.
-        """
+        """Classify task intent before capability selection."""
         req = " ".join((request or "").lower().split())
         has_code = bool((code or "").strip())
         if not req:
@@ -173,6 +167,46 @@ class Brain:
                 merged.update(by_id[cid])
                 by_id[cid] = merged
         return by_id
+
+    @staticmethod
+    def _parse_planning_response(raw: Any) -> dict[str, Any]:
+        """Parse strict JSON plus common local-LLM formatting variants safely.
+
+        Local models sometimes return a Python-dict representation with single
+        quotes or wrap JSON in prose/fences. We first attempt strict JSON and
+        then use ast.literal_eval (never eval) on balanced object candidates.
+        """
+        text = str(raw or "").strip()
+        if not text:
+            raise ValueError("model returned an empty response")
+
+        candidates: list[str] = [text]
+        candidates.extend(block for _, block in _CODE_FENCE_RE.findall(text))
+        decoder = json.JSONDecoder()
+        for source in candidates:
+            source = source.strip()
+            try:
+                value, _ = decoder.raw_decode(source)
+                if isinstance(value, dict):
+                    return value
+            except json.JSONDecodeError:
+                pass
+            for index, char in enumerate(source):
+                if char != "{":
+                    continue
+                try:
+                    value, _ = decoder.raw_decode(source[index:])
+                    if isinstance(value, dict):
+                        return value
+                except json.JSONDecodeError:
+                    pass
+                try:
+                    value = ast.literal_eval(source[index:])
+                    if isinstance(value, dict):
+                        return value
+                except (SyntaxError, ValueError, TypeError):
+                    continue
+        raise ValueError("model did not return a valid JSON object")
 
     def plan(
         self,
@@ -214,11 +248,8 @@ class Brain:
         except LLMQueryError as exc:
             raise BrainError(str(exc)) from exc
         try:
-            match = _JSON_RE.search(str(raw).strip())
-            if not match:
-                raise ValueError("model did not return JSON")
-            data = json.loads(match.group(0))
-        except (ValueError, json.JSONDecodeError) as exc:
+            data = self._parse_planning_response(raw)
+        except (ValueError, TypeError) as exc:
             raise BrainError(f"Brain returned invalid planning JSON: {exc}") from exc
         if not isinstance(data, dict) or not isinstance(data.get("steps", []), list):
             raise BrainError("Brain returned an invalid plan structure.")
