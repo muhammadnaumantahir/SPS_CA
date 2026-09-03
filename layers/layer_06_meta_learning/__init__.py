@@ -16,6 +16,7 @@ from .meta_learner import (
     MetaLearningDecisionLog,
 )
 from .models import MetaLearningDecision
+from .optimization_cycle import OptimizationCycleConfig, OptimizationCycleController, OptimizationCyclePlan
 from .strategy_policy import StrategyPolicy, StrategyRecommendation
 
 __all__ = [
@@ -28,6 +29,9 @@ __all__ = [
     "StrategyRecommendation",
     "ABComparisonEngine",
     "ABComparisonResult",
+    "OptimizationCycleConfig",
+    "OptimizationCyclePlan",
+    "OptimizationCycleController",
     "DEFAULT_DECISIONS_PATH",
     "DEFAULT_MIN_OCCURRENCES",
     "DEFAULT_FAILURE_RATE_THRESHOLD",
