@@ -7,7 +7,7 @@ def test_delete_endpoint_contract_and_ui_confirmation_guard():
     html_source = Path("ui/web/index.html").read_text(encoding="utf-8")
 
     assert 'if not path.startswith("/api/sessions/")' in web_app_source
-    assert 'sessions.delete(path.rsplit("/",1)[-1])' in web_app_source
+    assert 'sessions.delete(path.rsplit("/", 1)[-1])' in web_app_source
     assert 'window.confirm(`Delete' in app_source
     assert "event.stopPropagation()" in app_source
     assert "const wasActive=state.sessionId===id" in app_source
