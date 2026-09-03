@@ -21,5 +21,36 @@ boundaries.
 """
 
 from .self_programming_service import SelfProgrammingService
+from .assistant_service import SpsAssistantService
 
-__all__ = ["SelfProgrammingService"]
+
+# Enrich the catalog presented to Brain so generated capabilities can declare
+# their own intent eligibility. Canonical capabilities retain the same IDs and
+# remain the default fallback when Layer 6 has insufficient evidence.
+_original_capability_catalog = SpsAssistantService.capability_catalog
+
+
+def _rich_capability_catalog(self: SpsAssistantService) -> list[dict]:
+    catalog = _original_capability_catalog(self)
+    enriched = []
+    for item, capability in zip(catalog, self.registry.list_all_capabilities()):
+        if capability.status != "active":
+            continue
+        record = dict(item)
+        for field in (
+            "intent_class",
+            "allowed_intents",
+            "forbidden_intents",
+            "risk_level",
+            "supported_languages",
+        ):
+            value = getattr(capability, field, None)
+            if value is not None:
+                record[field] = list(value) if isinstance(value, (list, tuple, set)) else value
+        enriched.append(record)
+    return enriched
+
+
+SpsAssistantService.capability_catalog = _rich_capability_catalog
+
+__all__ = ["SelfProgrammingService", "SpsAssistantService"]
