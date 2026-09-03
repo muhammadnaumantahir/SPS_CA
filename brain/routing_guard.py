@@ -39,15 +39,16 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
         if intent not in signals and re.search(pattern, req, re.IGNORECASE):
             signals.append(intent)
 
-    generation_clause = r"(?:^|\b(?:then|and then)\b|,\s*)(generate|write|create|build|develop|make)\b[^,]{0,80}\b(code|program|script|application|app|function|class|solution|utility|validator)\b"
-    if not _EXPLICIT_TEST.search(req):
-        add("code_generation", generation_clause)
-    elif re.search(
-        r"(?:^|\b(?:then|and then)\b|,\s*)(generate|write|create|build|develop|make)\b[^,]{0,50}\b(code|program|script|application|app|function|class|solution|utility|validator)\b",
-        req,
-        re.IGNORECASE,
-    ):
-        add("code_generation", generation_clause)
+    # A code-generation target must appear before any test noun in the same
+    # clause. Otherwise "Create tests for this function" is misread as code
+    # generation because the trailing word "function" happens to match.
+    generation_clause = (
+        r"(?:^|\b(?:then|and then)\b|,\s*)"
+        r"(generate|write|create|build|develop|make)\b"
+        r"(?![^,]{0,80}\b(?:unit\s+|integration\s+|pytest\s+)?tests?\b)"
+        r"[^,]{0,80}\b(code|program|script|application|app|function|class|solution|utility|validator)\b"
+    )
+    add("code_generation", generation_clause)
 
     add("test_generation", _EXPLICIT_TEST.pattern)
     add(
