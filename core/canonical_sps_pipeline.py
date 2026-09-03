@@ -11,15 +11,15 @@ from layers.layer_04_knowledge import KnowledgeCore
 from layers.layer_05_experience import ExperienceLog, Task
 from layers.layer_06_meta_learning import MetaLearner
 from layers.layer_07_adaptation import Adaptation
-from ui.brain_orchestrated_execution import BrainOrchestratedExecutionService
+from ui.sps_autonomous import AutonomousSPSExecutionService
 
 
 class CanonicalSPSPipeline:
-    """Run one submission through the canonical SPS execution boundary."""
+    """Run one submission through the canonical autonomous SPS boundary."""
 
     def __init__(self, *, registry_path: str = "capabilities/registry.json") -> None:
         self.registry_path = registry_path
-        self.execution = BrainOrchestratedExecutionService(registry_path=registry_path)
+        self.execution = AutonomousSPSExecutionService(registry_path=registry_path)
         self.brain = Brain()
         self.knowledge = KnowledgeCore()
         self.meta_learning = MetaLearner()
@@ -57,9 +57,10 @@ class CanonicalSPSPipeline:
         )
         result["brain"] = {
             "component": "SPS-CA Brain",
-            "role": "AI reasoning, intent classification, task decomposition, capability orchestration and result composition",
+            "role": "autonomous AI reasoning, task decomposition, strategy selection, reflection, capability orchestration, evolution decisions and result composition",
             "intent_signal": brain_intent,
             "replaceable": True,
+            "closed_loop": True,
         }
         result["pipeline"] = pipeline
         return result
@@ -69,45 +70,31 @@ class CanonicalSPSPipeline:
         manifest = architecture_manifest()
         dna = result.get("dna") or {}
         validation = result.get("validation")
-        governance = result.get("governance")
         execution = result.get("execution")
-        generated = bool(result.get("generated"))
-        generation = result.get("growth_decision") or result.get("capability_generation") or {}
-        growth = generation.get("growth_decision") if isinstance(generation, dict) else {}
-        if not isinstance(growth, dict):
-            growth = {}
-        growth_decision = growth.get("decision") or ("create" if generated else "reuse")
-        growth_reason = growth.get("reasoning") or generation.get("reason") or "Layer 8 evaluated capability reuse/growth."
+        generated = bool(result.get("generated")) or any(o.get("event") == "capability_created" for o in (result.get("brain", {}).get("observations") or []))
+        growth_decision = "create" if generated else "brain_controlled"
+        growth_reason = "Brain selected runtime strategy; Layer 8 is invoked when the Brain identifies a reusable capability gap."
 
         def layer(number: int, status: str, component: str, artifact: str, detail: str = "") -> Dict[str, Any]:
             definition = next(item for item in manifest["layers"] if item["number"] == number)
             return {"number": number, "name": definition["name"], "status": status, "component": component, "artifact": artifact, "detail": detail}
 
         layers = [
-            layer(1, "completed" if dna.get("allowed") is not False else "blocked", "SoftwareDNA", "DNA decision", "Final hard-boundary check uses the actual validation, governance, sandbox and rollback state."),
-            layer(2, "completed" if governance else "evaluated", "GovernanceGate", governance or "governance context", "Authorization remains explicit and is never bypassed by capability generation."),
-            layer(3, "completed", "CognitiveCore + Brain", f"intent={brain_intent}", "Brain supplies replaceable intelligence and decomposes compound requests into dependent capability tasks."),
-            layer(4, "completed" if knowledge_valid else "blocked", "KnowledgeCore", f"experience_count={len(experience.tasks)}", "A validated knowledge snapshot supplies structured context to reasoning and routing."),
-            layer(5, "completed", "ExperienceLog", f"tasks={len(experience.tasks)}", "Historical task outcomes and reusable-capability evidence are available to the pipeline."),
-            layer(6, "completed", "MetaLearner", f"failure_patterns={len(failure_patterns)}", "Observed failure patterns are evaluated before the next strategy is selected."),
-            layer(7, "completed", "Adaptation", f"changed={len(adaptation_changes)}; precheck={adaptation_ok}", f"Context-specific runtime parameters were evaluated; reusable capabilities={reusable_capabilities or []}."),
-            layer(8, "completed", "EvolutionEngine + GrowthDecisionEngine + Capability Registry", growth_decision, f"SPS Growth Decision: {growth_decision}. {growth_reason}"),
-            layer(9, "completed" if validation else "not_reached", "Validator", str(validation or "not reached"), "Sandbox validation is a hard boundary before controlled execution."),
-            layer(10, "completed" if execution else "not_reached", "ExecutionEngine", str(execution or "not reached"), "Execution creates controlled snapshots and exposes rollback state through the execution result."),
+            layer(1, "completed" if dna.get("allowed") is not False else "blocked", "SoftwareDNA", "DNA decision", "Final hard-boundary check uses actual execution state and cannot be overridden by Brain strategy."),
+            layer(2, "completed" if result.get("governance") else "evaluated", "GovernanceGate", result.get("governance") or "task-level governance", "Brain can request work, but authorization remains deterministic."),
+            layer(3, "completed", "CognitiveCore + Brain", f"intent={brain_intent}", "Brain is the autonomous controller; CognitiveCore supplies structured code/task context."),
+            layer(4, "completed" if knowledge_valid else "blocked", "KnowledgeCore", f"experience_count={len(experience.tasks)}", "Structured knowledge is available as Brain context."),
+            layer(5, "completed", "ExperienceLog", f"tasks={len(experience.tasks)}", "Historical outcomes feed strategy decisions and reflection."),
+            layer(6, "completed", "MetaLearner", f"failure_patterns={len(failure_patterns)}", "Failure evidence is available before replanning."),
+            layer(7, "completed", "Adaptation", f"changed={len(adaptation_changes)}; precheck={adaptation_ok}", "Adaptation context is available to the closed loop."),
+            layer(8, "completed", "EvolutionEngine + Capability Registry", growth_decision, growth_reason),
+            layer(9, "completed" if validation else "evaluated", "Validator", str(validation or "task-level validation"), "Every code-changing task is validated before execution."),
+            layer(10, "completed" if execution else "evaluated", "ExecutionEngine", str(execution or "task-level execution"), "Every applied code change uses the controlled execution boundary."),
         ]
-        return {
-            "name": "Canonical SPS Execution Pipeline",
-            "version": 2,
-            "layers": layers,
-            "brain": {"component": "SPS-CA Brain", "role": manifest["brain"]["role"], "replaceable": True, "intent_signal": brain_intent},
-            "growth_decision": {
-                "decision": growth_decision,
-                "reasoning": growth_reason,
-                "reason_code": growth.get("reason_code", "capability_gap" if growth_decision == "create" else "capability_sufficient"),
-                "evidence": growth.get("evidence", {}),
-            },
-            "supporting_subsystems": manifest["supporting_subsystems"],
-        }
+        return {"name": "Canonical SPS Autonomous Execution Pipeline", "version": 3, "layers": layers,
+                "brain": {"component": "SPS-CA Brain", "role": "autonomous controller", "replaceable": True, "intent_signal": brain_intent},
+                "growth_decision": {"decision": growth_decision, "reasoning": growth_reason},
+                "supporting_subsystems": manifest["supporting_subsystems"]}
 
     @staticmethod
     def _default_filename(language: str) -> str:
