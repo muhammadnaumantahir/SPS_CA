@@ -7,6 +7,7 @@ preserving evolution provenance. The public ten-layer model is unchanged.
 
 from .controlled_evolution import ControlledEvolutionEngine
 from .evolution_engine import EvolutionError
+from .execution_authority import EvolutionExecutionAuthority
 from .gap_planner import CapabilityGapPlanner
 from .governed_self_programming import SelfProgrammingEngine
 from .optimization_action_planner import EvolutionActionPlan, OptimizationActionPlanner
@@ -28,6 +29,7 @@ __all__ = [
     "EvolutionEngine",
     "ControlledEvolutionEngine",
     "EvolutionError",
+    "EvolutionExecutionAuthority",
     "CapabilityGapPlanner",
     "OptimizationActionPlanner",
     "EvolutionActionPlan",
