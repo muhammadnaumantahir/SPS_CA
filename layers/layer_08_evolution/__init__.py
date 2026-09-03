@@ -34,7 +34,7 @@ __all__ = [
     "SelfProgrammingEngine",
     "SelfProgrammingError",
     "FailureDiagnosis",
-    "SelfRepairError" if False else "SelfRepairResult",
+    "SelfRepairResult",
     "GovernedRetirementManager",
     "RetirementRecommendation",
     "CapabilityPlan",
