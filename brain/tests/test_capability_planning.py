@@ -140,3 +140,24 @@ def test_explicit_generation_and_tests_are_both_selected():
 
     assert plan.intent_class == "mixed"
     assert [step["capability_id"] for step in plan.steps] == ["CAP-001", "CAP-007"]
+
+
+def test_test_only_request_does_not_add_code_modification():
+    provider = FakeProvider({
+        "language": "python",
+        "language_confidence": 0.99,
+        "intent": "add tests",
+        "reasoning": "tests only",
+        "steps": [{"capability_id": "CAP-007", "reason": "tests"}],
+    })
+    brain = Brain(provider=provider, model="test-model")
+
+    plan = brain.plan(
+        request="Add pytest tests for this existing function.",
+        code="def add(a, b):\n    return a + b\n",
+        language="python",
+        file_path="main.py",
+        capability_catalog=canonical_catalog(),
+    )
+
+    assert [step["capability_id"] for step in plan.steps] == ["CAP-007"]
