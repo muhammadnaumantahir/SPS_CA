@@ -57,7 +57,7 @@ def test_overview_dashboard_api_is_removed():
 
 def test_capabilities_api_contract_remains_available():
     source = Path("ui/web_app.py").read_text(encoding="utf-8")
-    assert 'path=="/api/capabilities"' in source
+    assert 'path == "/api/capabilities"' in source
     assert 'capability_directory()' in source
 
 
@@ -68,3 +68,27 @@ def test_chat_insights_and_core_navigation_are_wired():
     assert "if(view==='capabilities') loadCapabilities()" in js
     assert "if(view==='evolution') refreshEvolution()" in js
     assert "language" in js and "capabilities" in js and "Evolution" in js
+
+
+def test_explicit_target_language_aliases_are_detected():
+    import sys
+    sys.path.insert(0, str(Path(".").resolve()))
+    from ui.web_app import requested_target_language
+
+    assert requested_target_language("generate code in JS") == "javascript"
+    assert requested_target_language("write this in JavaScript") == "javascript"
+    assert requested_target_language("create a Python program") == "python"
+    assert requested_target_language("convert this to Java") == "java"
+    assert requested_target_language("explain Python") == ""
+
+
+def test_historical_capability_provenance_is_exposed():
+    source = Path("ui/web_app.py").read_text(encoding="utf-8")
+    metadata = Path("capabilities/generated/cap_011_parse_error_handler/metadata.json").read_text(encoding="utf-8")
+    html = Path("ui/web/index.html").read_text(encoding="utf-8")
+
+    assert "generated_metadata" in source
+    assert "historical_migration" in source
+    assert "historical_migration" in metadata
+    assert "source_commit" in metadata
+    assert "not created by a current-user disagreement event" in html
