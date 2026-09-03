@@ -9,7 +9,12 @@ from typing import Any, Iterable, Optional
 
 from layers.layer_05_experience import ExperienceLog
 from layers.layer_06_meta_learning import OptimizationCycleController, OptimizationCyclePlan
-from layers.layer_08_evolution import CapabilityGapPlanner, EvolutionEngine
+from layers.layer_08_evolution import (
+    CapabilityGapPlanner,
+    EvolutionActionPlan,
+    EvolutionEngine,
+    OptimizationActionPlanner,
+)
 
 
 DEFAULT_STATE_PATH = "experience/logs/optimization_cycle_state.json"
@@ -18,10 +23,10 @@ DEFAULT_STATE_PATH = "experience/logs/optimization_cycle_state.json"
 class OptimizationCycleService:
     """Assess optimization opportunities and prepare controlled Evolution work.
 
-    This service is an orchestration boundary. Layer 6 decides when evidence is
-    sufficient; Layer 8 remains responsible for capability implementation and
-    all Software DNA/Governance/validation gates. No source mutation happens in
-    this service merely because a cycle was triggered.
+    Layer 6 decides whether evidence is sufficient. Layer 8 prepares the next
+    action and owns implementation. Actual candidate execution still passes
+    through the existing governed Evolution pipeline and is never implicit in
+    merely detecting a trigger.
     """
 
     def __init__(
@@ -30,12 +35,14 @@ class OptimizationCycleService:
         experience: ExperienceLog,
         controller: Optional[OptimizationCycleController] = None,
         gap_planner: Optional[CapabilityGapPlanner] = None,
+        action_planner: Optional[OptimizationActionPlanner] = None,
         evolution: Optional[EvolutionEngine] = None,
         state_path: str = DEFAULT_STATE_PATH,
     ) -> None:
         self.experience = experience
         self.controller = controller or OptimizationCycleController()
         self.gap_planner = gap_planner or CapabilityGapPlanner()
+        self.action_planner = action_planner or OptimizationActionPlanner(gap_planner=self.gap_planner)
         self.evolution = evolution or EvolutionEngine()
         self.state_path = Path(state_path)
 
@@ -65,6 +72,27 @@ class OptimizationCycleService:
             })
         return plan
 
+    def prepare_evolution_action(
+        self,
+        plan: OptimizationCyclePlan,
+        *,
+        language: str,
+        task_description: str,
+    ) -> EvolutionActionPlan:
+        """Convert a triggered Layer-6 recommendation into one auditable Layer-8 action plan."""
+        action = self.action_planner.plan(
+            plan,
+            task_description=task_description,
+            language=language,
+        )
+        state = self._load_state()
+        state.update({
+            "last_plan": plan.to_dict(),
+            "last_action_plan": action.to_dict(),
+        })
+        self._save_state(state)
+        return action
+
     def prepare_evolution_candidates(
         self,
         plan: OptimizationCyclePlan,
@@ -72,47 +100,51 @@ class OptimizationCycleService:
         language: str,
         task_description: str,
     ) -> list[dict[str, Any]]:
-        """Turn a triggered plan into explicit Layer-8 gap plans without executing them."""
-        if not plan.triggered:
+        """Backward-compatible candidate preparation using the canonical action planner."""
+        action = self.prepare_evolution_action(
+            plan,
+            language=language,
+            task_description=task_description,
+        )
+        if not action.triggered:
             return []
 
         candidates: list[dict[str, Any]] = []
-        for evaluation in plan.candidates:
-            reason = (
-                f"Optimization cycle {plan.cycle_id}: capability {evaluation.capability_id} "
-                f"scored {evaluation.score:.3f} after {evaluation.observations} observations."
-            )
-            gap_plan = self.gap_planner.plan(
-                task_description=task_description,
-                language=language,
-                reason=reason,
-                task_id=plan.cycle_id,
-            )
+        for capability_plan, source_id, reason in zip(
+            action.capability_plans,
+            action.source_capabilities,
+            action.rationale,
+        ):
             candidates.append({
-                "cycle_id": plan.cycle_id,
-                "source_capability_id": evaluation.capability_id,
-                "plan": gap_plan,
+                "cycle_id": action.cycle_id,
+                "source_capability_id": source_id,
+                "plan": capability_plan,
                 "reason": reason,
             })
 
+        if action.capability_plan is not None:
+            candidates.append({
+                "cycle_id": action.cycle_id,
+                "source_capability_id": "",
+                "plan": action.capability_plan,
+                "reason": action.reason,
+            })
+
         state = self._load_state()
-        state.update({
-            "last_plan": plan.to_dict(),
-            "evolution_candidates": [
-                {
-                    "cycle_id": item["cycle_id"],
-                    "source_capability_id": item["source_capability_id"],
-                    "reason": item["reason"],
-                    "plan": item["plan"].__dict__,
-                }
-                for item in candidates
-            ],
-        })
+        state["evolution_candidates"] = [
+            {
+                "cycle_id": item["cycle_id"],
+                "source_capability_id": item["source_capability_id"],
+                "reason": item["reason"],
+                "plan": item["plan"].__dict__,
+            }
+            for item in candidates
+        ]
         self._save_state(state)
         return candidates
 
     def execute_candidate(self, candidate: dict[str, Any], *, project_root: str = ".") -> dict[str, Any]:
-        """Execute one already-planned gap through the existing Layer-8 safety pipeline."""
+        """Execute one explicit Layer-8 candidate through DNA/governance/validation/rollback."""
         plan = candidate.get("plan")
         if plan is None:
             raise ValueError("candidate plan is required")
