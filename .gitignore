@@ -40,17 +40,6 @@ coverage.xml
 # Runtime/database/logs
 db.sqlite3
 db.sqlite3-journal
-*.log
-experience/logs/*.json
-experience/traces/*.json
-governance/decisions/*.json
-evaluation/scenarios/*.json
-evaluation/sandbox/*.json
-evaluation/regression/*.json
-evaluation/rollback/*.json
-evaluation/metrics/*.json
-ui/session_history.json
-runtime/*.json
 
 # Documentation builds
 docs/_build/

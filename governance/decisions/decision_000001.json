@@ -1,0 +1,20 @@
+{
+  "id": "decision_000001",
+  "timestamp": "2026-09-03 00:46:03.246992",
+  "change_id": "change_test_001",
+  "change_type": 3,
+  "change_description": "Add input validation to this function",
+  "dna_violations": [],
+  "risk_assessment": {
+    "risk_level": "low",
+    "factors": [],
+    "confidence": 0.85,
+    "recommended_action": "AUTO-APPROVE - Low risk"
+  },
+  "decision": "auto_approved",
+  "rationale": "Low risk - automatically approved",
+  "requires_human_approval": false,
+  "related_capabilities": [
+    "CAP-010"
+  ]
+}
