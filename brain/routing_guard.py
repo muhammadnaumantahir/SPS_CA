@@ -26,9 +26,10 @@ _EXPLICIT_TEST = re.compile(
     re.IGNORECASE,
 )
 
-_SEPARATE_ACTION_BOUNDARY = re.compile(
-    r"\b(?:then|after\s+that|afterwards)\b|,\s*(?:then|and\s+then)\b|\band\s+(?:also\s+)?(?:then\s+)?"
-    r"(?:analyze|analyse|explain|diagnose|debug|identify|find|fix|repair|resolve|patch|refactor|optimi[sz]e|validate|review|check|generate|create|write|modify|update|add|remove|delete|rename|move|document)\b",
+# Only an explicit sequencing phrase establishes a second task boundary. A
+# plain "and explain" commonly gives supporting detail for the first action.
+_EXPLICIT_CHAIN_BOUNDARY = re.compile(
+    r"\b(?:then|after\s+that|afterwards)\b|,\s*(?:then|and\s+then)\b",
     re.IGNORECASE,
 )
 
@@ -116,10 +117,6 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     if _PROJECT_ARTIFACT_ACTION.search(req):
         add("project_operations", _PROJECT_ARTIFACT_ACTION.pattern)
 
-    # Supporting validation language in a generation/modification request is
-    # part of the requested implementation unless validation is a separate
-    # action clause. The same principle applies to documentation embedded in a
-    # modification request.
     if "validation" in signals and (
         "code_generation" in signals or "code_modification" in signals
     ) and not _SEPARATE_VALIDATION_ACTION.search(req):
@@ -129,13 +126,13 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
         if not _SEPARATE_VALIDATION_ACTION.search(req):
             signals.remove("validation")
 
-    if "code_modification" in signals and "documentation" in signals and not _SEPARATE_ACTION_BOUNDARY.search(req):
+    if "code_modification" in signals and "documentation" in signals and not _EXPLICIT_CHAIN_BOUNDARY.search(req):
         signals.remove("documentation")
 
-    # Diagnosis + explanation is normally one task: explain the root cause of
-    # the diagnosed defect. It becomes mixed only when the user explicitly asks
-    # for a second action clause (for example, "diagnose it, then explain it").
-    if "bug_diagnosis" in signals and "analysis" in signals and not _SEPARATE_ACTION_BOUNDARY.search(req):
+    # Diagnosis + explanation is one task by default: the explanation supplies
+    # the root-cause detail for the diagnosis. It becomes mixed only when the
+    # request explicitly sequences the explanation as a follow-up task.
+    if "bug_diagnosis" in signals and "analysis" in signals and not _EXPLICIT_CHAIN_BOUNDARY.search(req):
         signals.remove("analysis")
 
     # Generation/modification takes precedence over project context unless the
