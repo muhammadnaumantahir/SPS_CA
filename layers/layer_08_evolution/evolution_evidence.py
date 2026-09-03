@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from layers.layer_08_evolution.growth_decision import GrowthDecisionEngine
 from layers.capability_registry.models import CapabilityType
 from layers.capability_registry.registry import CapabilityRegistryManager
 
@@ -17,6 +18,7 @@ class EvolutionEvidenceStore:
     def __init__(self, path: str | Path = EVENTS_PATH, registry_path: str | Path = ROOT / "capabilities" / "registry.json") -> None:
         self.path = Path(path)
         self.registry = CapabilityRegistryManager(str(registry_path))
+        self.growth_decision = GrowthDecisionEngine()
 
     def _load(self) -> list[dict[str, Any]]:
         if not self.path.exists():
@@ -83,23 +85,41 @@ class EvolutionEvidenceStore:
         return evidence
 
     def analyze(self, event):
+        """Make an explicit SPS Growth Decision from accumulated evidence.
+
+        A disagreement is never itself a create command. Creation requires a
+        persistent unmet pattern and no viable lower-cost response such as
+        adaptation, composition, or improvement.
+        """
         count = int(event.get("disagreement_count") or 0)
         parent = event.get("previous_capability_id") or ""
-        if not parent:
-            decision = "defer"
-            reasoning = "No previous capability was identified, so the system cannot establish a reusable capability gap safely."
-        elif count >= 3:
-            decision = "create"
-            reasoning = f"Repeated evidence shows {count} disagreements for {parent}; the existing capability is not reliably covering this pattern, so a new reusable capability is justified."
-        elif count == 2:
-            decision = "adapt"
-            reasoning = f"Two disagreements indicate a capability gap, but the evidence is not yet strong enough to create a new capability. Adaptation of {parent} is preferred first."
-        else:
-            decision = "defer"
-            reasoning = f"Only one disagreement is available for {parent}; preserve the evidence and avoid capability proliferation until the pattern repeats."
+        pattern = bool(event.get("failure_pattern"))
+        decision = self.growth_decision.decide(
+            existing_capability_id=parent,
+            disagreement_count=count,
+            capability_match=bool(parent),
+            repeated_pattern=count >= 3 and pattern,
+            adaptation_viable=count == 2,
+            composition_viable=False,
+            improvement_viable=False,
+        )
         events = self._load()
         result = dict(event)
-        result.update({"decision": decision, "reasoning": reasoning, "validation_status": "pending" if decision == "create" else "not_applicable", "event_type": "evolution_analysis", "event_id": self._next_id(events), "timestamp": self._now()})
+        result.update({
+            "decision": decision.decision.value,
+            "reason_code": decision.reason_code,
+            "reasoning": decision.reasoning,
+            "growth_decision": {
+                "decision": decision.decision.value,
+                "reason_code": decision.reason_code,
+                "reasoning": decision.reasoning,
+                "evidence": decision.evidence,
+            },
+            "validation_status": "pending" if decision.decision.value == "create" else "not_applicable",
+            "event_type": "evolution_analysis",
+            "event_id": self._next_id(events),
+            "timestamp": self._now(),
+        })
         events.append(result)
         self._save(events)
         return result
@@ -117,6 +137,7 @@ class EvolutionEvidenceStore:
             "parent_capability_id": parent,
             "trigger_event_ids": [analysis.get("event_id", "")],
             "reasoning": analysis.get("reasoning", ""),
+            "reason_code": analysis.get("reason_code", "persistent_capability_gap"),
             "evidence_summary": analysis.get("evidence_summary", ""),
             "validation_status": "registered",
             "source_request": analysis.get("request", ""),
