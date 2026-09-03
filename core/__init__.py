@@ -31,22 +31,27 @@ _original_capability_catalog = SpsAssistantService.capability_catalog
 
 
 def _rich_capability_catalog(self: SpsAssistantService) -> list[dict]:
+    capability_by_id = {
+        capability.id: capability
+        for capability in self.registry.list_all_capabilities()
+        if capability.status == "active"
+    }
     catalog = _original_capability_catalog(self)
     enriched = []
-    for item, capability in zip(catalog, self.registry.list_all_capabilities()):
-        if capability.status != "active":
-            continue
+    for item in catalog:
+        capability = capability_by_id.get(str(item.get("id", "")))
         record = dict(item)
-        for field in (
-            "intent_class",
-            "allowed_intents",
-            "forbidden_intents",
-            "risk_level",
-            "supported_languages",
-        ):
-            value = getattr(capability, field, None)
-            if value is not None:
-                record[field] = list(value) if isinstance(value, (list, tuple, set)) else value
+        if capability is not None:
+            for field in (
+                "intent_class",
+                "allowed_intents",
+                "forbidden_intents",
+                "risk_level",
+                "supported_languages",
+            ):
+                value = getattr(capability, field, None)
+                if value is not None:
+                    record[field] = list(value) if isinstance(value, (list, tuple, set)) else value
         enriched.append(record)
     return enriched
 
