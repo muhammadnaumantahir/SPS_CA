@@ -4,9 +4,9 @@ Per architecture v2 section 4, SPS layers must talk to the model
 abstraction in ``models/``, never to a concrete provider directly. This
 module is that call site for Layer 2: it wraps an ``LLMProvider`` (Ollama
 by default, since that's the zero-cost local provider used for the
-prototype) and adds the query framing (code + context in, text out) and
-timeout handling called for in the design ("Handle timeouts (local
-inference is slow)").
+prototype) and adds the query framing (code + context in, text out).
+Local inference has no default wall-clock timeout; callers may still opt
+into a finite timeout when needed for bounded environments.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from models.base import (
 )
 from models.ollama import OllamaProvider
 
-DEFAULT_TIMEOUT_SECONDS = 120.0
+DEFAULT_TIMEOUT_SECONDS = None
 
 _SYSTEM_PROMPT = (
     "You are the reasoning component of SPS-CA, a governed self-programming "
@@ -47,9 +47,11 @@ class LLMInterface:
     def __init__(
         self,
         provider: Optional[LLMProvider] = None,
-        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout_seconds: Optional[float] = DEFAULT_TIMEOUT_SECONDS,
     ):
         self.provider = provider or OllamaProvider()
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive or None")
         self.timeout_seconds = timeout_seconds
 
     def is_available(self) -> bool:
@@ -80,11 +82,12 @@ class LLMInterface:
         try:
             response: LLMResponse = self.provider.generate(request)
         except LLMTimeoutError as exc:
-            raise LLMQueryError(
-                f"LLM query timed out after {self.timeout_seconds}s. "
-                "Local inference can be slow; consider raising timeout_seconds "
-                "or using a smaller model."
-            ) from exc
+            timeout_message = (
+                f"LLM query timed out after {self.timeout_seconds}s."
+                if self.timeout_seconds is not None
+                else "LLM provider reported a timeout."
+            )
+            raise LLMQueryError(timeout_message) from exc
         except LLMUnavailableError as exc:
             raise LLMQueryError(f"LLM provider unavailable: {exc}") from exc
         except LLMError as exc:
