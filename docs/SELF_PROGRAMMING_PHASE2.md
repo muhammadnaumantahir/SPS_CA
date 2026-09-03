@@ -25,6 +25,8 @@ Layer 6 now provides three complementary controls:
 - `StrategyPolicy` decides whether an alternative is strong enough to recommend;
 - `ABComparisonEngine` provides deterministic, evidence-gated A/B comparison for compatible capability arms.
 
+Layer 8 now also provides `GovernedRetirementManager` for evidence-gated lifecycle deactivation of generated capabilities that remain persistently poor.
+
 For every observed capability, the evaluator derives observation count, raw success rate, partial-outcome rate, mean task duration, evidence confidence, and a bounded behavioral score from 0.0 to 1.0.
 
 Small samples are shrunk toward a neutral 50% success prior so one lucky or unlucky task does not immediately dominate strategy selection. Latency contributes a bounded penalty while success remains dominant.
@@ -44,6 +46,14 @@ A short routing cooldown also suppresses immediate switching back to a capabilit
 A future-routing winner is withheld until both arms have at least five observations by default and the sample counts are reasonably balanced. Even then, the better arm must clear the same conservative 0.08 behavioral-score margin used by strategy switching.
 
 The comparison result is an auditable value containing both arm evaluations, balance status, score margin, winner, and evidence sufficiency. It does not mutate code or the registry and cannot bypass Governance.
+
+## Governed retirement
+
+Generated capabilities are never deleted merely because they underperform. `GovernedRetirementManager` first requires a minimum evidence count (five observations by default) and a low behavioral score (0.35 or below by default).
+
+A canonical capability can never be retired by this policy. For an eligible generated capability, Layer 8 requests a Governance decision before calling the Layer 9 registry lifecycle operation. An approved retirement changes the status to `deprecated`, preserving metadata, lineage, and historical evidence while excluding the capability from active discovery.
+
+Retirement therefore remains reversible at the registry lifecycle level and cannot silently remove source history.
 
 ## Live Brain routing
 
@@ -100,12 +110,14 @@ Adaptation / live routing
     ↓
 New Experience evidence
     ↓
+Governed retirement when a generated capability persistently underperforms
+    ↓
 Evolution only when a genuine capability gap remains
 ```
 
 ## Safety boundary
 
-The evaluator, strategy policy, and A/B comparison engine are read-only with respect to source code and capability registry state. They operate on Experience records and produce recommendation/comparison objects.
+The evaluator, strategy policy, and A/B comparison engine are read-only with respect to source code and capability registry state. The retirement manager may change only registry lifecycle state after evidence and Governance approval; it does not delete source or bypass Layer 9.
 
 Any structural self-change still follows the Phase 1 Software DNA → Governance → Verification & Validation → Layer 10 execution/rollback boundary. Layer 6 cannot authorize a source mutation by itself.
 
@@ -129,11 +141,11 @@ Completed:
 - evidence-qualified generated-capability routing in the Brain boundary;
 - persisted evidence-backed meta-learning decisions;
 - deterministic controlled A/B capability comparison with minimum evidence and balance gates;
+- governed retirement/deactivation of persistently poor generated capabilities;
 - regression/unit coverage for the new learning policy;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
 Next work:
 
-- introduce governed retirement/deactivation of persistently poor generated capabilities;
 - add scheduled or threshold-triggered optimization cycles;
-- use those measurements to drive the next Evolution improvements.
+- use A/B and retirement measurements to drive the next controlled Evolution improvements.
