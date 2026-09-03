@@ -1,73 +1,25 @@
-"""Phase 1: controlled self-programming and self-repair.
-
-This module keeps the canonical ten SPS layers intact while adding the missing
-closed-loop mechanism inside Layer 8 (Evolution): diagnose a system failure,
-construct a bounded repair candidate, run the candidate through Software DNA
-and Governance, execute it in the controlled Layer 10 environment, and record
-regression evidence. A failed candidate is rolled back by the Execution layer.
-
-The engine is deliberately conservative: it can never target Software DNA,
-Governance, audit history, or runtime state for autonomous repair. Human review
-is required whenever Governance does not auto-approve a mutation.
-"""
+"""Layer-8 controlled self-programming for SPS-CA."""
 
 from __future__ import annotations
 
 import json
 import re
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-from layers.layer_01_software_dna import DNAViolation as Layer1DNAViolation, SoftwareDNA
-from layers.layer_02_governance import ChangeType, DecisionStatus, GovernanceGate
+from layers.layer_01_software_dna import Layer1DNAViolation, SoftwareDNA
+from layers.layer_02_governance.governance import GovernanceGate
+from layers.layer_02_governance.models import ChangeType, DecisionStatus
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
-from layers.layer_10_execution import Change, ExecutionEngine, FileEdit, ExecutionStatus
+from layers.layer_10_execution.execution_engine import ExecutionEngine
+from layers.layer_10_execution.models import ExecutionStatus
 
+from .models import Change, FailureDiagnosis, FileEdit, SelfRepairResult
 
-@dataclass(frozen=True)
-class FailureDiagnosis:
-    """Structured diagnosis produced before a self-repair candidate is built."""
-
-    failure_id: str
-    category: str
-    component: str
-    symptom: str
-    root_cause_hypothesis: str
-    severity: str
-    affected_files: List[str] = field(default_factory=list)
-
-
-@dataclass
-class SelfRepairResult:
-    """Auditable outcome of one controlled self-repair attempt."""
-
-    success: bool
-    diagnosis: Optional[FailureDiagnosis] = None
-    decision: Optional[str] = None
-    change_id: Optional[str] = None
-    execution_status: Optional[str] = None
-    rollback_triggered: bool = False
-    regression_case_id: Optional[str] = None
-    message: str = ""
-    repair_attempts: int = 0
-    candidate: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "success": self.success,
-            "diagnosis": self.diagnosis.__dict__ if self.diagnosis else None,
-            "decision": self.decision,
-            "change_id": self.change_id,
-            "execution_status": self.execution_status,
-            "rollback_triggered": self.rollback_triggered,
-            "regression_case_id": self.regression_case_id,
-            "message": self.message,
-            "repair_attempts": self.repair_attempts,
-            "candidate": self.candidate,
-        }
+MAX_REPAIR_ATTEMPTS = 3
+MAX_FILES_PER_REPAIR = 5
 
 
 class SelfProgrammingError(Exception):
@@ -78,24 +30,20 @@ class SelfProgrammingEngine:
     """Layer-8 controlled self-modification engine.
 
     The engine is designed for failures in SPS-CA itself, not arbitrary user
-    projects. It does not bypass the other layers: Software DNA is evaluated
-    first, Governance decides whether a mutation may proceed, Layer 10 owns
-    snapshot/execute/rollback, and regression evidence is retained for future
-    evaluation.
+    projects. Candidates are constrained to diagnosed files and must pass
+    Software DNA, Governance, Layer-10 execution, and regression verification.
     """
 
-    MAX_REPAIR_ATTEMPTS = 3
-    MAX_FILES_PER_REPAIR = 5
+    MAX_REPAIR_ATTEMPTS = MAX_REPAIR_ATTEMPTS
+    MAX_FILES_PER_REPAIR = MAX_FILES_PER_REPAIR
+    ALLOWED_TEXT_SUFFIXES = (".py", ".md", ".json", ".yml", ".yaml", ".js", ".ts")
     PROTECTED_PREFIXES = (
         "governance/",
         "layers/layer_01_software_dna/",
         "layers/layer_02_governance/",
-        "experience/logs/",
         "experience/traces/",
-        "runtime/",
-    )
-    ALLOWED_TEXT_SUFFIXES = (
-        ".py", ".md", ".json", ".txt", ".yml", ".yaml", ".toml", ".ini", ".css", ".js", ".ts"
+        "experience/regressions/",
+        "data/self_programming_snapshots/",
     )
 
     def __init__(
@@ -128,7 +76,6 @@ class SelfProgrammingEngine:
         affected_files: Optional[List[str]] = None,
         failure_id: Optional[str] = None,
     ) -> FailureDiagnosis:
-        """Classify a failure before any mutation candidate is generated."""
         text = f"{component} {symptom}".lower()
         if any(token in text for token in ("routing", "intent", "test_generation", "capability selection")):
             category, severity = "ROUTING_FAILURE", "high"
@@ -170,12 +117,6 @@ class SelfProgrammingEngine:
         tests: Optional[List[str]] = None,
         failure_id: Optional[str] = None,
     ) -> SelfRepairResult:
-        """Run diagnose -> candidate -> DNA -> governance -> execute -> verify.
-
-        The method performs at most ``max_repair_attempts`` candidates. Every
-        candidate is fully rejected if it targets a protected surface, violates
-        a hard DNA rule, exceeds scope, or fails Layer-10 verification.
-        """
         diagnosis = self.diagnose_failure(
             symptom=symptom,
             component=component,
@@ -195,10 +136,7 @@ class SelfProgrammingEngine:
 
             change = Change.new(
                 capability_id="SELF-REPAIR",
-                description=(
-                    f"Controlled self-repair for {diagnosis.failure_id}: "
-                    f"{diagnosis.symptom}"
-                ),
+                description=f"Controlled self-repair for {diagnosis.failure_id}: {diagnosis.symptom}",
                 edits=[FileEdit(file_path=path, new_content=content) for path, content in edits],
                 target_language="python",
                 test_command=self._test_command(tests),
@@ -217,10 +155,7 @@ class SelfProgrammingEngine:
                 related_capabilities=["SELF-REPAIR"],
             )
             if governance_decision.decision not in {DecisionStatus.AUTO_APPROVED, DecisionStatus.APPROVED}:
-                last_message = (
-                    f"Candidate {attempt} requires human governance review: "
-                    f"{governance_decision.rationale}"
-                )
+                last_message = f"Candidate {attempt} requires human governance review: {governance_decision.rationale}"
                 return SelfRepairResult(
                     success=False,
                     diagnosis=diagnosis,
@@ -263,7 +198,6 @@ class SelfProgrammingEngine:
         )
 
     def record_regression_case(self, diagnosis: FailureDiagnosis, tests: List[str]) -> str:
-        """Persist a reproducible regression record without storing source text."""
         case_id = f"REG-{uuid.uuid4().hex[:10]}"
         data = self._load_regressions()
         data.append({
@@ -282,7 +216,7 @@ class SelfProgrammingEngine:
         self._save_regressions(data)
         return case_id
 
-    def _generate_candidate(self, diagnosis: FailureDiagnosis, attempt: int, tests: List[str]) -> Dict[str, Any]:
+    def _generate_candidate(self, diagnosis: FailureDiagnosis, attempt: int, tests: List[str]) -> dict[str, Any]:
         context_files = self._read_context(diagnosis.affected_files)
         prompt = f"""Produce one minimal SPS-CA self-repair candidate.
 
@@ -317,7 +251,7 @@ Context:
             raise ValueError("invalid repair candidate shape")
         return candidate
 
-    def _validate_candidate(self, diagnosis: FailureDiagnosis, candidate: Dict[str, Any]) -> List[tuple[str, str]]:
+    def _validate_candidate(self, diagnosis: FailureDiagnosis, candidate: dict[str, Any]) -> List[tuple[str, str]]:
         raw_edits = candidate.get("edits") or []
         if not raw_edits or len(raw_edits) > self.MAX_FILES_PER_REPAIR:
             raise SelfProgrammingError(f"repair must contain 1..{self.MAX_FILES_PER_REPAIR} edits")
@@ -327,12 +261,16 @@ Context:
         for item in raw_edits:
             if not isinstance(item, dict):
                 raise SelfProgrammingError("repair edit must be an object")
-            path = str(item.get("file_path", "")).replace("\\", "/").lstrip("./")
-            content = str(item.get("new_content", ""))
-            if not path or not content:
+            raw_path = str(item.get("file_path", "")).replace("\\", "/")
+            raw_parts = Path(raw_path).parts
+            if not raw_path:
                 raise SelfProgrammingError("repair edit requires file_path and new_content")
-            if ".." in Path(path).parts or Path(path).is_absolute():
-                raise SelfProgrammingError(f"unsafe repair path: {path}")
+            if Path(raw_path).is_absolute() or ".." in raw_parts:
+                raise SelfProgrammingError(f"unsafe repair path: {raw_path}")
+            path = raw_path.lstrip("./")
+            content = str(item.get("new_content", ""))
+            if not content:
+                raise SelfProgrammingError("repair edit requires file_path and new_content")
             if path in self.PROTECTED_PREFIXES or any(path.startswith(prefix) for prefix in self.PROTECTED_PREFIXES):
                 raise SelfProgrammingError(f"protected self-programming surface: {path}")
             if not path.endswith(self.ALLOWED_TEXT_SUFFIXES):
@@ -350,12 +288,9 @@ Context:
         return edits
 
     def _check_dna(self, change: Change) -> tuple[str, bool]:
-        hard = False
-        warnings: List[str] = []
         for edit in change.edits:
-            path = edit.file_path
-            if self.dna.is_self_modification_of_governance(path):
-                return (f"protected governance/DNA target: {path}", False)
+            if self.dna.is_self_modification_of_governance(edit.file_path):
+                return (f"protected governance/DNA target: {edit.file_path}", False)
         try:
             result = self.dna.check_action(
                 action_description=change.description,
@@ -363,9 +298,7 @@ Context:
             )
         except Layer1DNAViolation as exc:
             return (str(exc), False)
-        hard = result.allowed
-        warnings.extend(result.warnings)
-        return ("; ".join(warnings) if warnings else "DNA check passed", hard)
+        return ("; ".join(result.warnings) if result.warnings else "DNA check passed", result.allowed)
 
     @staticmethod
     def _test_command(tests: Optional[List[str]]) -> str:
@@ -386,7 +319,7 @@ Context:
                 parts.append(f"FILE: {normalized}\n{text[-12000:]}")
         return "\n\n".join(parts)
 
-    def _load_regressions(self) -> List[Dict[str, Any]]:
+    def _load_regressions(self) -> List[dict[str, Any]]:
         if not self.regression_path.exists():
             return []
         try:
@@ -395,7 +328,7 @@ Context:
             return []
         return value if isinstance(value, list) else []
 
-    def _save_regressions(self, records: List[Dict[str, Any]]) -> None:
+    def _save_regressions(self, records: List[dict[str, Any]]) -> None:
         self.regression_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.regression_path.with_suffix(self.regression_path.suffix + ".tmp")
         tmp.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
