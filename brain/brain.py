@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from capabilities.canonical import CANONICAL_BY_ID, INTENT_CLASSES, capability_ids_for_intent, canonical_catalog
+from capabilities.canonical import CANONICAL_BY_ID, INTENT_CLASSES, capability_ids_for_intent
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -129,16 +129,16 @@ class Brain:
     def infer_intent_class(request: str, code: str = "", file_path: str = "") -> str:
         """Classify task intent before capability selection.
 
-        This is intentionally conservative and deterministic so an LLM cannot
-        accidentally turn a creation request into test generation.
+        Explicit modification language takes priority over generic validation
+        language when working source is present. For example, "add input
+        validation to this function" changes source and is therefore a
+        code_modification task, not a read-only validation task.
         """
         req = " ".join((request or "").lower().split())
         has_code = bool((code or "").strip())
         if not req:
             return "unknown"
-        if re.search(r"\b(generate|write|create|add|write|make)\b.*\b(test|tests|pytest|unit tests?)\b", req) or re.search(r"\b(generate|write|create)\s+(pytest|unit tests?)\b", req):
-            return "test_generation"
-        if re.search(r"\b(test|tests|pytest|unit tests?)\b", req) and re.search(r"\b(generate|write|create|add)\b", req):
+        if re.search(r"\b(generate|write|create|add|make)\b.*\b(test|tests|pytest|unit tests?)\b", req) or re.search(r"\b(generate|write|create)\s+(pytest|unit tests?)\b", req):
             return "test_generation"
         if re.search(r"\b(fix|repair|resolve)\b.*\b(bug|error|issue|exception|failure)\b", req):
             return "bug_fixing"
@@ -148,6 +148,8 @@ class Brain:
             return "refactoring"
         if re.search(r"\b(document|documentation|docstring|docstrings|comments?|readme)\b", req):
             return "documentation"
+        if has_code and re.search(r"\b(add|change|modify|update|extend|implement|replace|remove|insert|delete)\b", req):
+            return "code_modification"
         if re.search(r"\b(validate|validation|review|check syntax|check correctness|code quality|security review)\b", req):
             return "validation"
         if re.search(r"\b(create|add|delete|remove|move|rename)\b.*\b(file|folder|directory|project|module|package)\b", req) or "project structure" in req:
@@ -156,10 +158,10 @@ class Brain:
             return "analysis"
         if re.search(r"\b(write|create|build|generate|make|develop|implement)\b.*\b(code|program|script|application|app|function|calculator|solution)\b", req) and not has_code:
             return "code_generation"
+        if re.search(r"\b(write|create|build|generate|make|develop|implement)\b.*\b(code|program|script|application|app|function|calculator|solution)\b", req):
+            return "code_generation"
         if re.search(r"\b(add|change|modify|update|extend|implement|replace|remove)\b", req) and has_code:
             return "code_modification"
-        if re.search(r"\b(write|create|build|generate|make|develop|implement)\b.*\b(code|program|script|application|app|function|solution)\b", req):
-            return "code_generation"
         return "unknown"
 
     @staticmethod
@@ -189,31 +191,24 @@ class Brain:
             raise BrainError("Brain requires a non-empty request.")
         if not capability_catalog:
             raise BrainError("Brain received an empty capability catalog.")
-
         inferred_language, inferred_confidence, inferred_evidence = self.detect_language(code, request, file_path)
         intent_class = self.infer_intent_class(request, code, file_path)
         enriched = self._enriched_catalog(capability_catalog)
-        eligible_ids = set(capability_ids_for_intent(intent_class))
-        if intent_class == "unknown":
-            eligible_ids = set(enriched)
+        eligible_ids = set(capability_ids_for_intent(intent_class)) if intent_class != "unknown" else set(enriched)
         eligible = [enriched[cid] for cid in enriched if cid in eligible_ids]
         if not eligible:
             raise BrainError(f"No active capability is eligible for intent '{intent_class}'.")
-
         history = list(conversation or [])[-12:]
         experience = list(experience_context or [])[-8:]
         prompt = (
-            f"{_SYSTEM_PROMPT}\n\n"
-            f"PRELIMINARY LANGUAGE EVIDENCE: {inferred_language} ({inferred_confidence:.2f}) — {inferred_evidence}\n"
-            f"CLASSIFIED INTENT: {intent_class}\n"
-            f"TARGET FILE: {file_path}\n"
+            f"{_SYSTEM_PROMPT}\n\nPRELIMINARY LANGUAGE EVIDENCE: {inferred_language} ({inferred_confidence:.2f}) — {inferred_evidence}\n"
+            f"CLASSIFIED INTENT: {intent_class}\nTARGET FILE: {file_path}\n"
             f"CONVERSATION HISTORY:\n{json.dumps(history, ensure_ascii=False)}\n"
             f"RELEVANT SPS EXPERIENCE:\n{json.dumps(experience, ensure_ascii=False) if experience else '(none)'}\n"
             f"SPS KNOWLEDGE:\n{json.dumps(knowledge_context or {}, ensure_ascii=False)}\n\n"
             f"LATEST USER REQUEST:\n{request}\n\nCURRENT WORKING SOURCE:\n{code}\n\n"
             f"INTENT-ELIGIBLE CAPABILITIES:\n{json.dumps(eligible, ensure_ascii=False)}"
         )
-
         try:
             raw = self.llm.query(code=code, instruction=prompt, model=self.model, temperature=0.0)
         except LLMQueryError as exc:
@@ -227,7 +222,6 @@ class Brain:
             raise BrainError(f"Brain returned invalid planning JSON: {exc}") from exc
         if not isinstance(data, dict) or not isinstance(data.get("steps", []), list):
             raise BrainError("Brain returned an invalid plan structure.")
-
         valid_ids = set(enriched)
         steps: list[dict[str, str]] = []
         for step in data.get("steps", []):
@@ -238,8 +232,7 @@ class Brain:
                 raise BrainError(f"Brain selected unavailable capability: {cid or '<empty>'}")
             if cid in eligible_ids:
                 steps.append({"capability_id": cid, "reason": str(step.get("reason", ""))})
-
-        if intent_class in INTENT_CLASSES and intent_class not in {"unknown", "mixed"}:
+        if intent_class not in {"unknown", "mixed"}:
             primary = capability_ids_for_intent(intent_class)[0]
             if not steps or all(step["capability_id"] != primary for step in steps):
                 steps = [{"capability_id": primary, "reason": f"intent eligibility enforcement for '{intent_class}'"}]
@@ -247,7 +240,6 @@ class Brain:
                 steps = [step for step in steps if step["capability_id"] == primary]
         elif not steps and eligible:
             steps = [{"capability_id": eligible[0]["id"], "reason": "first eligible capability after Brain planning"}]
-
         model_language = str(data.get("language") or inferred_language).lower()
         if model_language not in self.SUPPORTED and model_language != "unknown":
             model_language = inferred_language
@@ -256,11 +248,9 @@ class Brain:
         except (TypeError, ValueError):
             confidence = inferred_confidence
         confidence = max(0.0, min(1.0, confidence))
-        model_intent = str(data.get("intent") or request)
-        reasoning = str(data.get("reasoning") or "Intent classified and eligible capabilities selected.")
         return BrainPlan(
-            intent=model_intent,
-            reasoning=reasoning,
+            intent=str(data.get("intent") or request),
+            reasoning=str(data.get("reasoning") or "Intent classified and eligible capabilities selected."),
             steps=steps,
             provider=self.provider_name,
             model=self.model,
