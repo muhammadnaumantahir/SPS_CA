@@ -8,7 +8,6 @@ rewrite capabilities and it does not bypass Governance or Execution.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import sqrt
 from typing import Dict, Iterable, List
 
 from layers.layer_05_experience.experience_log import ExperienceLog
@@ -75,12 +74,8 @@ class CapabilityEvaluator:
         partial_rate = partials / observations
         mean_time = sum(max(0.0, task.time_taken_seconds) for task in tasks) / observations
 
-        # Confidence rises with evidence but never reaches 1.0 from finite data.
         confidence = observations / (observations + 5.0)
-        # Shrink tiny samples toward a neutral 50% prior.
-        smoothed_success = (
-            successes + self.DEFAULT_PRIOR_SUCCESS
-        ) / (observations + 1.0)
+        smoothed_success = (successes + self.DEFAULT_PRIOR_SUCCESS) / (observations + 1.0)
         partial_credit = 0.5 * partial_rate
         safe_reference = max(1.0, float(latency_reference_seconds))
         latency_factor = min(1.0, mean_time / safe_reference)
@@ -105,10 +100,7 @@ class CapabilityEvaluator:
         *,
         min_observations: int = DEFAULT_MIN_OBSERVATIONS,
     ) -> List[CapabilityEvaluation]:
-        evaluations = [
-            self.evaluate(experience_log, capability_id)
-            for capability_id in capability_ids
-        ]
+        evaluations = [self.evaluate(experience_log, capability_id) for capability_id in capability_ids]
         return sorted(
             [item for item in evaluations if item.observations >= min_observations],
             key=lambda item: (item.score, item.confidence, item.success_rate),
@@ -122,11 +114,7 @@ class CapabilityEvaluator:
         *,
         min_observations: int = DEFAULT_MIN_OBSERVATIONS,
     ) -> str | None:
-        ranked = self.rank(
-            experience_log,
-            capability_ids,
-            min_observations=min_observations,
-        )
+        ranked = self.rank(experience_log, capability_ids, min_observations=min_observations)
         return ranked[0].capability_id if ranked else None
 
 
