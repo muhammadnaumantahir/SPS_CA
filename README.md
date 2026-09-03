@@ -25,6 +25,12 @@ The layer packages now use explicit `*_core` directory names. Their sub-componen
 
 Layer 8 does not turn disagreement directly into a new capability. Evidence flows through Experience → Meta-learning → Brain/Cognitive reasoning → **SPS Growth Decision**, which can choose `reuse`, `adapt`, `compose`, `improve`, `create`, or `defer`.
 
+## 1000-case growth + evolution proof
+
+The repository includes an optimized 1000-case suite: 490 routing cases, 500 evolution-strategy contract cases, and 10 executable evolution-proof lifecycle cases. The proof cases verify persistent disagreement evidence → evolution analysis → actual `capability_created` evidence → generated capability registration → later-request discovery → reuse-count persistence. The scenario generator is `scripts/generate_growth_1000.py`, and the single pytest entry point is `testing/test_sps_scenarios.py`.
+
+For Colab, open `notebooks/SPS_CA_optimized_1000_evolution.ipynb`. It contains one cell that executes the complete 1000-case suite and a separate evidence-summary cell.
+
 ## Brain boundary
 
 The SPS-CA Brain is a separate replaceable model service. It is not a layer, not Layer 11, and not a capability.
