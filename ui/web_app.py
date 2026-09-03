@@ -19,12 +19,36 @@ def service_for(model:str="")->SpsAssistantService: return SpsAssistantService(r
 def capability_directory()->list[dict[str,Any]]: return service_for().capability_directory()
 def growth_data()->dict[str,Any]:
     caps=capability_directory(); events=evolution.list_events(200); generated=sum(1 for c in caps if c.get("generated")); return {"total_capabilities":len(caps),"seed_capabilities":len(caps)-generated,"generated_capabilities":generated,"active_capabilities":sum(1 for c in caps if c.get("usable")),"disagreements":sum(1 for e in events if e.get("event_type")=="disagreement"),"evolution_events":len(events),"timeline":events}
+def dashboard_data()->dict[str,Any]:
+    """Return one normalized, read-only snapshot for the SPS control center."""
+    caps=capability_directory(); events=evolution.list_events(200); saved_sessions=sessions.list(); architecture=architecture_manifest()
+    events_sorted=sorted(events,key=lambda e:str(e.get("timestamp", "")),reverse=True)
+    activity=[]
+    for event in events_sorted[:20]:
+        event_type=str(event.get("event_type","event")).replace("_"," ")
+        activity.append({"type":"evolution","label":event_type,"timestamp":event.get("timestamp",""),"detail":event.get("reasoning") or event.get("evidence_summary") or event.get("request","")})
+    for session in saved_sessions[:20]:
+        activity.append({"type":"chat","label":"conversation updated","timestamp":session.get("updated_at",""),"detail":session.get("title","New chat")})
+    activity.sort(key=lambda item:str(item.get("timestamp","")),reverse=True)
+    return {
+        "metrics": {
+            "layers": len(architecture.get("layers",[])),
+            "core_capabilities": len(caps),
+            "active_capabilities": sum(1 for c in caps if c.get("usable")),
+            "conversations": len(saved_sessions),
+            "evolution_events": len(events),
+        },
+        "architecture": architecture,
+        "capabilities": caps,
+        "evolution": events_sorted[:50],
+        "activity": activity[:20],
+    }
 def extract_prompt_code(request:str)->tuple[str,str]:
     matches=re.findall(r"```([\w+-]*)\s*\n([\s\S]*?)```",request or "",re.MULTILINE)
     if not matches: return "", ""
     lang, code=matches[0]; return code.strip(), lang.strip().lower()
 class Handler(BaseHTTPRequestHandler):
-    server_version="SPS-CA/3.1"
+    server_version="SPS-CA/3.2"
     def _send(self,status:int,payload:Any,content_type:str="application/json")->None:
         body=payload if isinstance(payload,bytes) else json.dumps(payload,ensure_ascii=False).encode() if content_type=="application/json" else str(payload).encode(); self.send_response(status); self.send_header("Content-Type",f"{content_type}; charset=utf-8"); self.send_header("Content-Length",str(len(body))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(body)
     def _json_body(self)->dict[str,Any]:
@@ -36,6 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=="/api/architecture": self._send(200,architecture_manifest()); return
         if path=="/api/capabilities": self._send(200,{"capabilities":capability_directory()}); return
         if path=="/api/growth": self._send(200,growth_data()); return
+        if path=="/api/dashboard": self._send(200,dashboard_data()); return
         if path=="/api/sessions": self._send(200,{"sessions":sessions.list()}); return
         if path.startswith("/api/sessions/"):
             s=sessions.get(path.rsplit("/",1)[-1]); self._send(200,s) if s else self._send(404,{"error":"session not found"}); return
