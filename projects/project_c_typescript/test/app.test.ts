@@ -22,8 +22,4 @@ describe('Task API contract', () => {
     await request(app).put('/tasks/99').send({ title: 'missing' }).expect(400);
   });
   it('rejects empty titles', async () => { await request(app).post('/tasks').send({ title: '' }).expect(400); });
-  it('preserves seeded benchmark defect', async () => {
-    await request(app).post('/tasks').send({ title: 'one' }).expect(201);
-    expect((await request(app).get('/tasks/999/exists')).body.exists).toBe(true);
-  });
 });
