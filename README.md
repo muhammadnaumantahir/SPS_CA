@@ -41,6 +41,37 @@ Generated/evolved capabilities begin at **CAP-011+** and preserve provenance and
 
 SPS-CA has ten architectural layers: Software DNA, Governance, Cognitive, Knowledge, Experience, Meta-Learning, Adaptation, Evolution, Verification & Validation, and Execution. The Brain is a separate intelligence service. The Architecture view is the single UI surface for exploring these layers and their supporting components.
 
+The layer names are intentionally stable. Phase 1 adds controlled self-programming inside **Layer 08 — Evolution** without renaming, removing, or collapsing any of the ten layers.
+
+## Phase 1 — controlled self-programming
+
+Phase 1 adds a governed self-repair transaction for SPS-CA failures:
+
+```text
+Failure
+  ↓
+Diagnosis
+  ↓
+Regression case
+  ↓
+Repair candidate
+  ↓
+Layer 01 Software DNA
+  ↓
+Layer 02 Governance
+  ↓
+Layer 09 Verification & Validation
+  ↓
+Layer 10 Execution
+  ↓
+PASS → promote
+FAIL → rollback → preserve evidence
+```
+
+The new `SelfProgrammingEngine` is limited to an explicit file scope, a maximum of five edited files, and three candidate attempts. It cannot autonomously modify Software DNA, Governance, audit/traces, or runtime state. Candidates must remain inside the repository, Python files must compile before execution, and Layer 1 must verify that the validation, governance, sandbox, and rollback boundaries are established before execution.
+
+See `docs/SELF_PROGRAMMING_PHASE1.md` for the detailed design and `docs/PIPELINE.md` for the complete request/evolution lifecycle.
+
 ## Web dashboard
 
 The browser UI is chat-first. Users can create, search, reopen, continue, and safely delete persistent conversations. Code can be pasted directly into a prompt or the collapsible working-code panel, and the UI reports Brain language inference and confidence.
@@ -56,6 +87,7 @@ Deleting a conversation requires explicit confirmation. The DELETE session API r
 - `docs/master.md` — research overview and SPS model
 - `docs/scenarios.md` — evaluation scenarios
 - `docs/PIPELINE.md` — request/feedback lifecycle
+- `docs/SELF_PROGRAMMING_PHASE1.md` — controlled self-programming design
 - `docs/superpowers/specs/2026-09-03-sps-control-center-design.md` — UI and deletion design
 - `docs/superpowers/plans/2026-09-03-sps-control-center-plan.md` — implementation plan
 - `SETUP.md` — local/Colab setup
