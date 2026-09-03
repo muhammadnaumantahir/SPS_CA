@@ -32,7 +32,7 @@ def service_for(model: str = "") -> SpsAssistantService:
 
 
 def capability_directory() -> list[dict[str, Any]]:
-    """Return UI capability data, including sidecar provenance for generated records."""
+    """Return UI capability data, including sidecar and registry provenance."""
     capabilities = service_for().capability_directory()
     generated_metadata: dict[str, dict[str, Any]] = {}
     for metadata_path in (ROOT / "capabilities" / "generated").glob("cap_*/metadata.json"):
@@ -44,15 +44,22 @@ def capability_directory() -> list[dict[str, Any]]:
             continue
     for capability in capabilities:
         metadata = generated_metadata.get(str(capability.get("id")))
-        if not metadata:
-            continue
-        capability["origin"] = metadata.get("origin", capability.get("origin"))
-        capability["historical_id"] = metadata.get("historical_id")
-        capability["created_date"] = metadata.get("created_date") or capability.get("created_date")
-        capability["trigger_tasks"] = metadata.get("trigger_tasks", capability.get("trigger_tasks", []))
-        extra = metadata.get("extra_metadata") or {}
-        if extra.get("provenance"):
-            capability["provenance"] = extra["provenance"]
+        if metadata:
+            capability["origin"] = metadata.get("origin", capability.get("origin"))
+            capability["historical_id"] = metadata.get("historical_id")
+            capability["created_date"] = metadata.get("created_date") or capability.get("created_date")
+            capability["trigger_tasks"] = metadata.get("trigger_tasks", capability.get("trigger_tasks", []))
+            extra = metadata.get("extra_metadata") or {}
+            if extra.get("provenance"):
+                capability["provenance"] = extra["provenance"]
+        if not capability.get("provenance"):
+            # Runtime-generated capabilities keep provenance in the Layer-9
+            # registry's extra_metadata; expose it to the audit UI as well.
+            registry_capability = service_for().registry.get_capability(str(capability.get("id")))
+            if registry_capability:
+                capability["provenance"] = (registry_capability.extra_metadata or {}).get("provenance", {})
+        capability.setdefault("created_date", "")
+        capability.setdefault("provenance", {})
     return capabilities
 
 
@@ -270,15 +277,13 @@ class Handler(BaseHTTPRequestHandler):
             service.brain.detect_language = original_detect_language
 
         payload = turn.as_dict()
-        payload.update(
-            {
-                "session_id": sid,
-                "language": detected,
-                "language_confidence": confidence,
-                "language_evidence": evidence,
-                "capabilities": service.capability_catalog(),
-            }
-        )
+        payload.update({
+            "session_id": sid,
+            "language": detected,
+            "language_confidence": confidence,
+            "language_evidence": evidence,
+            "capabilities": service.capability_catalog(),
+        })
         if turn.success:
             updated = turn.conversation
             payload["session"] = sessions.save(
