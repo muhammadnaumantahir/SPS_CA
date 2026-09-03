@@ -42,11 +42,20 @@ Generated capabilities are never deleted merely because they underperform. Retir
 
 A five-minute cooldown prevents repeated triggering without new evidence. The controller is advisory: it does not mutate source, execute capabilities, approve Governance, or directly create new capabilities.
 
-`OptimizationCycleService` is the runtime boundary. After each conversational task is recorded in Layer 5, the service evaluates the thresholds and cooldown. Triggered plans are persisted as optimization-cycle state.
+`OptimizationCycleService` is the runtime boundary. After each conversational task is recorded in Layer 5, the service evaluates the thresholds and cooldown. Triggered plans are persisted as optimization-cycle state and converted into an explicit Layer-8 `EvolutionActionPlan` using the latest task request/language as context.
 
-`OptimizationActionPlanner` is the Layer 8 handoff. It converts triggered plans into explicit `CapabilityPlan` objects describing a new governed capability opportunity. Actual implementation still uses the existing Layer 8 candidate → Software DNA → Governance → Verification & Validation → promotion/rollback pipeline.
+## Authorized automatic Evolution
 
-This is threshold-triggered rather than a background thread, so the normal request path remains deterministic and there is no hidden autonomous source mutation.
+The Layer-8 execution boundary is `EvolutionExecutionAuthority`. It is default-deny and reads deployment authority from:
+
+- `SPS_CA_AUTO_EVOLVE=true` (or `1`, `yes`, `on`, `enabled`) to permit automatic execution;
+- `SPS_CA_AUTO_EVOLVE_MAX_ACTIONS` to cap automatic actions per cycle, constrained to 1–10 and defaulting to 1.
+
+When authority is absent or disabled, SPS-CA still records the trigger and action plan but performs no Evolution mutation. When authority is enabled, the optimization-cycle service executes the prepared action through the existing candidate generation → tests → Software DNA → Governance → registration/promotion or rollback path. The execution decision and result are persisted for auditability.
+
+Successful or failed controlled Evolution execution is also recorded as a Layer-5 Experience event. That event records whether the candidate was promoted; subsequent real task outcomes remain the evidence used to determine whether the new capability actually improves behavior.
+
+`OptimizationActionPlanner` converts triggered plans into explicit `CapabilityPlan` objects. It does not implement, register, execute, or retire anything itself.
 
 ## Live Brain routing
 
@@ -67,20 +76,20 @@ Threshold-triggered optimization assessment
     ↓
 Layer 8 Evolution action planning
     ↓
-Conservative strategy recommendation
+Explicit execution authority
     ↓
-Adaptation / live routing
+Candidate generation → tests → DNA → Governance → promotion/rollback
     ↓
-Governed retirement when a generated capability persistently underperforms
+Evolution outcome recorded in Experience
     ↓
-Governed Evolution when a genuine capability gap remains
+Subsequent task evidence measures whether the evolved capability improved behavior
     ↓
-New Experience evidence
+Conservative routing / retirement
 ```
 
 ## Safety boundary
 
-Layer 6 produces evidence and recommendations. The optimization-cycle runtime records audit state and hands triggered work to an explicit Layer 8 action planner. The action planner creates plans, not source mutations; implementation and promotion still require the established Software DNA, Governance, validation, and execution/rollback controls.
+Layer 6 produces evidence and recommendations. The optimization-cycle runtime records audit state and hands triggered work to an explicit Layer 8 action planner. `EvolutionExecutionAuthority` is a separate default-deny boundary for automatic execution. Any authorized implementation still requires the established Software DNA, Governance, validation, and execution/rollback controls.
 
 Any structural self-change still follows the Phase 1 Software DNA → Governance → Verification & Validation → Layer 10 execution/rollback boundary.
 
@@ -108,6 +117,9 @@ Completed:
 - threshold-triggered optimization-cycle assessment;
 - runtime integration after Experience recording;
 - governed Layer 8 action planning from triggered optimization cycles;
+- explicit default-deny execution authority for automatic Evolution;
+- automatic authorized handoff through the existing governed Evolution pipeline;
+- Experience recording of controlled Evolution outcomes;
 - regression/unit coverage for the new learning policy;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
@@ -115,4 +127,4 @@ Next work:
 
 - persist richer A/B and retirement outcome telemetry;
 - improve long-horizon evidence aggregation without expanding conversational prompt history;
-- connect approved action plans to the existing governed implementation/promotion path only after explicit execution authority is established.
+- add a measurable before/after evaluation harness for evolved capabilities so improvement is quantified rather than inferred from promotion alone.
