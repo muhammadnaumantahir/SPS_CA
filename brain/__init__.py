@@ -11,9 +11,57 @@ def _guarded_infer_intent_class(request: str, code: str = "", file_path: str = "
     return intent_guard(_original_infer_intent_class, request, code, file_path)
 
 
+def _fast_plan(self, **kwargs):
+    """Build a deterministic plan for clear single-intent requests.
+
+    The normal path asks the model to choose a capability and then asks the
+    selected capability's model-backed runtime to do the work. For obvious
+    requests this is redundant, so the Brain can safely choose the canonical
+    capability locally and reserve the extra model call for genuinely
+    ambiguous or mixed requests.
+    """
+    request = str(kwargs.get("request", "")).strip()
+    code = str(kwargs.get("code", ""))
+    file_path = str(kwargs.get("file_path", ""))
+    intent_class = self.infer_intent_class(request, code, file_path)
+    if intent_class in {"unknown", "mixed"}:
+        return None
+
+    try:
+        from capabilities.canonical import capability_ids_for_intent
+        primary_ids = capability_ids_for_intent(intent_class)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not primary_ids:
+        return None
+
+    catalog = list(kwargs.get("capability_catalog") or [])
+    available = {str(item.get("id")) for item in catalog if isinstance(item, dict)}
+    primary = next((cid for cid in primary_ids if cid in available), None)
+    if not primary:
+        return None
+
+    language = str(kwargs.get("language") or "unknown")
+    inferred_language, confidence, _ = self.detect_language(code, request, file_path)
+    if language == "unknown":
+        language = inferred_language
+    return BrainPlan(
+        intent=request,
+        reasoning=f"Deterministic intent routing selected {primary} for '{intent_class}'.",
+        steps=[{"capability_id": primary, "reason": f"intent-safe canonical routing for '{intent_class}'"}],
+        provider=self.provider_name,
+        model=self.model,
+        language=language,
+        language_confidence=max(0.0, min(1.0, confidence)),
+        intent_class=intent_class,
+    )
+
+
 def _learning_aware_plan(self, **kwargs):
-    """Allow only evidence-qualified generated capabilities to replace defaults."""
-    plan = _original_plan(self, **kwargs)
+    """Plan safely, using the model only when deterministic routing is insufficient."""
+    plan = _fast_plan(self, **kwargs)
+    if plan is None:
+        plan = _original_plan(self, **kwargs)
     if plan.intent_class in {"unknown", "mixed", "test_generation"} or not plan.steps:
         return plan
 
