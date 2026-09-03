@@ -1,5 +1,7 @@
 # SPS-CA Request Pipeline
 
+SPS-CA treats every request as one continuous flow from understanding the user's intent to returning a verified result.
+
 ## Normal coding request
 
 ```text
@@ -24,70 +26,71 @@ Governance / Execution
 Conversation + experience trace
 ```
 
-## Capability routing rule
+The browser also shows this work as an activity timeline while the request is running, so a slow local model does not look like a frozen interface.
 
-The Brain never receives an unrestricted capability list for a clearly classified intent. The canonical planner filters the list first. Returned model steps are checked again after planning.
+## Capability routing
 
-The most important invariant is:
+The Brain never receives an unrestricted capability list for a clearly classified intent. The canonical planner filters the list first, and returned model steps are checked again after planning.
 
-> A plain code-generation request must not invoke CAP-007 Test Generation.
+The key invariant is:
 
-## Phase 1 — controlled self-programming
+> A normal code request must not invoke CAP-007 Test Generation.
 
-Phase 1 adds an internal failure-repair loop while preserving the ten canonical layer names:
+A request such as `add this function` is treated as code modification when source is present. Test Generation is selected only when the request explicitly asks for tests.
+
+## Self-programming
 
 ```text
-Internal SPS failure
-      ↓
-Layer 08 Evolution: diagnosis
-      ↓
-Regression case created
-      ↓
-Minimal repair candidate
-      ↓
-Layer 01 Software DNA safety proof
-      ↓
-Layer 02 Governance approval
-      ↓
-Layer 09 Verification & Validation
-      ↓
-Layer 10 Execution snapshot/apply
-      ↓
-Tests + regression verification
-   ↙                         ↘
-FAIL                         PASS
- ↓                             ↓
-Layer 10 rollback        Promote self-change
- ↓                             ↓
-Preserve evidence ←──── Experience history
+Observed failure or capability gap
+              ↓
+        Layer 08 Evolution
+              ↓
+     Diagnosis / capability plan
+              ↓
+        Regression evidence
+              ↓
+       Candidate generation
+              ↓
+     Software DNA boundary
+              ↓
+       Governance decision
+              ↓
+ Verification & Validation checks
+              ↓
+        Layer 10 execution
+              ↓
+       PASS → controlled promote
+       FAIL → rollback + evidence
+              ↓
+       Real usage becomes evidence
+              ↓
+       Meta-learning improves routing
 ```
 
-The web/application boundary now observes eligible internal failures and can invoke the controlled Layer 08 self-repair engine automatically. Provider/network/model-availability errors are excluded from autonomous mutation because they are normally transient infrastructure conditions. The repair scope is explicit and bounded; protected Software DNA, Governance, audit/traces, and runtime state remain outside autonomous repair.
+Self-programming is bounded to explicit repository scope. Protected Software DNA, Governance, audit/traces, and runtime state are outside autonomous repair. Candidates are validated before promotion, and failed changes are removed or rolled back rather than becoming active capability behavior.
 
-Chat persistence uses detached turn metadata so a response payload cannot recursively contain itself. This prevents circular-reference serialization failures while retaining structured trace information for reopened conversations.
+Generated capability creation is not itself a performance success. Later real task outcomes are recorded as the evidence used for capability scoring, routing decisions, comparison, and retirement.
 
-The repair engine is limited to explicitly diagnosed files, at most five edits, and at most three candidate attempts. Layer 1 verifies the required validation, governance, sandbox, and rollback boundaries before mutation. Layer 2 may require human review. Layer 10 owns snapshot, execution, and rollback.
+Provider and network failures are kept separate from source defects. A temporary Ollama outage or slow response does not cause autonomous source mutation.
 
-## Feedback and evolution
+## Feedback and learning
 
 ```text
-User disagreement
-      ↓
+User result
+    ↓
+Agreement / disagreement
+    ↓
 Experience evidence
-      ↓
+    ↓
 Meta-learning analysis
-      ↓
-Adaptation decision
-      ↓
-Evolution reasoning
-   ↙    ↓     ↘
-reuse  adapt  create
-              ↓
-         verification
-              ↓
-          governance
-              ↓
-       generated CAP-011+
+    ↓
+Adaptation
+    ↓
+Reuse, switch, compare, or create
+    ↓
+Verification + Governance
+    ↓
+Capability registry
 ```
 
-Disagreement is evidence, not an automatic instruction to create a capability.
+Disagreement is evidence, not an automatic instruction to create a capability. The system requires sufficient evidence before changing future routing, comparing alternatives, or retiring an underperforming generated capability.
