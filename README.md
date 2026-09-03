@@ -4,7 +4,7 @@ SPS-CA is a research prototype that wraps a coding assistant in a ten-layer Self
 
 ## Current baseline
 
-The project now starts with exactly ten canonical capabilities:
+The project starts with exactly ten canonical capabilities:
 
 1. **CAP-001 — Code Generation**
 2. **CAP-002 — Code Modification**
@@ -35,7 +35,7 @@ Brain: language=python
 Capability: CAP-001 Code Generation
 ```
 
-Generated/evolved capabilities begin at **CAP-011+** and preserve provenance and lineage. The earlier generated Parse Error Handler was migrated from historical CAP-010 to CAP-011.
+Generated/evolved capabilities begin at **CAP-011+** and preserve provenance and lineage. CAP-011 is therefore reserved as the next available generated capability ID; it is not part of the canonical baseline until the evolution process actually creates it.
 
 ## Architecture
 
@@ -45,7 +45,7 @@ SPS-CA has ten architectural layers: Software DNA, Governance, Cognitive, Knowle
 
 The browser UI is chat-first. Users can create, search, reopen, continue, and safely delete persistent conversations. Code can be pasted directly into a prompt or the collapsible working-code panel, and the UI reports Brain language inference and confidence.
 
-The **Capabilities** view now contains the capability analysis panel, including seed vs generated population, active/inactive counts, reuse counts, and the most-reused capabilities. Individual capabilities remain clickable for provenance and lineage details. Architecture and Evolution remain separate detailed views.
+The **Capabilities** view contains the capability analysis panel, including seed vs generated population, active/inactive counts, reuse counts, and the most-reused capabilities. Individual capabilities remain clickable for provenance and lineage details. Architecture and Evolution remain separate detailed views.
 
 Deleting a conversation requires explicit confirmation. The DELETE session API removes only the requested session; if the active conversation is deleted, the UI immediately creates and opens a fresh chat.
 
