@@ -21,7 +21,7 @@ def test_generation_without_source_remains_code_generation():
 
 
 @pytest.mark.parametrize(
-    "request, expected",
+    "request_text, expected",
     [
         ("Create a Python function for file processing that supports validation.", "code_generation"),
         ("Create a Python function for file processing that supports logging.", "code_generation"),
@@ -55,11 +55,11 @@ def test_generation_without_source_remains_code_generation():
         ("Validate this Python code for data import, focusing on resource cleanup.", "validation"),
     ],
 )
-def test_additional_growth_routing_conflicts_are_primary_intents(request, expected):
+def test_additional_growth_routing_conflicts_are_primary_intents(request_text, expected):
     code = "def process(value):\n    return value\n" if any(
-        verb in request.lower() for verb in ("modify", "validate", "diagnose")
+        verb in request_text.lower() for verb in ("modify", "validate", "diagnose")
     ) else ""
-    assert Brain.infer_intent_class(request, code, "main.py") == expected
+    assert Brain.infer_intent_class(request_text, code, "main.py") == expected
 
 
 def test_generation_and_explicit_validation_action_are_mixed():
