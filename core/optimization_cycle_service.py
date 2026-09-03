@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from layers.layer_05_experience import ExperienceLog
+from layers.layer_05_experience import ExperienceLog, Task
 from layers.layer_06_meta_learning import OptimizationCycleController, OptimizationCyclePlan
 from layers.layer_08_evolution import (
     CapabilityGapPlanner,
@@ -75,6 +75,17 @@ class OptimizationCycleService:
                 "evolution_candidates": [],
                 "execution_authority": self._authority_dict(),
             })
+            latest = self.experience.tasks[-1] if self.experience.tasks else None
+            if latest is not None and latest.user_request and latest.target_language:
+                action = self.prepare_evolution_action(
+                    plan,
+                    language=latest.target_language,
+                    task_description=latest.user_request,
+                )
+                execution = self.execute_authorized_action_plan(action)
+                state = self._load_state()
+                state["last_auto_evolution"] = execution
+                self._save_state(state)
         return plan
 
     def prepare_evolution_action(
@@ -132,7 +143,7 @@ class OptimizationCycleService:
         *,
         project_root: str = ".",
     ) -> list[dict[str, Any]]:
-        """Execute an already-planned action only when explicit authority permits it."""
+        """Execute an action only when explicit authority permits it."""
         candidates = self._candidates_from_action(action)
         allowed, reason = self.execution_authority.authorize(len(candidates))
         state = self._load_state()
@@ -183,7 +194,28 @@ class OptimizationCycleService:
         })
         state["execution_history"] = history[-50:]
         self._save_state(state)
+        self._record_evolution_experience(candidate, result)
         return result
+
+    def _record_evolution_experience(self, candidate: dict[str, Any], result: dict[str, Any]) -> None:
+        capability_id = str(result.get("capability_id") or candidate.get("source_capability_id") or "evolution")
+        successful = bool(result.get("promoted") or result.get("registered"))
+        self.experience.add_task(Task(
+            id=f"evolution_{candidate.get('cycle_id', 'unknown')}_{capability_id}",
+            user_request=f"Controlled Evolution for optimization cycle {candidate.get('cycle_id', 'unknown')}",
+            target_project="sps-ca",
+            target_language="python",
+            status="success" if successful else "failure",
+            selected_capability=capability_id,
+            outcome=json.dumps(result, default=str, sort_keys=True),
+            failure_category=None if successful else "EvolutionExecutionFailure",
+            time_taken_seconds=0.0,
+        ))
+        experience_path = Path("experience/logs/experience_log.json")
+        try:
+            self.experience.save_to_json(experience_path)
+        except OSError:
+            pass
 
     @staticmethod
     def _candidates_from_action(action: EvolutionActionPlan) -> list[dict[str, Any]]:
