@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from layers.layer_08_evolution import SelfProgrammingEngine, SelfRepairResult
+from runtime.process_reloader import schedule_restart
 
 
 class SelfProgrammingService:
@@ -41,4 +42,18 @@ class SelfProgrammingService:
             tests=tests,
             failure_id=failure_id,
         )
-        return result.to_dict()
+        payload = result.to_dict()
+
+        # A successful repair of a Python module changes the source loaded by
+        # the current web process. Defer a same-command interpreter replacement
+        # until after the HTTP response has been sent so the repaired source is
+        # actually loaded on the next request.
+        edits = result.candidate.get("edits", []) if isinstance(result.candidate, dict) else []
+        changed_python = any(str(item.get("file_path", "")).endswith(".py") for item in edits if isinstance(item, dict))
+        if result.success and changed_python:
+            payload["reload_required"] = True
+            payload["restart_scheduled"] = schedule_restart()
+        else:
+            payload["reload_required"] = False
+            payload["restart_scheduled"] = False
+        return payload
