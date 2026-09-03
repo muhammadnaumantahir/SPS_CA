@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 
 _ACTIONS: tuple[tuple[str, str, int, tuple[str, ...]], ...] = (
@@ -19,10 +18,8 @@ _ACTIONS: tuple[tuple[str, str, int, tuple[str, ...]], ...] = (
     ("project_operations", "CAP-010", 100, ("create file", "add file", "delete file", "remove file", "move file", "rename file", "folder", "directory", "project structure")),
 )
 
-# Generation verbs are only a generation signal when the request actually talks
-# about source/program/code/function creation. This prevents "write tests" from
-# accidentally becoming CAP-001 + CAP-007.
 _GENERATION_TARGET_RE = re.compile(r"\b(code|program|script|application|app|function|class|module|solution|implementation)\b", re.I)
+_TEST_TARGET_RE = re.compile(r"\b(tests?|pytest|unit tests?|integration tests?)\b", re.I)
 
 
 def _position(request: str, patterns: tuple[str, ...]) -> int | None:
@@ -37,36 +34,39 @@ def compose_explicit_capabilities(
     has_code: bool,
     available_ids: set[str],
 ) -> list[dict[str, str]]:
-    """Return a deterministic, explicit multi-capability chain.
-
-    The function is deliberately conservative: a capability is added only when
-    the user's wording contains a direct action signal. In particular, tests are
-    never inferred from an ordinary code change.
-    """
+    """Return a conservative, dependency-aware explicit capability chain."""
     req = " ".join((request or "").strip().split())
     if not req:
         return []
-    hits: list[tuple[int, int, str, str, str]] = []
+
+    hits: list[tuple[int, int, str, str]] = []
     for name, cid, rank, patterns in _ACTIONS:
         pos = _position(req, patterns)
-        if pos is None:
+        if pos is None or cid not in available_ids:
             continue
         if cid == "CAP-001" and not _GENERATION_TARGET_RE.search(req):
             continue
-        if cid == "CAP-002" and not has_code:
+        if cid == "CAP-002":
+            if not has_code:
+                continue
+            # "add tests" is a testing action, not a source modification. Keep
+            # CAP-002 when the same request separately asks for a real code change.
+            if re.search(r"\b(add|write|create|generate)\s+(?:\w+\s+){0,2}tests?\b", req, re.I):
+                code_change_signal = re.search(
+                    r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,40}"
+                    r"\b(function|class|method|code|logic|source|implementation)\b",
+                    req,
+                    re.I,
+                )
+                if not code_change_signal:
+                    continue
+        if cid in {"CAP-004", "CAP-005"} and not re.search(
+            r"\b(bug|error|issue|exception|failure|problem|defect)\b", req, re.I
+        ):
             continue
-        if cid == "CAP-004" and not re.search(r"\b(bug|error|issue|exception|failure|problem|defect)\b", req, re.I):
-            continue
-        if cid == "CAP-005" and not re.search(r"\b(bug|error|issue|exception|failure|problem|defect)\b", req, re.I):
-            continue
-        if cid not in available_ids:
-            continue
-        hits.append((rank, pos, cid, name, patterns[0]))
+        hits.append((rank, pos, cid, name))
 
-    # Explicit combinations are dependency-aware; single-intent requests retain
-    # exactly one capability. When several actions are present we execute in the
-    # safe SPS order rather than letting provider wording reorder dependencies.
-    unique: dict[str, tuple[int, int, str, str, str]] = {}
+    unique: dict[str, tuple[int, int, str, str]] = {}
     for hit in hits:
         unique.setdefault(hit[2], hit)
     ordered = sorted(unique.values(), key=lambda item: (item[0], item[1]))
@@ -75,7 +75,7 @@ def compose_explicit_capabilities(
 
     return [
         {"capability_id": cid, "reason": f"explicit user action requires {name.replace('_', ' ')}"}
-        for _, _, cid, name, _ in ordered
+        for _, _, cid, name in ordered
     ]
 
 
