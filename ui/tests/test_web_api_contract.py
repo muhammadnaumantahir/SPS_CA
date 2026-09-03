@@ -83,19 +83,43 @@ def test_delete_endpoint_contract_and_ui_confirmation_guard():
     assert 'class="session-delete"' in html_source
 
 
-def test_dashboard_ui_contains_required_control_center_sections():
+def test_navigation_removes_overview_and_keeps_core_views():
     html = Path("ui/web/index.html").read_text(encoding="utf-8")
-    js = Path("ui/web/app.js").read_text(encoding="utf-8")
 
-    for label in ("SPS Overview", "Architecture graph", "Capability analytics", "Evolution activity", "Live activity"):
-        assert label in html
-    for marker in ("USER", "BRAIN", "CAPABILITY REGISTRY", "EXECUTION", "renderMetricCards", "renderBars", "renderEvolutionFlow"):
-        assert marker in js
+    assert 'data-view="overview"' not in html
+    assert 'id="view-overview"' not in html
+    for view in ("chat", "architecture", "capabilities", "evolution"):
+        assert f'data-view="{view}"' in html
+        assert f'id="view-{view}"' in html
 
 
-def test_chat_insights_and_dashboard_navigation_are_wired():
+def test_capability_analysis_is_embedded_in_capabilities_view():
+    html = Path("ui/web/index.html").read_text(encoding="utf-8")
+
+    capabilities_start = html.index('id="view-capabilities"')
+    evolution_start = html.index('id="view-evolution"')
+    capabilities_view = html[capabilities_start:evolution_start]
+
+    assert 'Capability analysis' in capabilities_view
+    assert 'Seed vs generated population' in capabilities_view
+    assert 'id="capabilityAnalytics"' in capabilities_view
+    assert '/api/dashboard' in html
+    assert 'showCapability' in html
+
+
+def test_architecture_is_the_single_architecture_navigation_surface():
+    html = Path("ui/web/index.html").read_text(encoding="utf-8")
+
+    assert html.count('data-view="architecture"') == 1
+    assert html.count('id="view-architecture"') == 1
+    assert 'Architecture graph' not in html
+    assert '10-LAYER SPS PIPELINE' not in html
+
+
+def test_chat_insights_and_core_navigation_are_wired():
     js = Path("ui/web/app.js").read_text(encoding="utf-8")
     assert "renderChatInsights()" in js
-    assert "loadDashboard()" in js
-    assert "if(view==='overview') loadDashboard()" in js
+    assert "if(view==='architecture') loadArchitecture()" in js
+    assert "if(view==='capabilities') loadCapabilities()" in js
+    assert "if(view==='evolution') refreshEvolution()" in js
     assert "language" in js and "capabilities" in js and "Evolution" in js
