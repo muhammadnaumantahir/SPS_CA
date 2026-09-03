@@ -29,50 +29,22 @@ FEATURES = {
     "CAP-010": ["tests directory", "README", "CI configuration", "configuration directory", "documentation"],
 }
 EVOLUTION_VARIANTS = {
-    "create": [
-        ("CSV schema inference", "Infer column types from inconsistent CSV samples.", "Build a reusable capability for sampled CSV schema inference."),
-        ("log redaction", "Sensitive values are inconsistently redacted before logging.", "Create a reusable capability that redacts configured sensitive fields."),
-        ("rate-limit analysis", "No reusable capability estimates rate-limit pressure from traces.", "Create a capability that estimates rate-limit pressure from request traces."),
-        ("dependency graphing", "No capability builds a Python import graph and detects cycles.", "Create a capability that builds an import dependency graph and finds cycles."),
-        ("config migration", "Legacy configuration keys need migration with unmapped-key reporting.", "Create a capability that migrates configuration dictionaries to a target schema."),
-    ],
-    "improve": [
-        ("faster schema inspection", "Existing generated schema inspection is slow on large samples.", "Improve schema inspection while preserving public behavior."),
-        ("stronger input checks", "Existing generated validation accepts ambiguous numeric strings.", "Improve validation so ambiguous inputs are rejected without breaking valid inputs."),
-        ("better diagnostics", "Existing diagnosis produces findings but weak root-cause evidence.", "Improve diagnosis with stronger evidence and explanations."),
-        ("lower memory usage", "Existing parser materializes all records when streaming is possible.", "Improve the parser for bounded memory usage."),
-        ("clearer errors", "Existing conversion errors are vague for malformed records.", "Improve error reporting with actionable diagnostics."),
-    ],
-    "adapt": [
-        ("streaming input", "Production input now arrives as an iterator instead of a list.", "Adapt processing to handle iterators without materializing the dataset."),
-        ("schema drift", "Input fields change between deployments and fixed-schema logic fails.", "Adapt the approach to tolerate documented schema drift."),
-        ("large payloads", "Very large payloads time out even though the work can be chunked.", "Adapt execution to use chunked processing."),
-        ("partial failures", "A small number of malformed records stops useful work.", "Adapt execution to isolate malformed records and continue safely."),
-        ("missing dependency", "A preferred library is unavailable in the target runtime.", "Adapt the implementation to available standard-library primitives."),
-    ],
-    "replan": [
-        ("failed first fix", "The first fix passed static checks but the defect remains.", "Replan from current code and evidence from the failed attempt."),
-        ("validator rejection", "The planned change exceeded the permitted governance risk.", "Replan with a lower-risk implementation that still satisfies the goal."),
-        ("capability unavailable", "The selected capability is inactive or ineligible for the target language.", "Replan with another eligible capability or identify a genuine gap."),
-        ("wrong assumption", "Execution evidence contradicts a key assumption in the original plan.", "Discard the invalid assumption and build an evidence-based plan."),
-        ("incomplete result", "A first task succeeded but the overall goal remains incomplete.", "Replan the remaining work instead of declaring success."),
-    ],
-    "compose": [
-        ("analysis then fix", "Diagnosis must inform a dependent repair action.", "Compose analysis and bug-fixing capabilities as an ordered dependency chain."),
-        ("generate then validate", "New source must be followed by an explicit validation action.", "Compose generation and validation as an ordered chain."),
-        ("modify then review", "A code change must be followed by an explicit correctness review.", "Compose modification and validation as separate ordered actions."),
-        ("fix then document", "The repaired behavior must also be documented.", "Compose bug fixing and documentation as a dependency-aware chain."),
-        ("reuse multiple skills", "The goal can be satisfied by two existing capabilities.", "Compose the smallest existing capability set that satisfies the goal."),
-    ],
+    "create": [("CSV schema inference", "Infer column types from inconsistent CSV samples.", "Build a reusable capability for sampled CSV schema inference."), ("log redaction", "Sensitive values are inconsistently redacted before logging.", "Create a reusable capability that redacts configured sensitive fields."), ("rate-limit analysis", "No reusable capability estimates rate-limit pressure from traces.", "Create a capability that estimates rate-limit pressure from request traces."), ("dependency graphing", "No capability builds a Python import graph and detects cycles.", "Create a capability that builds an import dependency graph and finds cycles."), ("config migration", "Legacy configuration keys need migration with unmapped-key reporting.", "Create a capability that migrates configuration dictionaries to a target schema.")],
+    "improve": [("faster schema inspection", "Existing generated schema inspection is slow on large samples.", "Improve schema inspection while preserving public behavior."), ("stronger input checks", "Existing generated validation accepts ambiguous numeric strings.", "Improve validation so ambiguous inputs are rejected without breaking valid inputs."), ("better diagnostics", "Existing diagnosis produces findings but weak root-cause evidence.", "Improve diagnosis with stronger evidence and explanations."), ("lower memory usage", "Existing parser materializes all records when streaming is possible.", "Improve the parser for bounded memory usage."), ("clearer errors", "Existing conversion errors are vague for malformed records.", "Improve error reporting with actionable diagnostics.")],
+    "adapt": [("streaming input", "Production input now arrives as an iterator instead of a list.", "Adapt processing to handle iterators without materializing the dataset."), ("schema drift", "Input fields change between deployments and fixed-schema logic fails.", "Adapt the approach to tolerate documented schema drift."), ("large payloads", "Very large payloads time out even though the work can be chunked.", "Adapt execution to use chunked processing."), ("partial failures", "A small number of malformed records stops useful work.", "Adapt execution to isolate malformed records and continue safely."), ("missing dependency", "A preferred library is unavailable in the target runtime.", "Adapt the implementation to available standard-library primitives.")],
+    "replan": [("failed first fix", "The first fix passed static checks but the defect remains.", "Replan from current code and evidence from the failed attempt."), ("validator rejection", "The planned change exceeded the permitted governance risk.", "Replan with a lower-risk implementation that still satisfies the goal."), ("capability unavailable", "The selected capability is inactive or ineligible for the target language.", "Replan with another eligible capability or identify a genuine gap."), ("wrong assumption", "Execution evidence contradicts a key assumption in the original plan.", "Discard the invalid assumption and build an evidence-based plan."), ("incomplete result", "A first task succeeded but the overall goal remains incomplete.", "Replan the remaining work instead of declaring success.")],
+    "compose": [("analysis then fix", "Diagnosis must inform a dependent repair action.", "Compose analysis and bug-fixing capabilities as an ordered dependency chain."), ("generate then validate", "New source must be followed by an explicit validation action.", "Compose generation and validation as an ordered chain."), ("modify then review", "A code change must be followed by an explicit correctness review.", "Compose modification and validation as separate ordered actions."), ("fix then document", "The repaired behavior must also be documented.", "Compose bug fixing and documentation as a dependency-aware chain."), ("reuse multiple skills", "The goal can be satisfied by two existing capabilities.", "Compose the smallest existing capability set that satisfies the goal.")],
 }
 
 def canonical_scenarios():
     scenarios = []
     for capability_id, (intent, template, code) in CANONICAL.items():
         for domain, feature in product(DOMAINS, FEATURES[capability_id]):
+            if len(scenarios) >= 490:
+                return scenarios
             n = len(scenarios) + 1
-            scenarios.append({"id": f"additional-{n:03d}", "scenario_type": "capability_routing", "request": template.format(domain=domain, feature=feature), "code": code, "language": "python", "filename": "main.py", "expected": {"intent": intent, "capability_id": capability_id, "status": "success", "output_required": intent in {"code_generation", "code_modification", "bug_fixing", "test_generation"}}, "feedback": "disagree" if feature == FEATURES[capability_id][-1] else "agree"})
-    assert len(scenarios) == 500
+            scenarios.append({"id": f"routing-{n:03d}", "scenario_type": "capability_routing", "request": template.format(domain=domain, feature=feature), "code": code, "language": "python", "filename": "main.py", "expected": {"intent": intent, "capability_id": capability_id, "status": "success", "output_required": intent in {"code_generation", "code_modification", "bug_fixing", "test_generation"}}, "feedback": "disagree" if feature == FEATURES[capability_id][-1] else "agree"})
+    assert len(scenarios) == 490
     return scenarios
 
 def evolution_scenarios():
@@ -87,12 +59,16 @@ def evolution_scenarios():
     assert len(scenarios) == 500
     return scenarios
 
-scenarios = canonical_scenarios() + evolution_scenarios()
+def evolution_proof_scenarios():
+    return [{"id": f"evolution-proof-{i:02d}", "scenario_type": "evolution_proof", "request": f"Proof lifecycle run {i}: repeated Parse error failures must create and then reuse a capability.", "code": "def parse(value):\n    return value\n", "language": "python", "filename": "main.py", "context": {"evidence": "Three persistent Parse error failures against CAP-001.", "required_lifecycle": ["trigger", "create", "test", "govern", "register", "reuse"]}, "expected": {"status": "success", "evolution_required": True, "capability_creation_expected": True, "reuse_expected": True, "min_reuse_count_after_reuse": 1}, "feedback": "agree"} for i in range(1, 11)]
+
+scenarios = canonical_scenarios() + evolution_scenarios() + evolution_proof_scenarios()
 assert len(scenarios) == 1000
 assert len({s["id"] for s in scenarios}) == 1000
-assert sum(s["scenario_type"] == "capability_routing" for s in scenarios) == 500
+assert sum(s["scenario_type"] == "capability_routing" for s in scenarios) == 490
 assert sum(s["scenario_type"] == "autonomous_evolution" for s in scenarios) == 500
+assert sum(s["scenario_type"] == "evolution_proof" for s in scenarios) == 10
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
-OUT.write_text(json.dumps({"suite_id": "sps-ca-growth-1000", "description": "1000 growth scenarios: 500 canonical routing cases plus 500 autonomous Brain evolution cases across create, improve, adapt, replan, and compose strategies.", "scenarios": scenarios}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+OUT.write_text(json.dumps({"suite_id": "sps-ca-growth-1000", "description": "1000 scenarios: 490 routing cases, 500 autonomous evolution strategy cases, and 10 executable evolution-proof lifecycle cases.", "scenarios": scenarios}, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 print(f"generated {OUT} with {len(scenarios)} scenarios")
