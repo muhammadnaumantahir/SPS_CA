@@ -80,7 +80,7 @@ def test_delete_endpoint_contract_and_ui_confirmation_guard():
     assert "event.stopPropagation()" in app_source
     assert "const wasActive=state.sessionId===id" in app_source
     assert "await newChat()" in app_source
-    assert "class=\"session-delete\"" in html_source
+    assert 'class="session-delete"' in html_source
 
 
 def test_dashboard_ui_contains_required_control_center_sections():
@@ -89,7 +89,7 @@ def test_dashboard_ui_contains_required_control_center_sections():
 
     for label in ("SPS Overview", "Architecture graph", "Capability analytics", "Evolution activity", "Live activity"):
         assert label in html
-    for marker in ("User", "BRAIN", "CAPABILITY REGISTRY", "EXECUTION", "renderMetricCards", "renderBars", "renderEvolutionFlow"):
+    for marker in ("USER", "BRAIN", "CAPABILITY REGISTRY", "EXECUTION", "renderMetricCards", "renderBars", "renderEvolutionFlow"):
         assert marker in js
 
 
