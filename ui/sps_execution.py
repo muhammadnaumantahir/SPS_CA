@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from capabilities.base import CapabilityContext
 from experience.evolution_trace import EvolutionTraceStore
+from layers.layer_01_software_dna import SoftwareDNA
 from layers.layer_09_validation import Validator
 from layers.layer_02_governance import ChangeType, DecisionStatus, GovernanceGate
 from layers.capability_registry import CapabilityRegistryManager
@@ -20,7 +21,7 @@ from .sps_service import SPSAnalysisResult, SPSScenarioService
 
 
 class SPSExecutionService:
-    """Execute an SPS scenario after analysis and capability routing."""
+    """Execute an SPS scenario after analysis, DNA, validation and governance."""
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class SPSExecutionService:
         self.workspace_root = Path(workspace_root)
         self.repo_root = Path(__file__).resolve().parents[1]
         self.trace_store = EvolutionTraceStore(trace_history_path, trace_stage_path)
+        self.dna = SoftwareDNA()
         self.analysis_service = SPSScenarioService(
             trace_history_path=trace_history_path,
             trace_stage_path=trace_stage_path,
@@ -168,6 +170,54 @@ class SPSExecutionService:
                 "modified_code": modified,
             }
 
+        # Final, independent Layer-1 check immediately before execution. The
+        # execution service supplies factual state: governance approved,
+        # validation succeeded, sandbox workspace exists, and ExecutionEngine
+        # will create a rollback snapshot. No caller-supplied rule IDs are
+        # needed to activate the hard DNA constraints.
+        dna_result = self.dna.check_action(
+            user_request,
+            affected_files=[relative_file],
+            require_rollback=True,
+            validated=True,
+            governed=True,
+            sandboxed=True,
+            explicit_user_request=True,
+        )
+        self.trace_store.append_event(
+            scenario_id,
+            "software_dna_final_check",
+            {
+                "why": "Layer 1 is the final non-bypassable safety boundary before execution.",
+                "what": "Re-check the proposed change using actual execution state.",
+                "how": "SoftwareDNA independently evaluates the target path and required governance/validation/sandbox/rollback facts.",
+                "allowed": dna_result.allowed,
+                "checked_rule_ids": dna_result.checked_rule_ids,
+                "hard_violations": [r.id for r in dna_result.violated_hard_rules],
+                "warnings": dna_result.warnings,
+            },
+        )
+        if not dna_result.allowed:
+            error = "Execution blocked by Software DNA: " + "; ".join(r.id for r in dna_result.violated_hard_rules)
+            self.trace_store.complete_scenario(
+                scenario_id,
+                status="dna_blocked",
+                modification=self._modification_record(cap_id, relative_file, original, modified, capability_result),
+                validation={"status": validation.status.value},
+                governance={"decision_id": decision.id, "decision": decision.decision.value, "rationale": decision.rationale},
+                result={"success": False, "error": error, "dna": {"checked_rule_ids": dna_result.checked_rule_ids, "warnings": dna_result.warnings}},
+            )
+            return {
+                "scenario_id": scenario_id,
+                "success": False,
+                "capability_id": cap_id,
+                "validation": validation.status.value,
+                "governance": decision.decision.value,
+                "dna": {"allowed": False, "hard_violations": [r.id for r in dna_result.violated_hard_rules]},
+                "modified_code": modified,
+                "error": error,
+            }
+
         execution = ExecutionEngine(
             snapshot_dir=str(workspace / ".sps_snapshots"),
             log_path=str(workspace / "execution_log.json"),
@@ -179,6 +229,9 @@ class SPSExecutionService:
             scenario_id,
             stage_after=stage_after,
             status="completed" if execution.status == ExecutionStatus.SUCCESS else "execution_failed",
+            analysis=analysis.analysis,
+            capability_search=analysis.capability_search,
+            capability_generation=analysis.capability_generation,
             modification=self._modification_record(cap_id, relative_file, original, modified, capability_result),
             validation={
                 "status": validation.status.value,
@@ -200,6 +253,11 @@ class SPSExecutionService:
                 "rollback_triggered": execution.rollback_triggered,
                 "error": execution.error_message,
                 "workspace": str(workspace),
+                "dna": {
+                    "allowed": dna_result.allowed,
+                    "checked_rule_ids": dna_result.checked_rule_ids,
+                    "warnings": dna_result.warnings,
+                },
             },
         )
         return {
@@ -211,28 +269,22 @@ class SPSExecutionService:
             "generated": bool(generation.get("required")),
             "validation": validation.status.value,
             "governance": decision.decision.value,
+            "dna": {"allowed": dna_result.allowed, "checked_rule_ids": dna_result.checked_rule_ids, "warnings": dna_result.warnings},
             "execution": execution.status.value,
             "modified_code": modified,
             "workspace": str(workspace),
         }
 
-    def _canonicalize_generated_registration(
-        self, generation: Dict[str, Any], registry: CapabilityRegistryManager
-    ) -> None:
+    def _canonicalize_generated_registration(self, generation: Dict[str, Any], registry: CapabilityRegistryManager) -> None:
         if not generation.get("required") or not generation.get("capability_id"):
             return
         cap_id = generation["capability_id"]
         module_dir = Path(
             generation.get("module_dir")
-            or (
-                self.repo_root
-                / self.analysis_service.gap_planner.generated_dir
-                / generation["capability_id"].lower().replace("-", "_")
-            )
+            or (self.repo_root / self.analysis_service.gap_planner.generated_dir / generation["capability_id"].lower().replace("-", "_"))
         )
         metadata_path = module_dir / "metadata.json"
         if not metadata_path.exists():
-            # Fallback: check CWD-relative path (generated_dir is often relative)
             cwd_module_dir = Path(self.analysis_service.gap_planner.generated_dir) / module_dir.name
             metadata_path = cwd_module_dir / "metadata.json"
             if metadata_path.exists():
@@ -240,29 +292,17 @@ class SPSExecutionService:
         if not metadata_path.exists():
             return
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        # Fix entry_point to a short import path that works from the parent dir.
-        module_pkg = module_dir.name  # e.g. "cap_010"
+        module_pkg = module_dir.name
         metadata["entry_point"] = f"{module_pkg}.capability.run"
-        # Ensure the parent directory is importable.
         parent_str = str(module_dir.parent)
         if parent_str not in sys.path:
             sys.path.insert(0, parent_str)
         if generation.get("test_result", {}).get("coverage_percent") is not None:
             metadata["test_coverage"] = generation["test_result"]["coverage_percent"]
         registered = registry.register_from_dict(metadata)
-        generation["registered"] = (
-            registered or registry.get_capability(cap_id) is not None
-        )
+        generation["registered"] = registered or registry.get_capability(cap_id) is not None
 
-    def _prepare_workspace(
-        self,
-        *,
-        scenario_id: str,
-        code: str,
-        language: str,
-        file_path: str,
-        target_project: Optional[str],
-    ) -> tuple[Path, str]:
+    def _prepare_workspace(self, *, scenario_id: str, code: str, language: str, file_path: str, target_project: Optional[str]) -> tuple[Path, str]:
         if target_project:
             workspace = Path(target_project).expanduser().resolve()
             if not workspace.is_dir():
@@ -291,13 +331,11 @@ class SPSExecutionService:
         return workspace, relative_file
 
     def _load_capability_fn(self, entry_point: str, cap_id: str, generation: Dict[str, Any]):
-        """Load the capability function from its entry_point, handling non-standard locations."""
         module_name, _, function_name = entry_point.rpartition(".")
         try:
             return getattr(importlib.import_module(module_name), function_name)
         except (ModuleNotFoundError, AttributeError):
             pass
-        # Try the module_dir from the generation dict (written by evolution engine).
         cap_dir_name = cap_id.lower().replace("-", "_")
         for candidate_dir in [
             Path(generation.get("module_dir", "")),
@@ -318,41 +356,20 @@ class SPSExecutionService:
 
     @staticmethod
     def _default_filename(language: str) -> str:
-        return {
-            "python": "submitted.py",
-            "java": "Submitted.java",
-            "javascript": "submitted.js",
-            "typescript": "submitted.ts",
-            "go": "submitted.go",
-            "csharp": "Submitted.cs",
-        }.get(language.lower(), "submitted.txt")
+        return {"python": "submitted.py", "java": "Submitted.java", "javascript": "submitted.js", "typescript": "submitted.ts", "go": "submitted.go", "csharp": "Submitted.cs"}.get(language.lower(), "submitted.txt")
 
     @staticmethod
     def _test_command(language: str, relative_file: str) -> str:
-        return (
-            f"python -m py_compile {relative_file!r}"
-            if language.lower() == "python"
-            else "pytest -q"
-        )
+        return f"python -m py_compile {relative_file!r}" if language.lower() == "python" else "pytest -q"
 
     @staticmethod
     def _change_type(generation: Dict[str, Any], request: str) -> ChangeType:
         if generation.get("required"):
             return ChangeType.FEATURE_ADDITION
-        return (
-            ChangeType.LOGIC_FIX
-            if "fix" in request.lower() or "syntax" in request.lower()
-            else ChangeType.FEATURE_ADDITION
-        )
+        return ChangeType.LOGIC_FIX if "fix" in request.lower() or "syntax" in request.lower() else ChangeType.FEATURE_ADDITION
 
     @staticmethod
-    def _modification_record(
-        capability_id: str,
-        file_path: str,
-        original: str,
-        modified: str,
-        result: Any,
-    ) -> Dict[str, Any]:
+    def _modification_record(capability_id: str, file_path: str, original: str, modified: str, result: Any) -> Dict[str, Any]:
         return {
             "capability_id": capability_id,
             "file_path": file_path,
@@ -366,9 +383,5 @@ class SPSExecutionService:
         }
 
     def _fail(self, scenario_id: str, error: str) -> Dict[str, Any]:
-        self.trace_store.complete_scenario(
-            scenario_id,
-            status="failed",
-            result={"success": False, "error": error},
-        )
+        self.trace_store.complete_scenario(scenario_id, status="failed", result={"success": False, "error": error})
         return {"scenario_id": scenario_id, "success": False, "error": error}
