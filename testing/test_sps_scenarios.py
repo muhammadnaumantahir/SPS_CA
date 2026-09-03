@@ -1,8 +1,8 @@
 """Executable 1000-case SPS-CA growth suite.
 
 490 deterministic routing cases + 500 evolution strategy contracts + 10 real
-Evolution lifecycle proof cases. Proof cases use isolated temporary directories
-so they never mutate the repository's live registry/runtime evidence.
+Evolution evidence lifecycle proof cases. Proof cases use isolated temporary
+runtime/registry files so they never mutate the repository's live state.
 """
 from __future__ import annotations
 import json
@@ -20,35 +20,38 @@ def scenarios():
     return scenarios
 
 def _run_evolution_proof(scenario):
-    from layers.layer_02_governance.governance import GovernanceGate
-    from layers.layer_05_experience.experience_log import ExperienceLog
-    from layers.layer_05_experience.models import Task
-    from layers.layer_08_evolution.evolution_engine import EvolutionEngine
+    from layers.layer_08_evolution_core.evolution_evidence import EvolutionEvidenceStore
     from layers.capability_registry.registry import CapabilityRegistryManager
-    repo = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix="sps_ca_evolution_proof_") as tmp:
         root = Path(tmp)
-        log = ExperienceLog()
-        for task_id, request in (("proof-001", "Parse this JSON config into a dict"), ("proof-002", "Parse this XML response into a dict"), ("proof-003", "Parse this CSV export into a dict")):
-            log.add_task(Task(id=task_id, user_request=request, target_project="evolution_proof", target_language="python", status="failure", selected_capability="CAP-001", outcome="CAP-001 cannot handle structured-data parsing.", failure_category="Parse error"))
+        events_path = root / "runtime" / "evolution_events.json"
         registry_path = root / "registry.json"
-        engine = EvolutionEngine(governance_gate=GovernanceGate(), generated_dir=str(root / "generated"), seeds_dir=str(repo / "capabilities" / "seeds"), registry_path=str(registry_path), evaluation_dir=str(root / "evaluation"))
-        assert engine.should_evolve(log)
-        triggers = engine.get_trigger_patterns(log)
-        assert triggers and triggers[0].pattern == "Parse error"
-        record = engine.run_evolution_cycle(log)
-        assert record is not None and record.registered is True
-        assert record.test_result.tests_failed == 0
+        store = EvolutionEvidenceStore(path=events_path, registry_path=registry_path)
+        request = "Create a reusable capability for repeated structured-data parsing failures."
+        kwargs = {"session_id": "proof-session", "turn_id": "proof-turn", "request": request, "language": "python", "language_confidence": 0.99, "previous_capability_id": "CAP-001", "code": "def parse(value):\n    return value\n"}
+        events = [store.record_disagreement(**kwargs) for _ in range(3)]
+        analysis = store.analyze(events[-1])
+        assert analysis["event_type"] == "evolution_analysis"
+        assert analysis["decision"] == "create"
+        creation = store.record_creation(analysis)
+        assert creation["event_type"] == "capability_created"
+        cap_id = creation["created_capability_id"]
+        assert creation["validation_status"] == "registered"
+        stored_events = json.loads(events_path.read_text(encoding="utf-8"))
+        assert any(e.get("event_type") == "capability_created" and e.get("created_capability_id") == cap_id for e in stored_events)
         registry = CapabilityRegistryManager(str(registry_path))
-        capability = registry.get_capability(record.capability_id)
-        assert capability is not None and capability.generated is True and capability.status == "active"
-        before = capability.reuse_count
-        assert registry.record_usage(record.capability_id, success=True, notes="evolution-proof reuse")
+        matches = registry.search_capabilities("structured-data parsing failures", language="python")
+        assert any(cap.id == cap_id for cap in matches)
+        before = registry.get_capability(cap_id).reuse_count
+        assert registry.record_usage(cap_id, success=True, notes="later-request evolution-proof reuse")
         registry2 = CapabilityRegistryManager(str(registry_path))
-        after = registry2.get_capability(record.capability_id).reuse_count
+        after = registry2.get_capability(cap_id).reuse_count
         assert after == before + 1
         assert after >= scenario["expected"]["min_reuse_count_after_reuse"]
-        return record.capability_id, after
+        lineage = store.get_capability_lineage(cap_id)
+        assert lineage["capability"]["generated"] is True
+        assert lineage["provenance"]["decision"] == "create"
+        return {"capability_id": cap_id, "events": len(stored_events), "reuse_count": after}
 
 @pytest.mark.parametrize("index", range(1000))
 def test_growth_1000_case(index, scenarios):
@@ -64,8 +67,9 @@ def test_growth_1000_case(index, scenarios):
         assert scenario["context"]["evidence"]
         assert scenario["expected"]["strategy"] in {"create", "improve", "adapt", "replan", "compose"}
     elif kind == "evolution_proof":
-        _, reuse_count = _run_evolution_proof(scenario)
-        assert reuse_count >= 1
+        result = _run_evolution_proof(scenario)
+        assert result["events"] >= 5
+        assert result["reuse_count"] >= 1
     else:
         raise AssertionError(f"unknown scenario type: {kind}")
 
