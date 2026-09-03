@@ -14,6 +14,11 @@ from typing import Callable
 _MODIFICATION = re.compile(
     r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b"
 )
+_MODIFICATION_TARGET = re.compile(
+    r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,55}"
+    r"\b(code|function|class|method|logic|source|implementation|behavior|validation|logging|annotation|docstrings?|comments?|guard|error handling|cache|parameter|argument|input|output)\b",
+    re.IGNORECASE,
+)
 _EXPLICIT_TEST = re.compile(
     r"\b(generate|write|create|add|update)\s+(?:new\s+)?(?:unit\s+|integration\s+|pytest\s+)?tests?\b"
     r"|\btests?\s+for\b|\bpytest\s+tests?\b|\bunit\s+tests?\b",
@@ -49,9 +54,6 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     add("analysis", r"\b(explain|explanation|analy[sz]e|understand|walk\s+me\s+through|what\s+does|how\s+does)\b")
     add("validation", r"\b(validate|validation|review|re-?validate|check\s+(?:syntax|correctness)|code\s+quality|security\s+review)\b")
 
-    # Documentation is a distinct action only when documentation itself is the
-    # verb/object of the request. "Add a docstring" modifies existing source;
-    # it should remain code_modification rather than becoming mixed.
     doc_action = bool(
         re.search(
             r"\b(document|write|generate|create)\b.{0,40}\b(documentation|docs?|docstrings?|comments?|readme|changelog|guide)\b"
@@ -72,11 +74,13 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     ):
         add("documentation", r"\b(document|documentation|docstring|docstrings?|comments?|readme|changelog|guide)\b")
 
-    modification_action = bool(_MODIFICATION.search(req)) and has_code
-    if modification_action:
-        # "Add tests for this function" is testing, not a generic modification.
-        if not (_EXPLICIT_TEST.search(req) and not re.search(r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,50}\b(code|function|class|logic|source|implementation)\b", req, re.IGNORECASE)):
-            add("code_modification", _MODIFICATION.pattern)
+    if has_code and _MODIFICATION_TARGET.search(req):
+        if not (_EXPLICIT_TEST.search(req) and not re.search(
+            r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,50}\b(code|function|class|logic|source|implementation)\b",
+            req,
+            re.IGNORECASE,
+        )):
+            add("code_modification", _MODIFICATION_TARGET.pattern)
 
     project_action = bool(
         re.search(
@@ -95,8 +99,6 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     if project_action:
         add("project_operations", r"\b(?:project\s+operation|project\s+structure|set\s+up|configure|restructure|reorganize|workspace|repo(?:sitory)?|deployment\s+layout|directory\s+convention|file|folder|directory|package|module)\b")
 
-    # Existing-source modification must win over a documentation noun, but
-    # explicit multi-clause requests still produce mixed.
     if len(signals) > 1:
         if "code_modification" in signals and "documentation" in signals and re.search(
             r"\b(?:add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,35}\b(?:docstrings?|comments?|readme|documentation|docs?)\b",
@@ -120,7 +122,6 @@ def intent_guard(original: Callable[..., str], request: str, code: str = "", fil
         return "mixed"
     if len(signals) == 1:
         signal = signals[0]
-        # Preserve explicit code-generation requests with no supplied source.
         if signal == "code_generation" and has_code:
             return result if result not in {"unknown", "code_generation"} else "code_modification"
         return signal
@@ -129,8 +130,6 @@ def intent_guard(original: Callable[..., str], request: str, code: str = "", fil
         return result
     if result != "test_generation":
         return result
-    # "Add/modify X ... testing" is a code change unless the user explicitly
-    # asked to create/update tests. This prevents CAP-007 from hijacking CAP-002.
     if _MODIFICATION.search(" ".join((request or "").lower().split())) and not _EXPLICIT_TEST.search(request or ""):
         return "code_modification"
     return result
