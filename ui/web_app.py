@@ -32,17 +32,40 @@ def service_for(model: str = "") -> SpsAssistantService:
 
 
 def capability_directory() -> list[dict[str, Any]]:
-    return service_for().capability_directory()
+    """Return UI capability data, including sidecar provenance for generated records."""
+    capabilities = service_for().capability_directory()
+    generated_metadata: dict[str, dict[str, Any]] = {}
+    for metadata_path in (ROOT / "capabilities" / "generated").glob("cap_*/metadata.json"):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if isinstance(metadata, dict) and metadata.get("id"):
+                generated_metadata[str(metadata["id"])] = metadata
+        except (OSError, json.JSONDecodeError):
+            continue
+    for capability in capabilities:
+        metadata = generated_metadata.get(str(capability.get("id")))
+        if not metadata:
+            continue
+        capability["origin"] = metadata.get("origin", capability.get("origin"))
+        capability["historical_id"] = metadata.get("historical_id")
+        capability["created_date"] = metadata.get("created_date") or capability.get("created_date")
+        capability["trigger_tasks"] = metadata.get("trigger_tasks", capability.get("trigger_tasks", []))
+        extra = metadata.get("extra_metadata") or {}
+        if extra.get("provenance"):
+            capability["provenance"] = extra["provenance"]
+    return capabilities
 
 
 def growth_data() -> dict[str, Any]:
     caps = capability_directory()
     events = evolution.list_events(200)
-    generated = sum(1 for c in caps if c.get("generated"))
+    generated = sum(1 for c in caps if c.get("generated") and c.get("origin") != "historical_migration")
+    historical = sum(1 for c in caps if c.get("origin") == "historical_migration")
     return {
         "total_capabilities": len(caps),
-        "seed_capabilities": len(caps) - generated,
+        "seed_capabilities": len(caps) - generated - historical,
         "generated_capabilities": generated,
+        "historical_capabilities": historical,
         "active_capabilities": sum(1 for c in caps if c.get("usable")),
         "disagreements": sum(1 for e in events if e.get("event_type") == "disagreement"),
         "evolution_events": len(events),
@@ -59,33 +82,15 @@ def extract_prompt_code(request: str) -> tuple[str, str]:
 
 
 LANGUAGE_ALIASES = {
-    "py": "python",
-    "python": "python",
-    "java": "java",
-    "js": "javascript",
-    "javascript": "javascript",
-    "jsx": "javascript",
-    "ts": "typescript",
-    "typescript": "typescript",
-    "tsx": "typescript",
-    "go": "go",
-    "golang": "go",
-    "c#": "csharp",
-    "csharp": "csharp",
-    "cs": "csharp",
-    "c++": "cpp",
-    "cpp": "cpp",
-    "rust": "rust",
+    "py": "python", "python": "python", "java": "java", "js": "javascript", "javascript": "javascript",
+    "jsx": "javascript", "ts": "typescript", "typescript": "typescript", "tsx": "typescript",
+    "go": "go", "golang": "go", "c#": "csharp", "csharp": "csharp", "cs": "csharp",
+    "c++": "cpp", "cpp": "cpp", "rust": "rust",
 }
 
 
 def requested_target_language(request: str) -> str:
-    """Find an explicit target language request without treating any mention as a target.
-
-    Examples matched: 'generate code in JS', 'write this in JavaScript',
-    'create a Python program', and 'convert this to Java'. Ordinary mentions
-    such as 'explain Python' are deliberately ignored.
-    """
+    """Find an explicit target language request without treating any mention as a target."""
     text = " ".join((request or "").lower().split())
     if not text:
         return ""
@@ -98,9 +103,6 @@ def requested_target_language(request: str) -> str:
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
-            raw = match.group(1) if match.lastindex == 1 else ""
-            if raw:
-                return LANGUAGE_ALIASES.get(raw, "")
             for group in reversed(match.groups()):
                 normalized = LANGUAGE_ALIASES.get(group, "")
                 if normalized:
@@ -112,13 +114,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "SPS-CA/3.2"
 
     def _send(self, status: int, payload: Any, content_type: str = "application/json") -> None:
-        body = (
-            payload
-            if isinstance(payload, bytes)
-            else json.dumps(payload, ensure_ascii=False).encode()
-            if content_type == "application/json"
-            else str(payload).encode()
-        )
+        body = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode() if content_type == "application/json" else str(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -262,14 +258,16 @@ class Handler(BaseHTTPRequestHandler):
                 "explicit target language in current request",
             )
 
-        turn = service.run_turn(
-            request=request,
-            code=turn_code,
-            language=detected,
-            filename=filename,
-            conversation=conversation,
-        )
-        service.brain.detect_language = original_detect_language
+        try:
+            turn = service.run_turn(
+                request=request,
+                code=turn_code,
+                language=detected,
+                filename=filename,
+                conversation=conversation,
+            )
+        finally:
+            service.brain.detect_language = original_detect_language
 
         payload = turn.as_dict()
         payload.update(
@@ -300,17 +298,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "feedback must be agree or disagree"})
             return
         if feedback == "agree":
-            self._send(
-                200,
-                {
-                    "status": "recorded",
-                    "feedback": "agree",
-                    "evolution": {
-                        "decision": "none",
-                        "reasoning": "User accepted the result; no evolution analysis was required.",
-                    },
-                },
-            )
+            self._send(200, {"status": "recorded", "feedback": "agree", "evolution": {"decision": "none", "reasoning": "User accepted the result; no evolution analysis was required."}})
             return
         event = evolution.record_disagreement(
             session_id=str(data.get("session_id", "")),
