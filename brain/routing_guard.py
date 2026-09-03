@@ -25,6 +25,15 @@ _EXPLICIT_TEST = re.compile(
     re.IGNORECASE,
 )
 
+# Validation is a separate intent only when the user explicitly asks for a
+# validation action. A noun such as "validation" or a relative clause such as
+# "supports validation" is part of the requested implementation target.
+_SEPARATE_VALIDATION_ACTION = re.compile(
+    r"(?:^|\b(?:then|and then)\b|,\s*(?:then|and)?\s*)"
+    r"(?:please\s+)?(?:validate|review|re-validate|check)\b",
+    re.IGNORECASE,
+)
+
 
 def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     """Return distinct task-level intent signals in a stable capability order.
@@ -106,6 +115,14 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     )
     if project_action:
         add("project_operations", r"\b(?:project\s+operation|project\s+structure|set\s+up|configure|restructure|reorganize|workspace|repo(?:sitory)?|deployment\s+layout|directory\s+convention|file|folder|directory|package|module)\b")
+
+    # Validation words embedded in a generation/modification target are not a
+    # second task. Only an explicit validation action (e.g. "then validate")
+    # keeps validation as a distinct signal and therefore produces "mixed".
+    if "validation" in signals and (
+        "code_generation" in signals or "code_modification" in signals
+    ) and not _SEPARATE_VALIDATION_ACTION.search(req):
+        signals.remove("validation")
 
     # A target noun such as "input validation" belongs to the modification
     # capability when it is the single requested action. It becomes mixed only
