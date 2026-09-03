@@ -14,8 +14,10 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install test dependencies
-        run: python -m pip install -U pytest 'requests>=2.31,<3'
-      - name: Run seed capability tests
+        run: python -m pip install -U -r requirements.txt
+      - name: Run legacy compatibility capability tests
         run: python -m pytest capabilities/tests/test_seed_capabilities.py -q
-      - name: Run Brain boundary tests
-        run: python -m pytest brain/tests/test_brain.py -q
+      - name: Run canonical capability tests
+        run: python -m pytest core/tests/test_canonical_capabilities.py core/tests/test_canonical_registry.py -q
+      - name: Run Brain routing tests
+        run: python -m pytest brain/tests/test_brain.py brain/tests/test_capability_planning.py -q
