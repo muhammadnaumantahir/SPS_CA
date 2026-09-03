@@ -39,6 +39,27 @@ class EvolutionEvidenceStore:
     def _next_id(events: list[dict[str, Any]]) -> str:
         return f"EVOL-{len(events) + 1:05d}"
 
+    def record_agreement(self, *, session_id, turn_id, request, language, capability_id="", code=""):
+        """Record accepted output as positive evidence without triggering growth."""
+        events = self._load()
+        evidence = {
+            "event_id": self._next_id(events),
+            "event_type": "agreement",
+            "timestamp": self._now(),
+            "session_id": session_id,
+            "turn_id": turn_id,
+            "request": request,
+            "language": language,
+            "capability_id": capability_id,
+            "code_length": len(code or ""),
+            "evidence_summary": f"User accepted the result for {capability_id or 'the current turn'}; retained as positive reuse evidence.",
+            "decision": "retain",
+            "reasoning": "Positive feedback strengthens confidence in the selected behavior but does not justify creating a new capability.",
+        }
+        events.append(evidence)
+        self._save(events)
+        return evidence
+
     def record_disagreement(self, *, session_id, turn_id, request, language, language_confidence, previous_capability_id, code=""):
         events = self._load()
         same_cap = [e for e in events if e.get("event_type") == "disagreement" and e.get("previous_capability_id") == previous_capability_id]
