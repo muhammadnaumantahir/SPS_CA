@@ -56,7 +56,8 @@ def test_show_registry_lists_canonical_capabilities(tmp_path: Path):
     assert "CAP-001" in response
     assert "Code Generation" in response
     assert "Prompt Processing" not in response
-    assert "CAP-011" in response
+    assert "CAP-010" in response
+    assert "CAP-011" not in response
 
 
 def test_process_request_uses_brain_plan_without_prompt_capability(tmp_path: Path):
