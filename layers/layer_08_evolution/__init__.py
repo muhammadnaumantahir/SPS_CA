@@ -7,6 +7,7 @@ preserving evolution provenance. The public ten-layer model is unchanged.
 
 from .controlled_evolution import ControlledEvolutionEngine
 from .evolution_engine import EvolutionError
+from .evolution_cycle import EvolutionCycleOutcome
 from .execution_authority import EvolutionExecutionAuthority
 from .gap_planner import CapabilityGapPlanner
 from .governed_self_programming import SelfProgrammingEngine
@@ -21,14 +22,13 @@ from .models import (
     TestRunResult,
 )
 
-# Keep existing imports source-compatible while activating the governed
-# candidate-based implementation for all Layer-8 callers.
 EvolutionEngine = ControlledEvolutionEngine
 
 __all__ = [
     "EvolutionEngine",
     "ControlledEvolutionEngine",
     "EvolutionError",
+    "EvolutionCycleOutcome",
     "EvolutionExecutionAuthority",
     "CapabilityGapPlanner",
     "OptimizationActionPlanner",
