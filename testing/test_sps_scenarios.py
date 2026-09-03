@@ -5,8 +5,9 @@ implementation/unit tests remain colocated with their production modules;
 this file is intentionally the single scenario-level pytest entry point.
 
 The suite validates the deterministic front half of SPS-CA's routing contract
-(language detection + intent classification) for every expanded scenario. This
-keeps all 500 cases fast, reproducible, and independent of an external LLM.
+(language detection + intent classification) for every expanded scenario.
+Governance-blocked cases intentionally omit an intent because they are expected
+to terminate at the governance gate rather than route to a capability.
 The full scenario runner remains available for model-backed end-to-end runs.
 """
 
@@ -34,14 +35,15 @@ def scenarios() -> list[dict]:
 
 @pytest.mark.parametrize("index", range(500))
 def test_scenario_contract(index: int, scenarios: list[dict]) -> None:
-    """Run one real routing contract check per scenario."""
+    """Run the routing contract appropriate to each scenario's expected status."""
     scenario = scenarios[index]
     expected = dict(scenario.get("expected", {}))
+    status = expected.get("status")
 
     assert scenario["id"], f"scenario {index + 1} has no id"
     assert scenario["request"].strip(), f"scenario {scenario['id']} has no request"
     assert scenario["language"], f"scenario {scenario['id']} has no language"
-    assert expected.get("intent"), f"scenario {scenario['id']} has no expected intent"
+    assert status, f"scenario {scenario['id']} has no expected status"
 
     detected_language, confidence, _ = Brain.detect_language(
         scenario.get("code", ""),
@@ -53,6 +55,13 @@ def test_scenario_contract(index: int, scenarios: list[dict]) -> None:
         f"expected {scenario['language']!r}"
     )
     assert 0.0 <= confidence <= 1.0
+
+    if status == "blocked":
+        # Governance scenarios intentionally stop before capability routing.
+        # Their expected contract is the blocked status, not an intent.
+        return
+
+    assert expected.get("intent"), f"scenario {scenario['id']} has no expected intent"
 
     intent = Brain.infer_intent_class(
         scenario["request"],
