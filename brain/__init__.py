@@ -3,9 +3,6 @@
 from .brain import Brain, BrainPlan, BrainError
 from .routing_guard import intent_guard
 
-# Preserve the existing Brain API while adding a deterministic final guard.
-# The Brain remains replaceable and the guard only resolves explicit intent
-# ambiguity; it does not create or execute capabilities.
 _original_infer_intent_class = Brain.infer_intent_class
 _original_plan = Brain.plan
 
@@ -15,23 +12,37 @@ def _guarded_infer_intent_class(request: str, code: str = "", file_path: str = "
 
 
 def _learning_aware_plan(self, **kwargs):
-    """Allow evidence-qualified generated capabilities to win normal routing.
-
-    The canonical capability remains the safe fallback. A generated capability
-    can replace it only when it explicitly declares the current intent as
-    allowed and Layer 6 has enough historical evidence plus a meaningful score
-    margin to recommend the switch.
-    """
+    """Allow only evidence-qualified generated capabilities to replace defaults."""
     plan = _original_plan(self, **kwargs)
-    if plan.intent_class in {"unknown", "mixed", "test_generation"}:
+    if plan.intent_class in {"unknown", "mixed", "test_generation"} or not plan.steps:
         return plan
 
     catalog = list(kwargs.get("capability_catalog") or [])
-    experience_context = list(kwargs.get("experience_context") or [])
-    tasks = []
-    from layers.layer_05_experience import ExperienceLog, Task
-    from layers.layer_06_meta_learning import StrategyPolicy
+    # Core normally supplies the active catalog. For compatibility with older
+    # callers that provide only id/name/description, enrich from the registry.
+    if not any(item.get("allowed_intents") for item in catalog if isinstance(item, dict)):
+        try:
+            from layers.capability_registry import CapabilityRegistryManager
+            registry = CapabilityRegistryManager("capabilities/registry.json")
+            catalog = [
+                {
+                    "id": cap.id,
+                    "status": cap.status,
+                    "generated": bool(cap.generated),
+                    "allowed_intents": list(getattr(cap, "allowed_intents", []) or []),
+                    "forbidden_intents": list(getattr(cap, "forbidden_intents", []) or []),
+                    "supported_languages": list(getattr(cap, "supported_languages", []) or []),
+                }
+                for cap in registry.list_all_capabilities()
+            ]
+        except (OSError, ValueError, TypeError):
+            return plan
 
+    experience_context = list(kwargs.get("experience_context") or [])
+    from layers.layer_05_experience import ExperienceLog, Task
+    from layers.layer_06_meta_learning import MetaLearningDecisionLog, StrategyPolicy
+
+    tasks = []
     for item in experience_context:
         if not isinstance(item, dict) or not item.get("id"):
             continue
@@ -39,32 +50,51 @@ def _learning_aware_plan(self, **kwargs):
             tasks.append(Task.from_dict(item))
         except (KeyError, TypeError, ValueError):
             continue
-    if not tasks or not plan.steps:
+    if not tasks:
         return plan
 
-    experience = ExperienceLog(tasks)
     current_id = plan.steps[0].get("capability_id", "")
+    experience = ExperienceLog(tasks)
+    language = str(kwargs.get("language") or plan.language or "").lower()
     eligible_generated = []
     for item in catalog:
         cid = str(item.get("id", ""))
-        if not cid or cid.startswith("CAP-0"):
+        if not cid or not item.get("generated") or str(item.get("status", "active")) != "active":
             continue
-        allowed_intents = {str(value) for value in (item.get("allowed_intents") or [])}
-        forbidden_intents = {str(value) for value in (item.get("forbidden_intents") or [])}
-        if plan.intent_class not in allowed_intents or plan.intent_class in forbidden_intents:
+        allowed = {str(value) for value in (item.get("allowed_intents") or [])}
+        forbidden = {str(value) for value in (item.get("forbidden_intents") or [])}
+        languages = {str(value).lower() for value in (item.get("supported_languages") or [])}
+        if plan.intent_class not in allowed or plan.intent_class in forbidden:
             continue
-        if str(item.get("status", "active")) != "active":
+        if languages and language and language not in languages:
             continue
         eligible_generated.append(cid)
 
     if not current_id or not eligible_generated:
         return plan
 
-    recommendation = StrategyPolicy().recommend(
+    recent_selected = [task.selected_capability for task in tasks if task.selected_capability]
+    policy = StrategyPolicy()
+    recommendation = policy.recommended_for_future_routing(
         experience,
         current_id,
         eligible_generated,
+        recent_selected_capabilities=recent_selected,
     )
+
+    # Persist only evidence-sufficient recommendations. The record itself is
+    # advisory; it never authorizes mutation or bypasses Governance.
+    try:
+        if recommendation.evidence_sufficient:
+            from layers.layer_06_meta_learning import MetaLearner
+            learner = MetaLearner(policy=policy)
+            decision = learner.create_decision(recommendation, triggered_by=kwargs.get("request", ""))
+            log = MetaLearningDecisionLog.load_from_json()
+            log.add_decision(decision)
+            log.save_to_json()
+    except (OSError, ValueError, TypeError):
+        pass
+
     winner = recommendation.recommended_capability_id
     if not winner:
         return plan
@@ -75,10 +105,7 @@ def _learning_aware_plan(self, **kwargs):
             f"{plan.reasoning} Layer 6 evidence recommended {winner} over "
             f"{current_id}: {recommendation.reason}"
         ),
-        steps=[{
-            "capability_id": winner,
-            "reason": recommendation.reason,
-        }],
+        steps=[{"capability_id": winner, "reason": recommendation.reason}],
         provider=plan.provider,
         model=plan.model,
         language=plan.language,
