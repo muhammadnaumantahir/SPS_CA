@@ -19,6 +19,11 @@ _ACTIONS: tuple[tuple[str, str, int, tuple[str, ...]], ...] = (
 )
 
 _GENERATION_TARGET_RE = re.compile(r"\b(code|program|script|application|app|function|class|module|solution|implementation|utility|validator)\b", re.I)
+_MODIFICATION_TARGET_RE = re.compile(
+    r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,55}"
+    r"\b(code|function|class|method|logic|source|implementation|behavior|validation|logging|annotation|docstrings?|comments?|guard|error handling|cache|parameter|argument|input|output)\b",
+    re.I,
+)
 _PROJECT_CONTEXT_RE = re.compile(
     r"\b(project|repo(?:sitory)?|workspace|deployment|layout|directory|folder|file|package|module|configuration|environment|secrets)\b",
     re.I,
@@ -50,7 +55,7 @@ def compose_explicit_capabilities(
         if cid == "CAP-001" and not _GENERATION_TARGET_RE.search(req):
             continue
         if cid == "CAP-002":
-            if not has_code:
+            if not has_code or not _MODIFICATION_TARGET_RE.search(req):
                 continue
             if re.search(r"\b(add|write|create|generate)\s+(?:new\s+)?(?:\w+\s+){0,2}tests?\b", req, re.I):
                 code_change_signal = re.search(
