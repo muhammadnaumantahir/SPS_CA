@@ -26,7 +26,7 @@ Layer 6 now provides four complementary controls:
 - `ABComparisonEngine` provides deterministic, evidence-gated A/B comparison for compatible capability arms;
 - `OptimizationCycleController` decides when accumulated evidence is sufficient to start another controlled optimization cycle.
 
-Layer 8 also provides `GovernedRetirementManager` for evidence-gated lifecycle deactivation of generated capabilities that remain persistently poor.
+Layer 8 also provides `GovernedRetirementManager` for evidence-gated lifecycle deactivation of generated capabilities that remain persistently poor, plus `OptimizationActionPlanner` for converting a triggered cycle into explicit Evolution capability plans.
 
 ## Controlled A/B comparison
 
@@ -42,7 +42,9 @@ Generated capabilities are never deleted merely because they underperform. Retir
 
 A five-minute cooldown prevents repeated triggering without new evidence. The controller is advisory: it does not mutate source, execute capabilities, approve Governance, or directly create new capabilities.
 
-`OptimizationCycleService` is the runtime boundary. After each conversational task is recorded in Layer 5, the service evaluates the thresholds and cooldown. Only triggered plans are persisted as optimization-cycle state; the resulting plan is then available to the Evolution boundary for a subsequent governed action.
+`OptimizationCycleService` is the runtime boundary. After each conversational task is recorded in Layer 5, the service evaluates the thresholds and cooldown. Triggered plans are persisted as optimization-cycle state.
+
+`OptimizationActionPlanner` is the Layer 8 handoff. It converts triggered plans into explicit `CapabilityPlan` objects describing a new governed capability opportunity. Actual implementation still uses the existing Layer 8 candidate → Software DNA → Governance → Verification & Validation → promotion/rollback pipeline.
 
 This is threshold-triggered rather than a background thread, so the normal request path remains deterministic and there is no hidden autonomous source mutation.
 
@@ -63,6 +65,8 @@ Behavioral evaluation / controlled A-B comparison
     ↓
 Threshold-triggered optimization assessment
     ↓
+Layer 8 Evolution action planning
+    ↓
 Conservative strategy recommendation
     ↓
 Adaptation / live routing
@@ -76,7 +80,7 @@ New Experience evidence
 
 ## Safety boundary
 
-Layer 6 produces evidence and recommendations. It does not authorize source mutation. The optimization-cycle runtime service persists only audit state for triggered cycles and hands the resulting plan to the appropriate governed Evolution boundary.
+Layer 6 produces evidence and recommendations. The optimization-cycle runtime records audit state and hands triggered work to an explicit Layer 8 action planner. The action planner creates plans, not source mutations; implementation and promotion still require the established Software DNA, Governance, validation, and execution/rollback controls.
 
 Any structural self-change still follows the Phase 1 Software DNA → Governance → Verification & Validation → Layer 10 execution/rollback boundary.
 
@@ -103,11 +107,12 @@ Completed:
 - governed retirement/deactivation of persistently poor generated capabilities;
 - threshold-triggered optimization-cycle assessment;
 - runtime integration after Experience recording;
+- governed Layer 8 action planning from triggered optimization cycles;
 - regression/unit coverage for the new learning policy;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
 Next work:
 
-- feed triggered optimization plans into a governed Evolution action planner;
 - persist richer A/B and retirement outcome telemetry;
-- improve long-horizon evidence aggregation without expanding conversational prompt history.
+- improve long-horizon evidence aggregation without expanding conversational prompt history;
+- connect approved action plans to the existing governed implementation/promotion path only after explicit execution authority is established.
