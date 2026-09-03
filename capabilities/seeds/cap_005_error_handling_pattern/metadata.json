@@ -1,1 +1,0 @@
-{"id":"LEGACY-CAP-005","name":"Error Handling Pattern","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-005 or CAP-006 as appropriate.","entry_point":"capabilities.seeds.cap_005_error_handling_pattern.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}

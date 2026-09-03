@@ -1,1 +1,0 @@
-{"id":"LEGACY-CAP-001","name":"Simple Bug Detection","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-004.","entry_point":"capabilities.seeds.cap_001_bug_detection.capability.run","origin":"seed","status":"retired","target_languages":["python","java","javascript","typescript","go","csharp"],"tags":["legacy","retired"]}

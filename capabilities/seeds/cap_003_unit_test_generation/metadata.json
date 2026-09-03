@@ -1,1 +1,0 @@
-{"id":"LEGACY-CAP-003","name":"Unit Test Generation","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-007.","entry_point":"capabilities.seeds.cap_003_unit_test_generation.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}

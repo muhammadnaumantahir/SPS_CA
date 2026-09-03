@@ -5,7 +5,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCENARIO_FILE = REPO / "evaluation/scenarios/growth_1000.json"
-GENERATOR = REPO / "scripts/generate_growth_1000.py"
+GENERATOR = REPO / "scripts/generate_growth_scenarios.py"
 
 
 def run_generator():
@@ -89,9 +89,9 @@ def validate_evolution_contracts(scenarios):
 
 def main():
     print("=" * 70)
-    print("SPS-CA — GROWTH 1000 EVALUATION")
+    print("SPS-CA — GROWTH EVALUATION")
     print("=" * 70)
-    print("\n[1] Generating 1000 scenarios...")
+    print("\n[1] Generating growth scenarios...")
     run_generator()
     scenarios = load()
     print(f"[2] Loaded {len(scenarios)} scenarios")

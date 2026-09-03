@@ -1,4 +1,4 @@
-"""Hardened Phase-1 self-programming facade.
+"""Governed self-programming facade.
 
 The implementation lives in :mod:`self_programming`, while this facade makes
 its Software DNA call prove that the required safety boundaries are actually
@@ -28,18 +28,11 @@ class SelfProgrammingEngine(BaseSelfProgrammingEngine):
         )
         details = []
         if result.violated_hard_rules:
-            details.append(
-                "hard=" + ",".join(rule.id for rule in result.violated_hard_rules)
-            )
+            details.append("hard=" + ",".join(rule.id for rule in result.violated_hard_rules))
         if result.violated_soft_rules:
-            details.append(
-                "soft=" + ",".join(rule.id for rule in result.violated_soft_rules)
-            )
+            details.append("soft=" + ",".join(rule.id for rule in result.violated_soft_rules))
         checked = ",".join(result.checked_rule_ids) or "none"
-        return (
-            f"DNA checked [{checked}]" + (f" ({'; '.join(details)})" if details else ""),
-            result.allowed,
-        )
+        return (f"DNA checked [{checked}]" + (f" ({'; '.join(details)})" if details else ""), result.allowed)
 
 
 __all__ = ["SelfProgrammingEngine"]

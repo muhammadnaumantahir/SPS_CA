@@ -1,23 +1,67 @@
-# Architecture Reference
+# SPS-CA Architecture
 
-SPS-CA's ten canonical layers are defined in `layers/architecture.py`. The implementation directories are:
+SPS-CA is organized around ten canonical SPS layers. The Brain is a separate model-backed reasoning boundary and is intentionally not counted as Layer 11.
+
+## Layer manifest
+
+The authoritative vocabulary is `layers/architecture.py`:
 
 ```text
-layers/
-├── layer_01_software_dna_core/
-├── layer_02_governance_core/
-├── layer_03_cognitive_core/
-├── layer_04_knowledge_core/
-├── layer_05_experience_core/
-├── layer_06_meta_learning_core/
-├── layer_07_adaptation_core/
-├── layer_08_evolution_core/
-├── layer_09_verification_validation_core/
-└── layer_10_execution_core/
+L1  Software DNA Core
+L2  Governance Core
+L3  Cognitive Core
+L4  Knowledge Core
+L5  Experience Core
+L6  Meta-Learning Core
+L7  Adaptation Core
+L8  Evolution Core
+L9  Verification & Validation Core
+L10 Execution Core
 ```
 
-Each package exposes its existing implementation through meaningful sub-components. `layers/architecture.py` is the vocabulary source used by the UI and architecture tests.
+## System boundary
 
-The separate Brain performs model-backed reasoning and planning. Supporting subsystems include Capability Registry, Capability Lineage, and LLM Provider Abstraction.
+```text
+                         USER
+                          │
+                 Prompt + Code/File
+                          │
+                          ▼
+               CanonicalSPSPipeline
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+             ▼                         ▼
+      SPS Architecture          Brain boundary
+             │                         │
+             ├─ L1 Software DNA       │
+             ├─ L2 Governance         │
+             ├─ L3 Cognitive ◄──────── Brain
+             ├─ L4 Knowledge          │
+             ├─ L5 Experience         │
+             ├─ L6 Meta-Learning      │
+             ├─ L7 Adaptation         │
+             ├─ L8 Evolution ──► Capability
+             │                 reuse/create
+             ├─ L9 Verification
+             └─ L10 Execution
+                          │
+                          ▼
+                Result + Modified Code
+                          │
+                          ▼
+                Experience / Trace / Evidence
+                          │
+                          ▼
+                     Future Evolution
+```
 
-See `docs/PIPELINE.md` for runtime sequencing and `docs/SELF_PROGRAMMING.md` for the growth lifecycle.
+## Architectural responsibilities
+
+L1 defines system and capability contracts. L2 controls risk, authorization, policies and rollback. L3 interprets intent and coordinates reasoning with the Brain. L4 gathers project and code knowledge. L5 records experience and disagreement evidence. L6 evaluates capability fitness and strategy. L7 adapts behavior to environmental conditions. L8 performs the SPS Growth Decision and governed capability evolution. L9 validates outputs in controlled conditions. L10 applies authorized execution and file changes.
+
+Supporting components such as the capability registry, lineage, provider abstraction, memory and sandbox support the layers; they do not create additional architectural layers.
+
+## Brain boundary
+
+The Brain is replaceable model infrastructure used for reasoning, prompt analysis, planning, strategy analysis and code-generation assistance. Its provider/model can change without redefining the SPS architecture. It is not a capability and it does not own capability registration.

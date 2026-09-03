@@ -1,1 +1,0 @@
-{"id":"LEGACY-CAP-004","name":"Loop Optimization","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-006.","entry_point":"capabilities.seeds.cap_004_loop_optimization.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}

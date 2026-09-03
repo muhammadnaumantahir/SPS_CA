@@ -1,1 +1,0 @@
-{"id":"LEGACY-CAP-002","name":"Syntax Error Fix","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-005 or CAP-009 depending on intent.","entry_point":"capabilities.seeds.cap_002_syntax_error_fix.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from core import SpsAssistantService
 
 
-def test_phase2_catalog_keeps_active_capabilities_and_adds_routing_metadata():
+def test_capability_catalog_keeps_active_capabilities_and_adds_routing_metadata():
     generated = SimpleNamespace(
         id="CAP-011",
         name="Generated Modifier",

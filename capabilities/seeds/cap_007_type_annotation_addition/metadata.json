@@ -1,1 +1,0 @@
-{"id":"LEGACY-CAP-007","name":"Type Annotation Addition","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-006.","entry_point":"capabilities.seeds.cap_007_type_annotation_addition.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}
