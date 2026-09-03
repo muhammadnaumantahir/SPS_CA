@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
+from brain import Brain
 from brain.task_planner import BrainTaskPlanner
+from capabilities.base import CapabilityContext
 from layers.capability_registry import CapabilityRegistryManager
 from layers.layer_09_validation import Validator
-from layers.layer_02_governance import ChangeType, DecisionStatus, GovernanceGate
+from layers.layer_02_governance import DecisionStatus, GovernanceGate
 from layers.layer_10_execution import Change, ExecutionEngine, ExecutionStatus, FileEdit
 
 from .sps_execution import SPSExecutionService
@@ -46,7 +49,7 @@ class BrainOrchestratedExecutionService(SPSExecutionService):
             }
             for cap in registry.list_all_capabilities()
         ]
-        intent_class = __import__("brain", fromlist=["Brain"]).Brain.infer_intent_class(user_request, code, file_path)
+        intent_class = Brain.infer_intent_class(user_request, code, file_path)
 
         try:
             planner = BrainTaskPlanner()
@@ -77,28 +80,28 @@ class BrainOrchestratedExecutionService(SPSExecutionService):
             capability = registry.get_capability(task.capability_id)
             if capability is None:
                 return self._orchestration_fail(scenario_id, task_results, task.id, f"Capability {task.capability_id} is not registered.")
-            task_context = {
-                "request": user_request,
-                "task_instruction": task.instruction,
-                "scenario_id": scenario_id,
-                "task_id": task.id,
-                "depends_on": list(task.depends_on),
-                "dependency_results": [item for item in task_results if item.get("task_id") in set(task.depends_on)],
-                "brain_plan": plan.as_dict(),
-            }
+            dependencies = [item for item in task_results if item.get("task_id") in set(task.depends_on)]
             dependency_text = ""
-            if task_context["dependency_results"]:
-                dependency_text = "\n\nDEPENDENCY TASK OUTPUTS (use these as factual context):\n" + self._format_results(task_context["dependency_results"])
+            if dependencies:
+                dependency_text = "\n\nDEPENDENCY TASK OUTPUTS (use these as factual context):\n" + json.dumps(dependencies, ensure_ascii=False, default=str)
             instruction = task.instruction + dependency_text
 
             capability_fn = self._load_capability_fn(capability.entry_point, task.capability_id, {})
             result = capability_fn(
-                __import__("capabilities.base", fromlist=["CapabilityContext"]).CapabilityContext(
+                CapabilityContext(
                     code=current_code,
                     language=language.lower(),
                     file_path=relative_file,
                     project_path=str(workspace),
-                    metadata={**task_context, "request": instruction},
+                    metadata={
+                        "request": instruction,
+                        "task_instruction": task.instruction,
+                        "scenario_id": scenario_id,
+                        "task_id": task.id,
+                        "depends_on": list(task.depends_on),
+                        "dependency_results": dependencies,
+                        "brain_plan": plan.as_dict(),
+                    },
                 )
             )
             task_record: dict[str, Any] = {
@@ -208,10 +211,6 @@ class BrainOrchestratedExecutionService(SPSExecutionService):
             "final_response": composition,
             "workspace": str(workspace),
         }
-
-    @staticmethod
-    def _format_results(results: list[dict[str, Any]]) -> str:
-        return json.dumps(results, ensure_ascii=False, default=str)
 
     def _orchestration_fail(self, scenario_id: str, task_results: list[dict[str, Any]], task_id: str, error: str) -> Dict[str, Any]:
         self.trace_store.complete_scenario(
