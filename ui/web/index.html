@@ -88,6 +88,49 @@
         const creationLabel = historical ? 'Migrated' : 'Created';
         showDrawer(`${capability.id} · ${capability.name}`, `<div class="detail-stack"><div class="evidence-grid"><div><span>Status</span><strong>${esc(capability.status)}</strong></div><div><span>Origin</span><strong>${originLabel}</strong></div><div><span>${creationLabel}</span><strong>${esc(createdAt)}</strong></div></div><h3>Why it exists</h3><p>${esc(why)}</p><h3>How it entered the registry</h3><p>${historical ? 'This was carried forward from the historical capability set. It was not produced by the current user disagreement/evolution loop.' : 'This capability was registered only after Evolution reasoning decided that repeated evidence justified creation.'}</p><h3>Trigger evidence</h3><p>${esc(triggerIds.join(', ') || triggerTasks.join(', ') || 'None recorded')}</p>${sourceRequest ? `<h3>Source request</h3><p>${esc(sourceRequest)}</p>` : ''}<h3>Evidence summary</h3><p>${esc(evidence)}</p><h3>Lineage</h3><p>Parent capability: <strong>${esc(provenance.parent_capability_id || capability.historical_id || 'Seed / none')}</strong></p><h3>Validation</h3><p>${esc(provenance.validation_status || history.validation_status || 'Not recorded')}</p><h3>Audit events</h3><pre class="trace-pre">${esc(JSON.stringify(lineage.events || [], null, 2))}</pre></div>`);
       };
+
+      // Source returned by the backend is also a first-class chat result.
+      // The working-code editor remains synchronized, but users should not
+      // need to open a second panel just to see generated/modified source.
+      const baseRenderMessages = window.renderMessages;
+      if (typeof baseRenderMessages === 'function') {
+        window.renderMessages = function renderMessagesWithSource() {
+          baseRenderMessages();
+          const box = document.getElementById('messages');
+          if (!box || typeof state === 'undefined') return;
+          const assistantMessages = Array.from(box.querySelectorAll('.message.assistant'));
+          let assistantSeen = 0;
+          state.conversation.forEach((message) => {
+            if (message.role !== 'assistant') return;
+            const article = assistantMessages[assistantSeen++];
+            if (!article) return;
+            const turnData = message.turnData || {};
+            const outputCode = String(turnData.output_code || '').trim();
+            if (!outputCode) return;
+            if (/```[\w+#.-]*\s*\n[\s\S]*```/.test(String(message.content || ''))) return;
+            const main = article.querySelector('.message-main');
+            const bubble = article.querySelector('.bubble');
+            if (!main || !bubble) return;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chat-output-code';
+            wrapper.innerHTML = '<div class="code-head"><span></span><button type="button">Copy</button></div><pre></pre>';
+            wrapper.querySelector('span').textContent = `${String(turnData.language || state.language || 'code')} · Result`;
+            wrapper.querySelector('pre').textContent = outputCode;
+            wrapper.querySelector('button').addEventListener('click', async (event) => {
+              const button = event.currentTarget;
+              try {
+                await navigator.clipboard.writeText(outputCode);
+                button.textContent = 'Copied';
+                setTimeout(() => { button.textContent = 'Copy'; }, 1200);
+              } catch (_) {
+                button.textContent = 'Copy failed';
+                setTimeout(() => { button.textContent = 'Copy'; }, 1200);
+              }
+            });
+            bubble.insertAdjacentElement('afterend', wrapper);
+          });
+        };
+      }
     });
   </script>
 </body>
