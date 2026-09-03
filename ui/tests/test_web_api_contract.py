@@ -1,74 +1,6 @@
 from pathlib import Path
 
 
-def test_dashboard_snapshot_has_metrics_architecture_analytics_and_activity(monkeypatch):
-    import ui.web_app as web_app
-
-    class FakeSessions:
-        def list(self):
-            return [
-                {"id": "s2", "title": "Newer", "updated_at": "2026-09-03T12:00:00+00:00"},
-                {"id": "s1", "title": "Older", "updated_at": "2026-09-03T11:00:00+00:00"},
-            ]
-
-    class FakeEvolution:
-        def list_events(self, limit=200):
-            return [
-                {"event_type": "disagreement", "timestamp": "2026-09-03T12:01:00+00:00", "reasoning": "pattern found"},
-                {"event_type": "capability_created", "timestamp": "2026-09-03T12:02:00+00:00", "created_capability_id": "CAP-011"},
-            ]
-
-    monkeypatch.setattr(web_app, "sessions", FakeSessions())
-    monkeypatch.setattr(web_app, "evolution", FakeEvolution())
-    monkeypatch.setattr(
-        web_app,
-        "capability_directory",
-        lambda: [
-            {"id": "CAP-001", "name": "Code Generation", "generated": False, "usable": True, "reuse_count": 4},
-            {"id": "CAP-011", "name": "Special Fix", "generated": True, "usable": False, "reuse_count": 2},
-        ],
-    )
-
-    snapshot = web_app.dashboard_data()
-
-    assert snapshot["metrics"] == {
-        "layers": 10,
-        "core_capabilities": 1,
-        "active_capabilities": 1,
-        "conversations": 2,
-        "evolution_events": 2,
-    }
-    assert len(snapshot["architecture"]["layers"]) == 10
-    assert {c["id"] for c in snapshot["capabilities"]} == {"CAP-001", "CAP-011"}
-    assert snapshot["evolution"][0]["event_type"] == "capability_created"
-    assert snapshot["activity"][0]["type"] == "evolution"
-
-
-def test_dashboard_empty_runtime_state_is_valid(monkeypatch):
-    import ui.web_app as web_app
-
-    class EmptySessions:
-        def list(self):
-            return []
-
-    class EmptyEvolution:
-        def list_events(self, limit=200):
-            return []
-
-    monkeypatch.setattr(web_app, "sessions", EmptySessions())
-    monkeypatch.setattr(web_app, "evolution", EmptyEvolution())
-    monkeypatch.setattr(web_app, "capability_directory", lambda: [])
-
-    snapshot = web_app.dashboard_data()
-
-    assert snapshot["metrics"]["conversations"] == 0
-    assert snapshot["metrics"]["evolution_events"] == 0
-    assert snapshot["capabilities"] == []
-    assert snapshot["evolution"] == []
-    assert snapshot["activity"] == []
-    assert len(snapshot["architecture"]["layers"]) == 10
-
-
 def test_delete_endpoint_contract_and_ui_confirmation_guard():
     web_app_source = Path("ui/web_app.py").read_text(encoding="utf-8")
     app_source = Path("ui/web/app.js").read_text(encoding="utf-8")
@@ -103,8 +35,9 @@ def test_capability_analysis_is_embedded_in_capabilities_view():
     assert 'Capability analysis' in capabilities_view
     assert 'Seed vs generated population' in capabilities_view
     assert 'id="capabilityAnalytics"' in capabilities_view
-    assert '/api/dashboard' in html
+    assert '/api/capabilities' in html
     assert 'showCapability' in html
+    assert '/api/dashboard' not in html
 
 
 def test_architecture_is_the_single_architecture_navigation_surface():
@@ -114,6 +47,18 @@ def test_architecture_is_the_single_architecture_navigation_surface():
     assert html.count('id="view-architecture"') == 1
     assert 'Architecture graph' not in html
     assert '10-LAYER SPS PIPELINE' not in html
+
+
+def test_overview_dashboard_api_is_removed():
+    source = Path("ui/web_app.py").read_text(encoding="utf-8")
+    assert "def dashboard_data" not in source
+    assert 'path=="/api/dashboard"' not in source
+
+
+def test_capabilities_api_contract_remains_available():
+    source = Path("ui/web_app.py").read_text(encoding="utf-8")
+    assert 'path=="/api/capabilities"' in source
+    assert 'capability_directory()' in source
 
 
 def test_chat_insights_and_core_navigation_are_wired():
