@@ -359,8 +359,7 @@ class SpsAssistantService:
         header = f"Done. I applied {names.lower()}." if changed and names else (f"I analyzed the request with {names.lower()}." if names else "I analyzed the request.")
         explanation = reasoning or intent or "No additional explanation was provided."
         if code.strip():
-            fence_language = language or "text"
-            return f"{header} {explanation}\n\nHere is the current code:\n\n```{fence_language}\n{code.rstrip()}\n```"
+            return f"{header} {explanation}\n\nThe resulting source is available in the working-code panel."
         return f"{header} {explanation}".strip()
 
     @staticmethod
