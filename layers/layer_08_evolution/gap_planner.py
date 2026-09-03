@@ -18,7 +18,9 @@ from typing import Optional
 from .models import CapabilityPlan
 
 
-FIRST_GENERATED_NUMBER = 9
+# CAP-001..CAP-010 are the canonical seed capabilities. Generated capabilities
+# always start at CAP-011, matching ControlledEvolutionEngine.
+FIRST_GENERATED_NUMBER = 11
 
 
 def _slugify(value: str) -> str:
