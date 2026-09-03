@@ -57,6 +57,7 @@ def test_planner_does_not_create_actions_for_non_triggered_cycle():
         language="python",
     )
     assert action_plan.triggered is False
+    assert action_plan.action == "no_action"
     assert action_plan.capability_plans == []
 
 
@@ -68,8 +69,23 @@ def test_planner_converts_underperformance_into_explicit_layer8_plan():
         language="python",
     )
     assert action_plan.triggered is True
+    assert action_plan.action == "optimize_existing_capability"
     assert action_plan.cycle_id == "OPT-TEST-001"
     assert action_plan.source_capabilities == ["CAP-011"]
     assert len(action_plan.capability_plans) == 1
     assert action_plan.capability_plans[0].capability_id.startswith("CAP-")
     assert action_plan.capability_plans[0].provenance["trigger"] == "capability_gap"
+
+
+def test_planner_serializes_action_plan_without_mutating_evidence():
+    plan = _triggered_plan()
+    action_plan = OptimizationActionPlanner().plan(
+        plan,
+        task_description="improve request handling",
+        language="python",
+    )
+    payload = action_plan.to_dict()
+    assert payload["cycle_id"] == "OPT-TEST-001"
+    assert payload["triggered"] is True
+    assert payload["source_capabilities"] == ["CAP-011"]
+    assert plan.candidates[0].capability_id == "CAP-011"
