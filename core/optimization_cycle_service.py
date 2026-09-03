@@ -221,26 +221,15 @@ class OptimizationCycleService:
     def _candidates_from_action(action: EvolutionActionPlan) -> list[dict[str, Any]]:
         if not action.triggered:
             return []
-        candidates: list[dict[str, Any]] = []
-        for capability_plan, source_id, reason in zip(
-            action.capability_plans,
-            action.source_capabilities,
-            action.rationale,
-        ):
-            candidates.append({
+        return [
+            {
                 "cycle_id": action.cycle_id,
-                "source_capability_id": source_id,
+                "source_capability_id": action.source_capabilities[index],
                 "plan": capability_plan,
-                "reason": reason,
-            })
-        if action.capability_plan is not None:
-            candidates.append({
-                "cycle_id": action.cycle_id,
-                "source_capability_id": "",
-                "plan": action.capability_plan,
-                "reason": action.reason,
-            })
-        return candidates
+                "reason": action.rationale[index],
+            }
+            for index, capability_plan in enumerate(action.capability_plans)
+        ]
 
     def _authority_dict(self) -> dict[str, Any]:
         return {
