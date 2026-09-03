@@ -13,6 +13,7 @@ from layers.layer_08_evolution import (
     CapabilityGapPlanner,
     EvolutionActionPlan,
     EvolutionEngine,
+    EvolutionExecutionAuthority,
     OptimizationActionPlanner,
 )
 
@@ -21,12 +22,13 @@ DEFAULT_STATE_PATH = "experience/logs/optimization_cycle_state.json"
 
 
 class OptimizationCycleService:
-    """Assess optimization opportunities and prepare controlled Evolution work.
+    """Assess optimization opportunities and execute only explicitly authorized Evolution work.
 
-    Layer 6 decides whether evidence is sufficient. Layer 8 prepares the next
-    action and owns implementation. Actual candidate execution still passes
-    through the existing governed Evolution pipeline and is never implicit in
-    merely detecting a trigger.
+    Layer 6 decides whether evidence is sufficient. Layer 8 prepares and owns
+    implementation. Automatic execution is default-deny and must be explicitly
+    enabled by the deployment environment. Any authorized execution still goes
+    through the existing candidate -> test -> Software DNA -> Governance ->
+    promotion/rollback pipeline.
     """
 
     def __init__(
@@ -37,6 +39,7 @@ class OptimizationCycleService:
         gap_planner: Optional[CapabilityGapPlanner] = None,
         action_planner: Optional[OptimizationActionPlanner] = None,
         evolution: Optional[EvolutionEngine] = None,
+        execution_authority: Optional[EvolutionExecutionAuthority] = None,
         state_path: str = DEFAULT_STATE_PATH,
     ) -> None:
         self.experience = experience
@@ -44,6 +47,7 @@ class OptimizationCycleService:
         self.gap_planner = gap_planner or CapabilityGapPlanner()
         self.action_planner = action_planner or OptimizationActionPlanner(gap_planner=self.gap_planner)
         self.evolution = evolution or EvolutionEngine()
+        self.execution_authority = execution_authority or EvolutionExecutionAuthority.from_environment()
         self.state_path = Path(state_path)
 
     def assess_after_task(self, capability_ids: Iterable[str]) -> OptimizationCyclePlan:
@@ -69,6 +73,7 @@ class OptimizationCycleService:
                 "last_cycle_id": plan.cycle_id,
                 "last_plan": plan.to_dict(),
                 "evolution_candidates": [],
+                "execution_authority": self._authority_dict(),
             })
         return plan
 
@@ -89,6 +94,7 @@ class OptimizationCycleService:
         state.update({
             "last_plan": plan.to_dict(),
             "last_action_plan": action.to_dict(),
+            "execution_authority": self._authority_dict(),
         })
         self._save_state(state)
         return action
@@ -106,30 +112,7 @@ class OptimizationCycleService:
             language=language,
             task_description=task_description,
         )
-        if not action.triggered:
-            return []
-
-        candidates: list[dict[str, Any]] = []
-        for capability_plan, source_id, reason in zip(
-            action.capability_plans,
-            action.source_capabilities,
-            action.rationale,
-        ):
-            candidates.append({
-                "cycle_id": action.cycle_id,
-                "source_capability_id": source_id,
-                "plan": capability_plan,
-                "reason": reason,
-            })
-
-        if action.capability_plan is not None:
-            candidates.append({
-                "cycle_id": action.cycle_id,
-                "source_capability_id": "",
-                "plan": action.capability_plan,
-                "reason": action.reason,
-            })
-
+        candidates = self._candidates_from_action(action)
         state = self._load_state()
         state["evolution_candidates"] = [
             {
@@ -142,6 +125,48 @@ class OptimizationCycleService:
         ]
         self._save_state(state)
         return candidates
+
+    def execute_authorized_action_plan(
+        self,
+        action: EvolutionActionPlan,
+        *,
+        project_root: str = ".",
+    ) -> list[dict[str, Any]]:
+        """Execute an already-planned action only when explicit authority permits it."""
+        candidates = self._candidates_from_action(action)
+        allowed, reason = self.execution_authority.authorize(len(candidates))
+        state = self._load_state()
+        state["execution_authority"] = self._authority_dict()
+        state["last_execution_authorization"] = {
+            "cycle_id": action.cycle_id,
+            "authorized": allowed,
+            "reason": reason,
+            "candidate_count": len(candidates),
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if not allowed:
+            self._save_state(state)
+            return [{
+                "cycle_id": action.cycle_id,
+                "authorized": False,
+                "executed": False,
+                "reason": reason,
+            }]
+
+        results: list[dict[str, Any]] = []
+        for candidate in candidates:
+            result = self.execute_candidate(candidate, project_root=project_root)
+            results.append({
+                "cycle_id": candidate["cycle_id"],
+                "source_capability_id": candidate["source_capability_id"],
+                "authorized": True,
+                "executed": True,
+                "result": result,
+            })
+        state = self._load_state()
+        state["last_execution_results"] = results[-10:]
+        self._save_state(state)
+        return results
 
     def execute_candidate(self, candidate: dict[str, Any], *, project_root: str = ".") -> dict[str, Any]:
         """Execute one explicit Layer-8 candidate through DNA/governance/validation/rollback."""
@@ -159,6 +184,38 @@ class OptimizationCycleService:
         state["execution_history"] = history[-50:]
         self._save_state(state)
         return result
+
+    @staticmethod
+    def _candidates_from_action(action: EvolutionActionPlan) -> list[dict[str, Any]]:
+        if not action.triggered:
+            return []
+        candidates: list[dict[str, Any]] = []
+        for capability_plan, source_id, reason in zip(
+            action.capability_plans,
+            action.source_capabilities,
+            action.rationale,
+        ):
+            candidates.append({
+                "cycle_id": action.cycle_id,
+                "source_capability_id": source_id,
+                "plan": capability_plan,
+                "reason": reason,
+            })
+        if action.capability_plan is not None:
+            candidates.append({
+                "cycle_id": action.cycle_id,
+                "source_capability_id": "",
+                "plan": action.capability_plan,
+                "reason": action.reason,
+            })
+        return candidates
+
+    def _authority_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.execution_authority.enabled,
+            "max_actions_per_cycle": self.execution_authority.max_actions_per_cycle,
+            "source": self.execution_authority.source,
+        }
 
     def _load_state(self) -> dict[str, Any]:
         if not self.state_path.exists():
