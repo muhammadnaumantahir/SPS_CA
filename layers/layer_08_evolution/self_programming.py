@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
-from layers.layer_01_software_dna import Layer1DNAViolation, SoftwareDNA
+from layers.layer_01_software_dna import SoftwareDNA
+from layers.layer_01_software_dna.software_dna import DNAViolation
 from layers.layer_02_governance.governance import GovernanceGate
 from layers.layer_02_governance.models import ChangeType, DecisionStatus
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
@@ -27,12 +28,7 @@ class SelfProgrammingError(Exception):
 
 
 class SelfProgrammingEngine:
-    """Layer-8 controlled self-modification engine.
-
-    The engine is designed for failures in SPS-CA itself, not arbitrary user
-    projects. Candidates are constrained to diagnosed files and must pass
-    Software DNA, Governance, Layer-10 execution, and regression verification.
-    """
+    """Layer-8 controlled self-modification engine."""
 
     MAX_REPAIR_ATTEMPTS = MAX_REPAIR_ATTEMPTS
     MAX_FILES_PER_REPAIR = MAX_FILES_PER_REPAIR
@@ -46,36 +42,16 @@ class SelfProgrammingEngine:
         "data/self_programming_snapshots/",
     )
 
-    def __init__(
-        self,
-        *,
-        repo_root: str | Path = ".",
-        dna: Optional[SoftwareDNA] = None,
-        governance: Optional[GovernanceGate] = None,
-        llm: Optional[LLMInterface] = None,
-        execution: Optional[ExecutionEngine] = None,
-        regression_path: str | Path = "experience/regressions/self_programming_regressions.json",
-        max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
-    ) -> None:
+    def __init__(self, *, repo_root: str | Path = ".", dna: Optional[SoftwareDNA] = None, governance: Optional[GovernanceGate] = None, llm: Optional[LLMInterface] = None, execution: Optional[ExecutionEngine] = None, regression_path: str | Path = "experience/regressions/self_programming_regressions.json", max_repair_attempts: int = MAX_REPAIR_ATTEMPTS) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.dna = dna or SoftwareDNA()
         self.governance = governance or GovernanceGate()
         self.llm = llm or LLMInterface(timeout_seconds=120.0)
-        self.execution = execution or ExecutionEngine(
-            snapshot_dir=str(self.repo_root / "data" / "self_programming_snapshots"),
-            log_path=str(self.repo_root / "evaluation" / "execution" / "self_programming_execution.json"),
-        )
+        self.execution = execution or ExecutionEngine(snapshot_dir=str(self.repo_root / "data" / "self_programming_snapshots"), log_path=str(self.repo_root / "evaluation" / "execution" / "self_programming_execution.json"))
         self.regression_path = self.repo_root / regression_path
         self.max_repair_attempts = max(1, min(int(max_repair_attempts), self.MAX_REPAIR_ATTEMPTS))
 
-    def diagnose_failure(
-        self,
-        *,
-        symptom: str,
-        component: str = "unknown",
-        affected_files: Optional[List[str]] = None,
-        failure_id: Optional[str] = None,
-    ) -> FailureDiagnosis:
+    def diagnose_failure(self, *, symptom: str, component: str = "unknown", affected_files: Optional[List[str]] = None, failure_id: Optional[str] = None) -> FailureDiagnosis:
         text = f"{component} {symptom}".lower()
         if any(token in text for token in ("routing", "intent", "test_generation", "capability selection")):
             category, severity = "ROUTING_FAILURE", "high"
@@ -93,39 +69,12 @@ class SelfProgrammingEngine:
             category, severity = "STATE_FAILURE", "medium"
         else:
             category, severity = "CORE_DEFECT", "high"
+        return FailureDiagnosis(failure_id=failure_id or f"FAIL-{uuid.uuid4().hex[:10]}", category=category, component=component, symptom=symptom.strip(), root_cause_hypothesis=f"Observed symptom is associated with {category.lower()} in {component}; repair should change the smallest responsible component and preserve layer boundaries.", severity=severity, affected_files=list(affected_files or []))
 
-        hypothesis = (
-            f"Observed symptom is associated with {category.lower()} in {component}; "
-            "repair should change the smallest responsible component and preserve layer boundaries."
-        )
-        return FailureDiagnosis(
-            failure_id=failure_id or f"FAIL-{uuid.uuid4().hex[:10]}",
-            category=category,
-            component=component,
-            symptom=symptom.strip(),
-            root_cause_hypothesis=hypothesis,
-            severity=severity,
-            affected_files=list(affected_files or []),
-        )
-
-    def repair_from_failure(
-        self,
-        *,
-        symptom: str,
-        component: str = "unknown",
-        affected_files: Optional[List[str]] = None,
-        tests: Optional[List[str]] = None,
-        failure_id: Optional[str] = None,
-    ) -> SelfRepairResult:
-        diagnosis = self.diagnose_failure(
-            symptom=symptom,
-            component=component,
-            affected_files=affected_files,
-            failure_id=failure_id,
-        )
+    def repair_from_failure(self, *, symptom: str, component: str = "unknown", affected_files: Optional[List[str]] = None, tests: Optional[List[str]] = None, failure_id: Optional[str] = None) -> SelfRepairResult:
+        diagnosis = self.diagnose_failure(symptom=symptom, component=component, affected_files=affected_files, failure_id=failure_id)
         regression_case_id = self.record_regression_case(diagnosis, tests or [])
         last_message = "No repair candidate was accepted."
-
         for attempt in range(1, self.max_repair_attempts + 1):
             try:
                 candidate = self._generate_candidate(diagnosis, attempt, tests or [])
@@ -133,93 +82,33 @@ class SelfProgrammingEngine:
             except (SelfProgrammingError, LLMQueryError, ValueError, SyntaxError) as exc:
                 last_message = f"Candidate {attempt} rejected before execution: {exc}"
                 continue
-
-            change = Change.new(
-                capability_id="SELF-REPAIR",
-                description=f"Controlled self-repair for {diagnosis.failure_id}: {diagnosis.symptom}",
-                edits=[FileEdit(file_path=path, new_content=content) for path, content in edits],
-                target_language="python",
-                test_command=self._test_command(tests),
-            )
-
-            dna_decision = self._check_dna(change)
-            if not dna_decision[1]:
-                last_message = f"Candidate {attempt} rejected by Software DNA: {dna_decision[0]}"
+            change = Change.new(capability_id="SELF-REPAIR", description=f"Controlled self-repair for {diagnosis.failure_id}: {diagnosis.symptom}", edits=[FileEdit(file_path=path, new_content=content) for path, content in edits], target_language="python", test_command=self._test_command(tests))
+            dna_message, dna_allowed = self._check_dna(change)
+            if not dna_allowed:
+                last_message = f"Candidate {attempt} rejected by Software DNA: {dna_message}"
                 continue
-
-            governance_decision = self.governance.make_decision(
-                change_id=change.change_id,
-                change_type=ChangeType.ADAPTATION,
-                change_description=change.description,
-                affected_files=[edit.file_path for edit in change.edits],
-                related_capabilities=["SELF-REPAIR"],
-            )
+            governance_decision = self.governance.make_decision(change_id=change.change_id, change_type=ChangeType.ADAPTATION, change_description=change.description, affected_files=[edit.file_path for edit in change.edits], related_capabilities=["SELF-REPAIR"])
             if governance_decision.decision not in {DecisionStatus.AUTO_APPROVED, DecisionStatus.APPROVED}:
-                last_message = f"Candidate {attempt} requires human governance review: {governance_decision.rationale}"
-                return SelfRepairResult(
-                    success=False,
-                    diagnosis=diagnosis,
-                    decision=governance_decision.decision.value,
-                    regression_case_id=regression_case_id,
-                    message=last_message,
-                    repair_attempts=attempt,
-                    candidate=candidate,
-                )
-
+                return SelfRepairResult(success=False, diagnosis=diagnosis, decision=governance_decision.decision.value, regression_case_id=regression_case_id, message=f"Candidate {attempt} requires human governance review: {governance_decision.rationale}", repair_attempts=attempt, candidate=candidate)
             execution = self.execution.execute_change(change, str(self.repo_root))
             self._append_regression_result(regression_case_id, execution, attempt)
             if execution.status == ExecutionStatus.SUCCESS:
-                return SelfRepairResult(
-                    success=True,
-                    diagnosis=diagnosis,
-                    decision=governance_decision.decision.value,
-                    change_id=change.change_id,
-                    execution_status=execution.status.value,
-                    rollback_triggered=False,
-                    regression_case_id=regression_case_id,
-                    message="Self-repair candidate passed controlled execution and regression verification.",
-                    repair_attempts=attempt,
-                    candidate=candidate,
-                )
-
+                return SelfRepairResult(success=True, diagnosis=diagnosis, decision=governance_decision.decision.value, change_id=change.change_id, execution_status=execution.status.value, rollback_triggered=False, regression_case_id=regression_case_id, message="Self-repair candidate passed controlled execution and regression verification.", repair_attempts=attempt, candidate=candidate)
             last_message = execution.error_message or f"Execution returned {execution.status.value}."
             if execution.status == ExecutionStatus.ROLLBACK_FAILED:
                 break
-
-        return SelfRepairResult(
-            success=False,
-            diagnosis=diagnosis,
-            decision="rejected",
-            execution_status=ExecutionStatus.ROLLED_BACK.value if "rollback" in last_message.lower() else None,
-            rollback_triggered="rollback" in last_message.lower(),
-            regression_case_id=regression_case_id,
-            message=last_message,
-            repair_attempts=self.max_repair_attempts,
-        )
+        return SelfRepairResult(success=False, diagnosis=diagnosis, decision="rejected", execution_status=ExecutionStatus.ROLLED_BACK.value if "rollback" in last_message.lower() else None, rollback_triggered="rollback" in last_message.lower(), regression_case_id=regression_case_id, message=last_message, repair_attempts=self.max_repair_attempts)
 
     def record_regression_case(self, diagnosis: FailureDiagnosis, tests: List[str]) -> str:
         case_id = f"REG-{uuid.uuid4().hex[:10]}"
         data = self._load_regressions()
-        data.append({
-            "case_id": case_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "failure_id": diagnosis.failure_id,
-            "category": diagnosis.category,
-            "component": diagnosis.component,
-            "symptom": diagnosis.symptom,
-            "root_cause_hypothesis": diagnosis.root_cause_hypothesis,
-            "affected_files": list(diagnosis.affected_files),
-            "tests": list(tests),
-            "status": "open",
-            "attempts": [],
-        })
+        data.append({"case_id": case_id, "created_at": datetime.now(timezone.utc).isoformat(), "failure_id": diagnosis.failure_id, "category": diagnosis.category, "component": diagnosis.component, "symptom": diagnosis.symptom, "root_cause_hypothesis": diagnosis.root_cause_hypothesis, "affected_files": list(diagnosis.affected_files), "tests": list(tests), "status": "open", "attempts": []})
         self._save_regressions(data)
         return case_id
 
     def _generate_candidate(self, diagnosis: FailureDiagnosis, attempt: int, tests: List[str]) -> dict[str, Any]:
         context_files = self._read_context(diagnosis.affected_files)
         prompt = f"""Produce one minimal SPS-CA self-repair candidate.
-
 Failure ID: {diagnosis.failure_id}
 Category: {diagnosis.category}
 Component: {diagnosis.component}
@@ -227,19 +116,14 @@ Symptom: {diagnosis.symptom}
 Hypothesis: {diagnosis.root_cause_hypothesis}
 Attempt: {attempt}
 Regression tests: {tests}
-
-Rules:
-- Return ONLY JSON.
-- JSON shape: {{"summary": str, "test_command": str, "edits": [{{"file_path": str, "new_content": str}}]}}
-- The edit must be the smallest change that fixes the diagnosed defect.
-- Do not modify Software DNA, Governance, audit/traces, runtime state, secrets, or credentials.
-- Maximum {self.MAX_FILES_PER_REPAIR} edited files.
-- Keep the existing ten SPS layer names and boundaries unchanged.
-- Preserve existing public APIs unless the failure requires a compatible fix.
-- Include complete new file contents, not patches or Markdown fences.
-
-Context:
-{context_files}
+Return ONLY JSON: {{\"summary\": str, \"test_command\": str, \"edits\": [{{\"file_path\": str, \"new_content\": str}}]}}
+The edit must be the smallest change that fixes the diagnosed defect.
+Do not modify Software DNA, Governance, audit/traces, runtime state, secrets, or credentials.
+Maximum {self.MAX_FILES_PER_REPAIR} edited files.
+Keep the existing ten SPS layer names and boundaries unchanged.
+Preserve existing public APIs unless the failure requires a compatible fix.
+Include complete new file contents, not patches or Markdown fences.
+Context:\n{context_files}
 """
         raw = self.llm.query(code="", instruction=prompt, model="", temperature=0.0)
         text = str(raw or "").strip()
@@ -255,7 +139,6 @@ Context:
         raw_edits = candidate.get("edits") or []
         if not raw_edits or len(raw_edits) > self.MAX_FILES_PER_REPAIR:
             raise SelfProgrammingError(f"repair must contain 1..{self.MAX_FILES_PER_REPAIR} edits")
-
         allowed = set(diagnosis.affected_files)
         edits: List[tuple[str, str]] = []
         for item in raw_edits:
@@ -271,7 +154,7 @@ Context:
             content = str(item.get("new_content", ""))
             if not content:
                 raise SelfProgrammingError("repair edit requires file_path and new_content")
-            if path in self.PROTECTED_PREFIXES or any(path.startswith(prefix) for prefix in self.PROTECTED_PREFIXES):
+            if path == "" or any(path.startswith(prefix) for prefix in self.PROTECTED_PREFIXES):
                 raise SelfProgrammingError(f"protected self-programming surface: {path}")
             if not path.endswith(self.ALLOWED_TEXT_SUFFIXES):
                 raise SelfProgrammingError(f"unsupported repair file type: {path}")
@@ -282,7 +165,7 @@ Context:
                 raise SelfProgrammingError(f"repair escapes repository: {path}")
             if path.endswith(".py"):
                 compile(content, path, "exec")
-            if path == "README.md" and "Software DNA" not in content:
+            if path.endswith("README.md") and "Software DNA" not in content:
                 raise SelfProgrammingError("README repair must preserve the documented ten-layer model")
             edits.append((path, content))
         return edits
@@ -292,11 +175,8 @@ Context:
             if self.dna.is_self_modification_of_governance(edit.file_path):
                 return (f"protected governance/DNA target: {edit.file_path}", False)
         try:
-            result = self.dna.check_action(
-                action_description=change.description,
-                matched_rule_ids=["rule_007"],
-            )
-        except Layer1DNAViolation as exc:
+            result = self.dna.check_action(action_description=change.description, matched_rule_ids=["rule_007"])
+        except (DNAViolation, ValueError, TypeError) as exc:
             return (str(exc), False)
         return ("; ".join(result.warnings) if result.warnings else "DNA check passed", result.allowed)
 
@@ -311,7 +191,7 @@ Context:
         parts = []
         for relative in paths[:self.MAX_FILES_PER_REPAIR]:
             normalized = relative.replace("\\", "/").lstrip("./")
-            if normalized.startswith(self.PROTECTED_PREFIXES):
+            if any(normalized.startswith(prefix) for prefix in self.PROTECTED_PREFIXES):
                 continue
             path = self.repo_root / normalized
             if path.is_file() and path.suffix in self.ALLOWED_TEXT_SUFFIXES:
@@ -338,16 +218,7 @@ Context:
         records = self._load_regressions()
         for record in records:
             if record.get("case_id") == case_id:
-                record.setdefault("attempts", []).append({
-                    "attempt": attempt,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "change_id": execution.change_id,
-                    "status": execution.status.value,
-                    "tests_passing": execution.tests_passing,
-                    "tests_failing": execution.tests_failing,
-                    "rollback_triggered": execution.rollback_triggered,
-                    "error_message": execution.error_message,
-                })
+                record.setdefault("attempts", []).append({"attempt": attempt, "timestamp": datetime.now(timezone.utc).isoformat(), "change_id": execution.change_id, "status": execution.status.value, "tests_passing": execution.tests_passing, "tests_failing": execution.tests_failing, "rollback_triggered": execution.rollback_triggered, "error_message": execution.error_message})
                 if execution.status == ExecutionStatus.SUCCESS:
                     record["status"] = "resolved"
                 elif execution.status == ExecutionStatus.ROLLBACK_FAILED:
