@@ -71,12 +71,12 @@
       // the current user's evolution loop. Make that distinction explicit.
       const originalShowCapability = window.showCapability;
       window.showCapability = async (id) => {
-        const capability = (window.state?.capabilities || []).find(c => c.id === id);
+        const capability = (typeof state !== 'undefined' ? state.capabilities : []).find(c => c.id === id);
         if (!capability || capability.origin !== 'historical_migration') {
           return originalShowCapability(id);
         }
         const lineage = await fetch('/api/evolution/capability/' + encodeURIComponent(id)).then(r => r.json());
-        const provenance = lineage.provenance || {};
+        const provenance = capability.provenance || lineage.provenance || {};
         const history = provenance.historical_migration || {};
         showDrawer(`${capability.id} · ${capability.name}`, `<div class="detail-stack"><div class="evidence-grid"><div><span>Status</span><strong>${esc(capability.status)}</strong></div><div><span>Origin</span><strong>Historical migration</strong></div><div><span>Registered</span><strong>${esc(capability.created_date || history.registered_at || 'Baseline')}</strong></div></div><h3>Why it exists</h3><p>${esc(history.reason || 'This capability was carried forward from the pre-baseline capability set; it was not created by a current-user disagreement event.')}</p><h3>When it entered SPS-CA</h3><p>${esc(history.registered_at || '2026-09-03T06:51:30Z')} — baseline commit <code>4572883</code>.</p><h3>Historical source</h3><p>Previous identifier: <strong>${esc(capability.historical_id || history.historical_id || 'CAP-010')}</strong></p><h3>Trigger evidence</h3><p>Historical task references: ${esc((capability.trigger_tasks || history.trigger_tasks || []).join(', ') || 'none recorded')}</p><h3>Current evolution status</h3><p>This record is preserved for compatibility and lineage. New runtime capability creation is governed by the Evolution layer and must have disagreement evidence, reasoning, and a creation event.</p><h3>Audit</h3><pre class="trace-pre">${esc(JSON.stringify({capability, provenance, events: lineage.events || []}, null, 2))}</pre></div>`);
       };
