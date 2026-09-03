@@ -87,11 +87,63 @@ function renderMiniPipeline(layers) {
   ).join('');
 }
 
+// === MARKDOWN-LITE RENDERING (fenced code blocks, like a normal chatbot) ===
+let codeBlockCounter = 0;
+
+function renderCodeBlock(lang, code) {
+  const id = `codeblock-${++codeBlockCounter}`;
+  return `<div class="code-block">
+    <div class="code-block-head">
+      <span class="code-block-lang">${esc(lang || 'code')}</span>
+      <button type="button" class="code-copy-btn" onclick="copyCodeBlock('${id}', this)">Copy</button>
+    </div>
+    <pre><code id="${id}">${esc(code)}</code></pre>
+  </div>`;
+}
+
+function renderInlineText(text) {
+  if (!text || !text.trim()) return '';
+  const withInlineCode = esc(text).replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  const paragraphs = withInlineCode.trim().split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`);
+  return paragraphs.join('');
+}
+
+function renderMarkdown(content) {
+  if (!content) return '';
+  const parts = String(content).split(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g);
+  let html = '';
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 3 === 0) {
+      html += renderInlineText(parts[i]);
+    } else {
+      html += renderCodeBlock(parts[i], parts[i + 1] || '');
+      i += 1;
+    }
+  }
+  return html;
+}
+
+function copyCodeBlock(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function toggleDetail(id) {
+  const el = $(id);
+  if (el) el.classList.toggle('hidden');
+}
+
 // === MESSAGES ===
 function renderMessages() {
   const messages = $('messages');
   if (!session.conversation.length) {
-    messages.innerHTML = `<div class="welcome-msg"><div class="welcome-icon">✦</div><div><strong>Hello — I'm SPS-CA.</strong><p>Paste code, describe the task, and keep talking. Every response has Agree/Disagree — disagree to trigger capability evolution.</p></div></div>`;
+    messages.innerHTML = `<div class="welcome-msg"><div class="welcome-icon">✦</div><div><strong>Hello — I'm SPS-CA.</strong><p>Attach code, describe the task, and keep talking — I'll reply with explanation and code together, right here in the chat. Every response has Agree/Disagree — disagree to trigger capability evolution.</p></div></div>`;
     return;
   }
   let html = '';
@@ -101,16 +153,21 @@ function renderMessages() {
       <div class="message-avatar">${isUser ? 'U' : 'S'}</div>
       <div class="message-content">
         <div class="message-role">${isUser ? 'You' : 'SPS-CA'}</div>
-        <div class="message-bubble">${esc(msg.content)}</div>
+        <div class="message-bubble">${isUser ? `<p>${esc(msg.content).replace(/\n/g, '<br>')}</p>` : renderMarkdown(msg.content)}</div>
       </div>
     </div>`;
-    // Add feedback buttons after assistant messages
+    // Add feedback + diff/trace toggles after assistant messages from this session
     if (!isUser && msg.content && msg.turnData) {
       const tid = msg.turnId || idx;
+      const hasDiff = msg.turnData.diff && msg.turnData.diff.trim();
       html += `<div class="feedback-row" id="feedback-${tid}">
         <button class="feedback-btn agree" onclick="sendFeedback(${tid}, 'agree')" id="agree-${tid}">👍 Agree</button>
         <button class="feedback-btn disagree" onclick="sendFeedback(${tid}, 'disagree')" id="disagree-${tid}">👎 Disagree — create capability</button>
-      </div>`;
+        ${hasDiff ? `<button class="feedback-btn detail-toggle" onclick="toggleDetail('diff-${tid}')">🔍 Diff</button>` : ''}
+        <button class="feedback-btn detail-toggle" onclick="toggleDetail('trace-${tid}')">🧬 Trace</button>
+      </div>
+      ${hasDiff ? `<pre class="detail-block hidden" id="diff-${tid}">${esc(msg.turnData.diff)}</pre>` : ''}
+      <pre class="detail-block hidden" id="trace-${tid}">${esc(JSON.stringify(msg.turnData, null, 2))}</pre>`;
     }
   });
   messages.innerHTML = html;
@@ -401,9 +458,6 @@ function applyTurn(data) {
   $('providerText').textContent = data.brain?.provider || 'Ollama';
   $('modelText').textContent = data.brain?.model || $('model').value;
   $('reasoning').innerHTML = `<b>Intent</b><p>${esc(data.intent)}</p><b>Reasoning</b><p>${esc(data.reasoning || 'The Brain produced the plan.')}</p>`;
-  $('output').textContent = data.output_code || session.code || 'No code.';
-  $('diff').textContent = data.diff || 'No changes.';
-  $('trace').textContent = JSON.stringify(data, null, 2);
 }
 
 // === NEW CHAT ===
@@ -416,9 +470,6 @@ function newChat() {
   $('request').value = '';
   $('pipelineState').textContent = 'Ready';
   $('reasoning').innerHTML = '<span class="muted-text">Waiting for your first request…</span>';
-  $('output').textContent = session.code;
-  $('diff').textContent = 'No diff yet.';
-  $('trace').textContent = 'No trace yet.';
   renderMiniPipeline();
 }
 
@@ -434,22 +485,19 @@ function loadSample() {
   syncSessionMeta();
 }
 
-// === TAB SWITCHING ===
-document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  ['output','diff','trace'].forEach(id => $(id).classList.toggle('hidden', id !== btn.dataset.tab));
-}));
-
 // === EVENT LISTENERS ===
 $('chatForm').addEventListener('submit', sendMessage);
 $('newChatBtn').addEventListener('click', newChat);
 $('sampleBtn').addEventListener('click', loadSample);
 $('collapseCodeBtn').addEventListener('click', () => {
   $('codeDock').classList.toggle('collapsed');
-  $('collapseCodeBtn').textContent = $('codeDock').classList.contains('collapsed') ? 'Expand' : 'Collapse';
+  $('collapseCodeBtn').textContent = $('codeDock').classList.contains('collapsed') ? 'Open' : 'Close';
 });
-$('attachCodeBtn').addEventListener('click', () => $('codeDock').scrollIntoView({behavior:'smooth', block:'center'}));
+$('attachCodeBtn').addEventListener('click', () => {
+  $('codeDock').classList.remove('collapsed');
+  $('collapseCodeBtn').textContent = 'Close';
+  $('codeDock').scrollIntoView({behavior:'smooth', block:'center'});
+});
 $('language').addEventListener('change', () => {
   session.language = $('language').value;
   session.filename = `main.${EXT[session.language]||'txt'}`;

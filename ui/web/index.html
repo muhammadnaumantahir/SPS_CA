@@ -83,7 +83,7 @@
         <section class="chat-column">
           <div class="card chat-card">
             <div class="chat-head">
-              <div><h2>Conversation</h2><p>Give code and a request. SPS-CA processes through 10 layers.</p></div>
+              <div><h2>Conversation</h2><p>Chat like normal — SPS-CA replies with explanation and code together.</p></div>
               <span class="muted-text" id="pipelineState">Ready</span>
             </div>
 
@@ -92,9 +92,23 @@
                 <div class="welcome-icon">✦</div>
                 <div>
                   <strong>Hello — I'm SPS-CA.</strong>
-                  <p>Paste code below, tell me what you want. Every response has an <strong>Agree / Disagree</strong> button — if you disagree, SPS-CA creates a new capability to handle that pattern better next time.</p>
+                  <p>Attach some code, tell me what you want, and I'll reply right here — explanation and code together, same as any other chat. Every response has an <strong>Agree / Disagree</strong> button — if you disagree, SPS-CA creates a new capability to handle that pattern better next time.</p>
                 </div>
               </div>
+            </div>
+
+            <!-- Attached Code (collapsible — the file SPS-CA is working on) -->
+            <div class="card code-dock collapsed" id="codeDock">
+              <div class="card-head">
+                <div><span class="step-icon">CODE</span><div><h2>Attached Code</h2><p>Carried across turns — edit anytime.</p></div></div>
+                <div class="dock-actions">
+                  <button id="sampleBtn" class="ghost-sm">Sample</button>
+                  <button id="collapseCodeBtn" class="ghost-sm">Close</button>
+                </div>
+              </div>
+              <textarea id="code" spellcheck="false">def add(a, b):
+    return a + b
+</textarea>
             </div>
 
             <form id="chatForm" class="composer">
@@ -106,37 +120,11 @@
                     <option>java</option><option>go</option><option>csharp</option>
                   </select></label>
                   <label>Model<input id="model" value="qwen2.5-coder:7b"></label>
-                  <button type="button" id="attachCodeBtn" class="ghost-sm">Code ▾</button>
+                  <button type="button" id="attachCodeBtn" class="ghost-sm">📎 Code ▾</button>
                 </div>
                 <button id="runBtn" class="primary-btn" type="submit">Send <span>&#x2197;</span></button>
               </div>
             </form>
-          </div>
-
-          <!-- Code Editor -->
-          <div class="card code-dock" id="codeDock">
-            <div class="card-head">
-              <div><span class="step-icon">CODE</span><div><h2>Working Code</h2><p>Carried across turns.</p></div></div>
-              <div class="dock-actions">
-                <button id="sampleBtn" class="ghost-sm">Sample</button>
-                <button id="collapseCodeBtn" class="ghost-sm">Collapse</button>
-              </div>
-            </div>
-            <textarea id="code" spellcheck="false">def add(a, b):
-    return a + b
-</textarea>
-          </div>
-
-          <!-- Output Tabs -->
-          <div class="card output-card">
-            <div class="tabs">
-              <button class="tab active" data-tab="output">Result</button>
-              <button class="tab" data-tab="diff">Diff</button>
-              <button class="tab" data-tab="trace">Trace</button>
-            </div>
-            <pre id="output" class="code-output">No result yet.</pre>
-            <pre id="diff" class="code-output hidden">No diff yet.</pre>
-            <pre id="trace" class="code-output hidden">No trace yet.</pre>
           </div>
         </section>
       </div>
@@ -203,10 +191,10 @@
         <div class="guide-card">
           <h3>&#x1F3AF; Getting Started</h3>
           <ol>
-            <li><strong>Paste your code</strong> in the code editor (or click "Sample" for an example)</li>
+            <li><strong>Attach your code</strong> — click "📎 Code" in the composer to open the code panel (or click "Sample" for an example)</li>
             <li><strong>Type a request</strong> — "Add input validation", "Fix the bug", "Generate tests"</li>
-            <li><strong>Click Send</strong> — SPS-CA processes through 10 layers with Brain reasoning</li>
-            <li><strong>Review the result</strong> — check the modified code and diff</li>
+            <li><strong>Send</strong> — SPS-CA processes through 10 layers with Brain reasoning</li>
+            <li><strong>Read the reply in chat</strong> — explanation and updated code arrive together in the same message, like any other chatbot</li>
             <li><strong>Agree or Disagree</strong> — if you disagree, SPS-CA creates a new capability for that pattern</li>
           </ol>
           <p>Use the <strong>Structure</strong> tab to explore the live ten-layer architecture, the <strong>Capabilities</strong> tab to see what's usable right now, and <strong>Growth</strong> to watch the system evolve over time.</p>

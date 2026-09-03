@@ -264,29 +264,53 @@ textarea:focus, input:focus, select:focus {
   border-color: #52627c; box-shadow: 0 0 0 3px rgba(123,140,255,.08);
 }
 
-/* === CODE DOCK === */
+/* === CODE DOCK (attached-code panel, nested inside chat-card) === */
+.code-dock {
+  margin: 0 14px 14px; padding: 0; overflow: hidden;
+}
+.code-dock .card-head { padding: 12px 14px; }
 .code-dock textarea {
   width: 100%; min-height: 200px; resize: vertical;
   padding: 14px; font: 12px/1.65 'JetBrains Mono', ui-monospace, monospace;
-  margin-top: 14px;
+  border: 0; border-top: 1px solid var(--line); border-radius: 0;
 }
 .code-dock.collapsed textarea { display: none; }
 .dock-actions { display: flex; gap: 7px; }
 
-/* === OUTPUT TABS === */
-.output-card { padding: 0; overflow: hidden; }
-.tabs { display: flex; border-bottom: 1px solid var(--line); background: #0d1118; }
-.tab {
-  border: 0; border-right: 1px solid var(--line);
-  padding: 10px 14px; background: transparent;
-  color: var(--muted); cursor: pointer; font-size: 11px;
+/* === CHAT CODE BLOCKS (assistant replies, ChatGPT/Claude-style) === */
+.code-block {
+  margin: 10px 0; border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; background: #0a0d13;
 }
-.tab.active { color: var(--text); background: #151a24; }
-.code-output {
-  margin: 0; padding: 16px; min-height: 200px; max-height: 480px;
-  overflow: auto; white-space: pre-wrap;
-  font: 12px/1.65 'JetBrains Mono', ui-monospace, monospace;
-  color: #dce5ee;
+.code-block-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px; background: #0d1118; border-bottom: 1px solid var(--line);
+  font: 600 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted);
+}
+.code-copy-btn {
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  border-radius: 6px; padding: 3px 9px; font-size: 10px; cursor: pointer; transition: all .15s;
+}
+.code-copy-btn:hover { color: var(--text); border-color: var(--line2); }
+.code-copy-btn.copied { color: var(--success); border-color: rgba(52,211,153,.3); }
+.code-block pre {
+  margin: 0; padding: 14px; overflow-x: auto;
+  font: 12px/1.6 'JetBrains Mono', ui-monospace, monospace; color: #dce5ee;
+}
+.message-bubble p { margin: 0 0 8px; }
+.message-bubble p:last-child { margin-bottom: 0; }
+.inline-code {
+  background: rgba(114,224,196,.1); color: var(--accent);
+  padding: 1px 5px; border-radius: 4px; font: 12px 'JetBrains Mono', monospace;
+}
+.detail-toggle { background: transparent; color: var(--muted); border-color: var(--line); }
+.detail-toggle:hover { color: var(--text); border-color: var(--line2); }
+.detail-block {
+  max-width: 860px; margin: 6px auto 0; padding: 12px 14px;
+  border: 1px dashed var(--line); border-radius: 10px; background: var(--panel3);
+  font: 11px/1.6 'JetBrains Mono', ui-monospace, monospace; color: var(--muted);
+  max-height: 320px; overflow: auto; white-space: pre-wrap;
 }
 .hidden { display: none; }
 

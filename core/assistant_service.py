@@ -259,7 +259,7 @@ class SpsAssistantService:
             changed = current != original
             success = all(item["status"] == "completed" for item in results) if results else True
             selected = results[-1]["id"] if results else ""
-            assistant_message = self._assistant_message(plan.intent, plan.reasoning, results, changed)
+            assistant_message = self._assistant_message(plan.intent, plan.reasoning, results, changed, current, language)
             updated_conversation = [*history, {"role": "user", "content": request}, {"role": "assistant", "content": assistant_message}]
             self._record_experience(
                 request=request,
@@ -326,16 +326,31 @@ class SpsAssistantService:
         self.experience.save_to_json(self.experience_path)
 
     @staticmethod
-    def _assistant_message(intent: str, reasoning: str, results: list[dict[str, Any]], changed: bool) -> str:
+    def _assistant_message(
+        intent: str,
+        reasoning: str,
+        results: list[dict[str, Any]],
+        changed: bool,
+        code: str = "",
+        language: str = "python",
+    ) -> str:
         failed = next((r for r in results if r["status"] == "failed"), None)
         if failed:
             return f"I analyzed the request but {failed['name']} could not complete it. {failed.get('error') or ''}".strip()
         names = ", ".join(r["name"] for r in results if r.get("name"))
         if changed and names:
-            return f"Done. I applied {names.lower()} to the current working code. {reasoning or intent}".strip()
-        if names:
-            return f"I analyzed the request with {names.lower()}. {reasoning or intent}".strip()
-        return reasoning or intent or "I analyzed the request and no capability change was required."
+            explanation = f"Done. I applied {names.lower()} to the code. {reasoning or intent}".strip()
+        elif names:
+            explanation = f"I analyzed the request with {names.lower()}. {reasoning or intent}".strip()
+        else:
+            explanation = reasoning or intent or "I analyzed the request and no capability change was required."
+
+        # Share the resulting code inline, like any other chat assistant would,
+        # instead of leaving it to a separate panel the person has to go find.
+        if changed and code:
+            fence = f"```{language}\n{code.rstrip()}\n```"
+            return f"{explanation}\n\n{fence}"
+        return explanation
 
     @staticmethod
     def _diff(before: str, after: str, filename: str) -> str:
