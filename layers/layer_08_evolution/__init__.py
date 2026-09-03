@@ -11,6 +11,7 @@ from .evolution_cycle import EvolutionCycleOutcome
 from .execution_authority import EvolutionExecutionAuthority
 from .gap_planner import CapabilityGapPlanner
 from .governed_self_programming import SelfProgrammingEngine
+from .growth_decision import GrowthDecision, GrowthDecisionEngine, GrowthDecisionResult
 from .optimization_action_planner import EvolutionActionPlan, OptimizationActionPlanner
 from .retirement import GovernedRetirementManager, RetirementRecommendation
 from .self_programming import FailureDiagnosis, SelfProgrammingError, SelfRepairResult
@@ -31,6 +32,9 @@ __all__ = [
     "EvolutionCycleOutcome",
     "EvolutionExecutionAuthority",
     "CapabilityGapPlanner",
+    "GrowthDecision",
+    "GrowthDecisionEngine",
+    "GrowthDecisionResult",
     "OptimizationActionPlanner",
     "EvolutionActionPlan",
     "SelfProgrammingEngine",
