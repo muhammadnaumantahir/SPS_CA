@@ -48,16 +48,27 @@ class TestLLMInterface:
         assert "x = 1" in provider.last_request.prompt
         assert provider.last_request.system is not None
 
+    def test_default_query_has_no_inference_timeout(self):
+        provider = FakeProvider()
+        llm = LLMInterface(provider=provider)
+        llm.query(code="x = 1", instruction="Explain")
+        assert provider.last_request.timeout_seconds is None
+
     def test_query_respects_configured_timeout(self):
         provider = FakeProvider()
         llm = LLMInterface(provider=provider, timeout_seconds=5.0)
         llm.query(code="x = 1", instruction="Explain")
         assert provider.last_request.timeout_seconds == 5.0
 
+    @pytest.mark.parametrize("value", [0, -1, -0.5])
+    def test_rejects_non_positive_timeout(self, value):
+        with pytest.raises(ValueError, match="positive or None"):
+            LLMInterface(provider=FakeProvider(), timeout_seconds=value)
+
     def test_timeout_error_wrapped(self):
         provider = FakeProvider(raise_error=LLMTimeoutError("too slow"))
         llm = LLMInterface(provider=provider)
-        with pytest.raises(LLMQueryError):
+        with pytest.raises(LLMQueryError, match="provider reported a timeout"):
             llm.query(code="x", instruction="do it")
 
     def test_unavailable_error_wrapped(self):
