@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from brain import Brain
 from experience.evolution_trace import EvolutionTraceStore
 from layers.layer_03_cognitive import CognitiveCore
 from layers.layer_02_governance import ChangeType, GovernanceGate
@@ -102,26 +103,25 @@ class SPSScenarioService:
             core_ids = [candidate.id for candidate in candidates]
             registry_ids = [cap.id for cap in registry_matches]
             capability_ids = list(dict.fromkeys(core_ids + registry_ids))
-            selected = self._select_capability(candidates, registry_matches, user_request)
+            selected = self._select_capability(candidates, registry_matches, user_request, code=code, file_path=file_path)
             search = {
                 "query": user_request,
                 "candidate_source": {"layer_02_ids": core_ids, "layer_09_ids": registry_ids},
-                "capability_ids": capability_ids,
                 "selected": selected.id if selected else None,
                 "found": selected is not None,
-                "why": f"Selected {selected.id} because its registered metadata or Cognitive tags matched the request." if selected else "No registered capability matched the requested behavior.",
+                "capability_ids": capability_ids,
+                "intent_class": Brain.infer_intent_class(user_request, code, file_path),
+                "why": f"Selected {selected.id} from the canonical intent route." if selected else "No registered capability matched the requested behavior.",
             }
             self.trace_store.append_event(scenario_id, "capability_search", {
                 "why": search["why"],
                 "what": "Cognitive candidates and registered capability matches.",
-                "how": "Cognitive Core relevance ranking plus Capability Registry search.",
+                "how": "Deterministic Brain intent classification is the primary route; registry/Cognitive results are used only as the candidate set.",
                 "capability_ids": capability_ids,
+                "selected": search["selected"],
+                "intent_class": search["intent_class"],
             })
 
-            # Layer 8 is now an explicit decision-maker. A capability gap may
-            # produce CREATE, but disagreement is never passed as a create
-            # command; feedback evidence is analyzed separately by the
-            # EvolutionEvidenceStore.
             growth = self.growth_decision.decide(
                 existing_capability_id=selected.id if selected else "",
                 capability_match=selected is not None,
@@ -228,18 +228,47 @@ class SPSScenarioService:
         )
 
     @staticmethod
-    def _select_capability(candidates: List[Any], registry_matches: List[Any], request: str):
-        """Select only an explicitly relevant capability; generic candidates are not a match."""
-        request_lower = request.lower()
-        priority = (("syntax", "CAP-002"), ("test", "CAP-003"), ("loop", "CAP-004"), ("exception", "CAP-005"), ("error handling", "CAP-005"), ("unused", "CAP-006"), ("annotation", "CAP-007"), ("type", "CAP-007"), ("doc", "CAP-008"), ("documentation", "CAP-008"))
+    def _select_capability(
+        candidates: List[Any],
+        registry_matches: List[Any],
+        request: str,
+        *,
+        code: str = "",
+        file_path: str = "",
+    ):
+        """Route from the canonical Brain intent instead of stale keyword mappings.
+
+        The previous implementation contained an incorrect table where words such
+        as ``type`` and ``annotation`` routed to CAP-007 (tests), while ``test``
+        routed to CAP-003 (analysis). That made valid code-modification scenarios
+        generate tests instead of implementing the requested change.
+        """
         by_id = {getattr(item, "id", ""): item for item in candidates + registry_matches}
-        for keyword, capability_id in priority:
-            if keyword in request_lower and capability_id in by_id:
-                return by_id[capability_id]
-        if registry_matches:
-            exact = SPSScenarioService._best_registry_text_match(registry_matches, request_lower)
-            if exact is not None:
-                return exact
+        intent = Brain.infer_intent_class(request, code, file_path)
+        canonical_by_intent = {
+            "code_generation": "CAP-001",
+            "code_modification": "CAP-002",
+            "analysis": "CAP-003",
+            "bug_diagnosis": "CAP-004",
+            "bug_fixing": "CAP-005",
+            "refactoring": "CAP-006",
+            "test_generation": "CAP-007",
+            "documentation": "CAP-008",
+            "validation": "CAP-009",
+            "project_operations": "CAP-010",
+        }
+        primary_id = canonical_by_intent.get(intent)
+        if primary_id and primary_id in by_id:
+            return by_id[primary_id]
+        if intent == "mixed":
+            # Mixed requests are composed in the Brain/routing layer. When this
+            # service must execute one capability, choose the first explicit
+            # executable step rather than guessing from a keyword collision.
+            from brain.multi_capability import compose_explicit_capabilities
+            available = set(by_id)
+            steps = compose_explicit_capabilities(request, has_code=bool(code.strip()), available_ids=available)
+            if steps:
+                return by_id.get(steps[0]["capability_id"])
         return None
 
     @staticmethod
