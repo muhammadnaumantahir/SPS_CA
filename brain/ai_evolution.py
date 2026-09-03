@@ -6,7 +6,6 @@ integration, and registry admission.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Optional
 
 from layers.layer_08_evolution import EvolutionEngine
@@ -31,16 +30,21 @@ class AIEvolutionEngine:
         existing_capabilities: list[dict[str, Any]],
         observations: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        capability_id = self.evolution.next_capability_id()
+        base_plan = self.evolution.plan_capability_for_gap(
+            task_description=gap,
+            language=language,
+            reason="The AI Brain identified an unmet reusable capability requirement.",
+            task_id=scenario_id,
+        )
         design = self.designer.design(
             gap=gap,
             language=language,
-            capability_id=capability_id,
+            capability_id=base_plan.capability_id,
             existing_capabilities=existing_capabilities,
             observations=observations,
         )
         plan = CapabilityPlan(
-            capability_id=capability_id,
+            capability_id=base_plan.capability_id,
             name=design.name,
             description=design.description,
             entry_point=design.entry_point,
@@ -54,21 +58,22 @@ class AIEvolutionEngine:
                 "rationale": design.rationale,
                 "success_criteria": design.success_criteria,
                 "brain_provider": self.designer.provider_name,
+                "planner": "Layer 8 CapabilityGapPlanner",
             },
         )
         files = GeneratedCapabilityFiles(
             capability_code=design.source_code,
             tests_code=design.tests_code,
             metadata={
-                "id": capability_id,
-                "name": design.name,
+                "id": plan.capability_id,
+                "name": plan.name,
                 "version": "1.0.0",
-                "description": design.description,
-                "entry_point": design.entry_point,
+                "description": plan.description,
+                "entry_point": plan.entry_point,
                 "origin": "generated",
                 "status": "active",
-                "supported_languages": design.supported_languages,
-                "target_languages": design.supported_languages,
+                "supported_languages": plan.supported_languages,
+                "target_languages": plan.supported_languages,
                 "generated": True,
                 "failure_pattern": "ai_capability_gap",
                 "trigger_tasks": [scenario_id],
@@ -81,16 +86,16 @@ class AIEvolutionEngine:
                 },
             },
             readme=(
-                f"# {capability_id}: {design.name}\n\n{design.description}\n\n"
+                f"# {plan.capability_id}: {plan.name}\n\n{plan.description}\n\n"
                 "Designed by the SPS Brain and admitted through Layer 8 quality gates.\n"
             ),
         )
         module_dir = self.evolution.implement_capability(plan, files)
-        test_result = self.evolution.test_capability(capability_id, project_root=".")
+        test_result = self.evolution.test_capability(plan.capability_id, project_root=".")
         registered = self.evolution.register_capability(plan, files, test_result)
         return {
-            "capability_id": capability_id,
-            "name": design.name,
+            "capability_id": plan.capability_id,
+            "name": plan.name,
             "module_dir": str(module_dir),
             "implemented": True,
             "registered": registered,
