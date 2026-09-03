@@ -17,6 +17,7 @@ from brain import Brain
 from core.assistant_service import SpsAssistantService
 from layers.architecture import architecture_manifest
 from layers.layer_08_evolution.evolution_evidence import EvolutionEvidenceStore
+from experience.evolution_trace import EvolutionTraceStore
 from ui.session_store import SessionStore
 
 REGISTRY_PATH = str(ROOT / "capabilities" / "registry.json")
@@ -25,6 +26,7 @@ SESSIONS_PATH = ROOT / "runtime" / "sessions.json"
 EVOLUTION_PATH = ROOT / "runtime" / "evolution_events.json"
 sessions = SessionStore(SESSIONS_PATH)
 evolution = EvolutionEvidenceStore(EVOLUTION_PATH, REGISTRY_PATH)
+trace_store = EvolutionTraceStore(ROOT / "experience" / "traces" / "evolution_history.json", ROOT / "experience" / "traces" / "stage_state.json")
 
 
 def service_for(model: str = "") -> SpsAssistantService:
@@ -65,6 +67,7 @@ def growth_data() -> dict[str, Any]:
             "generated_capabilities": generated, "historical_capabilities": historical,
             "active_capabilities": sum(1 for c in caps if c.get("usable")),
             "disagreements": sum(1 for e in events if e.get("event_type") == "disagreement"),
+            "agreements": sum(1 for e in events if e.get("event_type") == "agreement"),
             "evolution_events": len(events), "timeline": events}
 
 
@@ -101,7 +104,7 @@ def requested_target_language(request: str) -> str:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SPS-CA/3.3"
+    server_version = "SPS-CA/3.4"
 
     def _send(self, status: int, payload: Any, content_type: str = "application/json") -> None:
         body = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode() if content_type == "application/json" else str(payload).encode()
@@ -133,6 +136,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/evolution": self._send(200, {"events": evolution.list_events(200)}); return
         if path.startswith("/api/evolution/capability/"):
             self._send(200, evolution.get_capability_lineage(path.rsplit("/", 1)[-1])); return
+        if path.startswith("/api/trace/"):
+            scenario_id = path.rsplit("/", 1)[-1]
+            records = trace_store.list_records()
+            record = next((r for r in reversed(records) if r.get("scenario_id") == scenario_id), None)
+            self._send(200, record or {"error": "trace not found", "scenario_id": scenario_id}); return
         self._send(404, {"error": "not found"})
 
     def do_POST(self) -> None:
@@ -151,7 +159,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             sid = path.rsplit("/", 1)[-1]; data = self._json_body(); cur = sessions.get(sid)
             if not cur: self._send(404, {"error": "session not found"}); return
-            saved = sessions.save(sid, data.get("conversation", cur.get("conversation", [])), str(data.get("code", cur.get("code", ""))),
+            conversation = data.get("conversation", cur.get("conversation", []))
+            saved = sessions.save(sid, conversation, str(data.get("code", cur.get("code", ""))),
                                   str(data.get("filename", cur.get("filename", "main.py"))), str(data.get("detected_language", cur.get("detected_language", "unknown"))),
                                   float(data.get("language_confidence", cur.get("language_confidence", 0.0))), str(data.get("model", cur.get("model", ""))),
                                   str(data.get("title", cur.get("title", "New chat"))))
@@ -175,7 +184,6 @@ class Handler(BaseHTTPRequestHandler):
         prompt_code, prompt_tag = extract_prompt_code(request)
         code = explicit_code.strip() or prompt_code
         filename = str(data.get("filename", session.get("filename", "main.py")))
-        # Empty model = AUTO. The Ollama provider discovers the current model via /api/tags.
         model = str(data.get("model", session.get("model", "")))
         conversation = data.get("conversation", session.get("conversation", []))
         if not isinstance(conversation, list): self._send(400, {"error": "conversation must be a list"}); return
@@ -190,25 +198,42 @@ class Handler(BaseHTTPRequestHandler):
         service = service_for(model)
         original_detect_language = service.brain.detect_language
         if target_language: service.brain.detect_language = lambda _code, _request, _filename: (target_language, 0.99, "explicit target language in current request")
-        try: turn = service.run_turn(request=request, code=turn_code, language=detected, filename=filename, conversation=conversation)
-        finally: service.brain.detect_language = original_detect_language
+        try:
+            turn = service.run_turn(request=request, code=turn_code, language=detected, filename=filename, conversation=conversation)
+        finally:
+            service.brain.detect_language = original_detect_language
 
         payload = turn.as_dict()
         payload.update({"session_id": sid, "language": detected, "language_confidence": confidence,
                         "language_evidence": evidence, "capabilities": service.capability_catalog(),
                         "model": turn.brain.get("model", service.brain.model)})
         if turn.success:
-            payload["session"] = sessions.save(sid, turn.conversation, turn.output_code or turn_code, filename, detected, confidence, payload["model"])
+            persisted_conversation = list(turn.conversation)
+            if persisted_conversation and persisted_conversation[-1].get("role") == "assistant":
+                persisted_conversation[-1] = {**persisted_conversation[-1], "turnData": payload}
+            payload["conversation"] = persisted_conversation
+            payload["session"] = sessions.save(sid, persisted_conversation, turn.output_code or turn_code, filename, detected, confidence, payload["model"])
         self._send(200 if turn.success else 422, payload)
 
     def _handle_feedback(self, data: dict[str, Any]) -> None:
         feedback = str(data.get("feedback", "agree")).lower()
         if feedback not in {"agree", "disagree"}: self._send(400, {"error": "feedback must be agree or disagree"}); return
+        common = {
+            "session_id": str(data.get("session_id", "")),
+            "turn_id": int(data.get("turn_id", 0)),
+            "request": str(data.get("request", "")),
+            "language": str(data.get("language", "unknown")),
+            "capability_id": str(data.get("capability_id", "")),
+            "code": str(data.get("code", "")),
+        }
         if feedback == "agree":
-            self._send(200, {"status": "recorded", "feedback": "agree", "evolution": {"decision": "none", "reasoning": "User accepted the result; no evolution analysis was required."}}); return
-        event = evolution.record_disagreement(session_id=str(data.get("session_id", "")), turn_id=int(data.get("turn_id", 0)), request=str(data.get("request", "")),
-                                               language=str(data.get("language", "unknown")), language_confidence=float(data.get("language_confidence", 0.0)),
-                                               previous_capability_id=str(data.get("capability_id", "")), code=str(data.get("code", "")))
+            event = evolution.record_agreement(**common)
+            self._send(200, {"status": "recorded", "feedback": "agree", "evolution": event}); return
+        event = evolution.record_disagreement(
+            session_id=common["session_id"], turn_id=common["turn_id"], request=common["request"],
+            language=common["language"], language_confidence=float(data.get("language_confidence", 0.0)),
+            previous_capability_id=common["capability_id"], code=common["code"],
+        )
         analysis = evolution.analyze(event)
         if analysis.get("decision") == "create": analysis = evolution.record_creation(analysis)
         self._send(200, {"status": "recorded", "feedback": "disagree", "evolution": analysis})
