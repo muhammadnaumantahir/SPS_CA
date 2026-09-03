@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { describe, beforeEach, it, expect } from 'vitest';
 import { app, resetTasks } from '../src/app';
 
 describe('Task API contract', () => {
