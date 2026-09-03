@@ -57,6 +57,17 @@ Successful or failed controlled Evolution execution is also recorded as a Layer-
 
 `OptimizationActionPlanner` converts triggered plans into explicit `CapabilityPlan` objects. It does not implement, register, execute, or retire anything itself.
 
+## Measuring actual self-improvement
+
+`evaluation/self_improvement_benchmark.py` provides a deterministic before/after evidence harness. It evaluates the same capability with `CapabilityEvaluator` against a baseline Experience log and a post-Evolution Experience log. A result is marked `improved=True` only when:
+
+1. the Evolution result reports successful promotion/registration; and
+2. the post-Evolution behavioral score exceeds the baseline by the configured minimum delta (default `0.05`).
+
+This deliberately separates **successful self-programming** from **successful self-improvement**. Promotion alone is not treated as proof that the new capability is better.
+
+The benchmark is non-mutating. It accepts the actual governed Evolution callable from the runtime and scores the resulting Experience evidence, so production execution policy remains in the existing Layer-8 path.
+
 ## Live Brain routing
 
 Evidence-qualified generated capabilities participate in the live Brain boundary only when active, intent-safe, language-compatible, and supported by enough Experience evidence to clear the strategy margin. The canonical capability remains the fallback.
@@ -82,7 +93,7 @@ Candidate generation → tests → DNA → Governance → promotion/rollback
     ↓
 Evolution outcome recorded in Experience
     ↓
-Subsequent task evidence measures whether the evolved capability improved behavior
+Before/after behavioral measurement
     ↓
 Conservative routing / retirement
 ```
@@ -120,6 +131,7 @@ Completed:
 - explicit default-deny execution authority for automatic Evolution;
 - automatic authorized handoff through the existing governed Evolution pipeline;
 - Experience recording of controlled Evolution outcomes;
+- deterministic before/after self-improvement measurement;
 - regression/unit coverage for the new learning policy;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
@@ -127,4 +139,4 @@ Next work:
 
 - persist richer A/B and retirement outcome telemetry;
 - improve long-horizon evidence aggregation without expanding conversational prompt history;
-- add a measurable before/after evaluation harness for evolved capabilities so improvement is quantified rather than inferred from promotion alone.
+- integrate the benchmark with a repository-level seeded capability scenario so the project can demonstrate a complete measured improvement under CI.
