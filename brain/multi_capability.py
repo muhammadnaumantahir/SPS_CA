@@ -52,8 +52,6 @@ def compose_explicit_capabilities(
         if cid == "CAP-002":
             if not has_code:
                 continue
-            # Adding tests is not a code modification unless the request also
-            # explicitly changes source logic/functionality.
             if re.search(r"\b(add|write|create|generate)\s+(?:new\s+)?(?:\w+\s+){0,2}tests?\b", req, re.I):
                 code_change_signal = re.search(
                     r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,60}"
@@ -64,8 +62,6 @@ def compose_explicit_capabilities(
                 if not code_change_signal:
                     continue
         if cid in {"CAP-004", "CAP-005"}:
-            # A diagnostic/fix verb itself is meaningful evidence in a multi-step
-            # request. Do not require the literal words bug/error/issue/failure.
             if not re.search(r"\b(find|detect|diagnos\w*|debug\w*|identify|investigate|fix|repair|resolve|patch)\b", req, re.I):
                 continue
         if cid == "CAP-010" and not (
