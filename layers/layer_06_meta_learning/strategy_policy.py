@@ -40,10 +40,11 @@ class StrategyRecommendation:
 
 
 class StrategyPolicy:
-    """Apply conservative evidence and margin rules to evaluator results."""
+    """Apply conservative evidence, margin and stability rules to evaluator results."""
 
     DEFAULT_MIN_OBSERVATIONS = 3
     DEFAULT_MIN_SCORE_MARGIN = 0.08
+    DEFAULT_SWITCH_COOLDOWN = 2
 
     def __init__(
         self,
@@ -51,10 +52,12 @@ class StrategyPolicy:
         evaluator: CapabilityEvaluator | None = None,
         min_observations: int = DEFAULT_MIN_OBSERVATIONS,
         min_score_margin: float = DEFAULT_MIN_SCORE_MARGIN,
+        switch_cooldown: int = DEFAULT_SWITCH_COOLDOWN,
     ) -> None:
         self.evaluator = evaluator or CapabilityEvaluator()
         self.min_observations = max(1, int(min_observations))
         self.min_score_margin = max(0.0, float(min_score_margin))
+        self.switch_cooldown = max(0, int(switch_cooldown))
 
     def recommend(
         self,
@@ -124,6 +127,44 @@ class StrategyPolicy:
             ),
             evidence_sufficient=True,
         )
+
+    def recommended_for_future_routing(
+        self,
+        experience_log: ExperienceLog,
+        current_capability_id: str,
+        candidate_capability_ids: Iterable[str],
+        *,
+        recent_selected_capabilities: Iterable[str] = (),
+    ) -> StrategyRecommendation:
+        """Apply cooldown against immediate strategy oscillation.
+
+        A recommendation is suppressed when the proposed capability was just
+        switched to within the configured recent routing window. This is a
+        routing safeguard, not an authorization to mutate a capability.
+        """
+        recommendation = self.recommend(
+            experience_log,
+            current_capability_id,
+            candidate_capability_ids,
+        )
+        target = recommendation.recommended_capability_id
+        if target is None or self.switch_cooldown <= 0:
+            return recommendation
+        recent = list(recent_selected_capabilities)[-self.switch_cooldown :]
+        if target in recent:
+            return StrategyRecommendation(
+                current_capability_id=recommendation.current_capability_id,
+                recommended_capability_id=None,
+                current_score=recommendation.current_score,
+                recommended_score=recommendation.recommended_score,
+                score_margin=recommendation.score_margin,
+                reason=(
+                    f"Switch to {target} suppressed by the {self.switch_cooldown}-turn "
+                    "strategy cooldown to prevent routing oscillation."
+                ),
+                evidence_sufficient=recommendation.evidence_sufficient,
+            )
+        return recommendation
 
 
 __all__ = ["StrategyPolicy", "StrategyRecommendation"]
