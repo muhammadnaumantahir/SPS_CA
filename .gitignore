@@ -100,10 +100,7 @@ projects/project_a_python/
 projects/project_b_java/
 projects/project_c_typescript/
 
-# Preserve repository structure markers
-!core/tests/.gitkeep
-!capabilities/seeds/.gitkeep
-!capabilities/generated/.gitkeep
+# Preserve only directories that require tracked structure markers.
 !projects/.gitkeep
 !sandbox/.gitkeep
 !governance/decisions/.gitkeep
@@ -111,4 +108,3 @@ projects/project_c_typescript/
 !evaluation/scenarios/.gitkeep
 !evaluation/checklists/.gitkeep
 !baselines/.gitkeep
-!docs/.gitkeep
