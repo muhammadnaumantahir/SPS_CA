@@ -1,4 +1,4 @@
-"""Phase 2: controlled A/B capability comparison for Layer 6.
+"""Controlled A/B capability comparison for Layer 6.
 
 A/B assignment is deterministic and evidence-based. It never executes code,
 changes the registry, or bypasses Governance; it only records which arm should
