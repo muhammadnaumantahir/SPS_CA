@@ -89,6 +89,10 @@ def test_historical_capability_provenance_is_exposed():
 
     assert "generated_metadata" in source
     assert "historical_migration" in source
-    assert "historical_migration" in metadata
     assert "source_commit" in metadata
-    assert "not created by a current-user disagreement event" in html
+    assert "historical_migration" in metadata
+    assert "Every generated capability" in html
+    assert "Trigger evidence" in html
+    assert "Source request" in html
+    assert "Validation" in html
+    assert ".filename-input{display:none!important}" in html
