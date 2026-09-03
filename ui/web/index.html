@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/static/styles.css">
   <style>
     .session-row{display:flex;align-items:stretch;gap:3px}.session-row .session-item{min-width:0}.session-delete{border:0;background:transparent;color:#999b94;border-radius:8px;padding:0 7px;font-size:11px;opacity:.35}.session-row:hover .session-delete,.session-delete:focus{opacity:1;background:#e6e8e2;color:#8b5148}.capability-analysis{margin-bottom:18px}.capability-analysis-head{display:flex;justify-content:space-between;align-items:end;gap:14px;margin-bottom:14px}.capability-analysis-head h2{font-size:15px;margin:0 0 4px}.capability-analysis-head p{font-size:11px;color:var(--muted);margin:0;line-height:1.5}.split-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:16px}.split-stats>div{border:1px solid var(--line);background:#fafaf7;border-radius:10px;padding:9px}.split-stats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.split-stats strong{display:block;font-size:18px;margin-top:4px}.analytics-row{display:grid;grid-template-columns:175px 1fr 28px;align-items:center;gap:9px;width:100%;border:0;background:transparent;padding:7px 0;text-align:left;font-size:9px;color:#555b54}.analytics-row:hover{color:var(--accent)}.bar-track{height:7px;background:#eef0eb;border-radius:99px;overflow:hidden}.bar-track i{display:block;height:100%;background:var(--accent);border-radius:99px;min-width:3px}.analytics-row b{text-align:right;font-size:9px}.analysis-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(30,35,30,.035)}.analysis-card h3{font-size:13px;margin:0 0 10px}.analysis-card .empty-state{padding:4px 0}.filename-input{display:none!important}.mobileMenu{display:none}@media(max-width:700px){.split-stats{grid-template-columns:repeat(2,1fr)}.analytics-row{grid-template-columns:125px 1fr 22px}.session-delete{opacity:.8}}
+    .trace-event{border:1px solid var(--line);background:#fafaf7;border-radius:12px;padding:12px;margin:10px 0}.trace-event-head{display:flex;justify-content:space-between;gap:10px}.trace-event p{font-size:11px;color:var(--muted);margin:7px 0}.feedback-result{background:#edf7f1;border:1px solid #cfe2d8;border-radius:12px;padding:13px}
+    @media(max-width:900px){.mobileMenu{display:inline-flex}.sidebar{box-shadow:10px 0 40px rgba(30,35,30,.08)}}
   </style>
 </head>
 <body>
@@ -26,7 +28,7 @@
     </aside>
 
     <main class="main">
-      <header class="topbar"><button id="mobileMenu" class="icon-btn">☰</button><div class="top-context"><span id="pageTitle">Chat</span><span class="dot">•</span><span id="sessionTitle">New chat</span></div><div class="top-actions"><span class="status-pill"><i></i> Ollama</span><span id="turnPill" class="subtle-pill">Turn 0</span></div></header>
+      <header class="topbar"><button id="mobileMenu" class="icon-btn" aria-label="Open navigation">☰</button><div class="top-context"><span id="pageTitle">Chat</span><span class="dot">•</span><span id="sessionTitle">New chat</span></div><div class="top-actions"><span class="status-pill"><i></i> Ollama</span><span id="turnPill" class="subtle-pill">Turn 0</span></div></header>
 
       <section id="view-chat" class="view active">
         <div class="chat-wrap">
@@ -42,7 +44,7 @@
 
       <section id="view-architecture" class="view"><div class="view-head"><div><span class="eyebrow">SYSTEM MAP</span><h1>Architecture</h1><p>Explore the ten canonical SPS layers and where the Brain and capability registry fit.</p></div></div><div class="architecture-grid"><div id="architectureFlow" class="architecture-flow"></div><aside id="architectureAside" class="detail-card"></aside></div></section>
       <section id="view-capabilities" class="view"><div class="view-head"><div><span class="eyebrow">SKILL REGISTRY</span><h1>Capabilities</h1><p>See what SPS-CA can reuse, what was generated, why a capability exists, and how the population is being used.</p></div><input id="capSearch" class="search-large" placeholder="Search capabilities"></div><section class="analysis-card capability-analysis"><div class="capability-analysis-head"><div><h2>Capability analysis</h2><p>Seed vs generated population, active/inactive state, and most-reused capabilities.</p></div></div><div id="capabilityAnalytics"></div></section><div id="capGrid" class="cap-grid"></div></section>
-      <section id="view-evolution" class="view"><div class="view-head"><div><span class="eyebrow">SELF-GROWTH AUDIT</span><h1>Evolution</h1><p>Follow disagreements, reasoning decisions, and capability creation from evidence to registry.</p></div></div><div id="evolutionStats" class="stats-row"></div><div id="evolutionTimeline" class="timeline"></div></section>
+      <section id="view-evolution" class="view"><div class="view-head"><div><span class="eyebrow">SELF-GROWTH AUDIT</span><h1>Evolution</h1><p>Follow agreements, disagreements, reasoning decisions, and capability creation from evidence to registry.</p></div></div><div id="evolutionStats" class="stats-row"></div><div id="evolutionTimeline" class="timeline"></div></section>
     </main>
 
     <div id="drawer" class="drawer hidden"><div class="drawer-backdrop"></div><aside class="drawer-panel"><div class="drawer-head"><div id="drawerTitle">Details</div><button id="drawerClose" class="icon-btn">×</button></div><div id="drawerBody" class="drawer-body"></div></aside></div>
@@ -67,14 +69,10 @@
         host.innerHTML = '<div class="empty-state">Capability analysis is unavailable right now.</div>';
       }
 
-      // Every generated capability now exposes its provenance. Historical
-      // migrated records are explicitly separated from runtime evolution.
       const originalShowCapability = window.showCapability;
       window.showCapability = async (id) => {
         const capability = (typeof state !== 'undefined' ? state.capabilities : []).find(c => c.id === id);
-        if (!capability || !capability.generated) {
-          return originalShowCapability(id);
-        }
+        if (!capability || !capability.generated) return originalShowCapability(id);
         const lineage = await fetch('/api/evolution/capability/' + encodeURIComponent(id)).then(r => r.json());
         const provenance = capability.provenance || lineage.provenance || {};
         const historical = capability.origin === 'historical_migration';
