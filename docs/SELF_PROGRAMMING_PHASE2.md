@@ -63,6 +63,25 @@ Evolution lifecycle events are kept separate from Layer 5 capability-performance
 
 The benchmark is deliberately deterministic and does not mutate production source; it proves the control flow and measurement contract before live provider-backed Evolution is used.
 
+## Live provider-backed Evolution
+
+`evaluation/live_self_programming.py` provides the controlled real-provider experiment. It copies the current repository into a temporary workspace, seeds deterministic underperformance evidence, enables one explicitly authorized Evolution action, and runs the normal `OptimizationCycleService` against the actual Ollama-backed `LLMInterface`.
+
+The runner requires `--confirm-live-evolution`. It deletes the temporary workspace by default, so experiments do not modify the caller's checkout. Use `--keep-workspace` to inspect generated artifacts after the run.
+
+Example from Colab or a local checkout:
+
+```bash
+cd /content/SPS_CA
+python -m evaluation.live_self_programming \
+  --task "add a reusable input validation capability" \
+  --language python \
+  --confirm-live-evolution \
+  --keep-workspace
+```
+
+The command reports the optimization cycle, action plan, execution authorization, generated capability result, and temporary workspace location. Promotion is not treated as proof of improvement; real subsequent task observations remain necessary to establish that the evolved capability performs better.
+
 ## Live Brain routing
 
 Evidence-qualified generated capabilities participate in the live Brain boundary only when active, intent-safe, language-compatible, and supported by enough Experience evidence to clear the strategy margin. The canonical capability remains the fallback.
@@ -84,7 +103,7 @@ Layer 8 Evolution action planning
     ↓
 Explicit execution authority
     ↓
-Candidate generation → tests → DNA → Governance → promotion/rollback
+Real provider candidate generation → tests → DNA → Governance → promotion/rollback
     ↓
 Evolution lifecycle telemetry (not capability-performance credit)
     ↓
@@ -128,11 +147,12 @@ Completed:
 - auditable Evolution lifecycle outcome records;
 - deterministic self-improvement measurement;
 - end-to-end trigger → authorization → Evolution → measurement regression coverage;
+- controlled real-provider Evolution runner with disposable workspace isolation;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
 Next work:
 
 - persist richer A/B and retirement outcome telemetry;
 - improve long-horizon evidence aggregation without expanding conversational prompt history;
-- connect the deterministic benchmark to real provider-backed Evolution runs in a controlled, explicitly authorized integration environment;
+- use real provider-backed runs to collect enough post-Evolution task evidence to prove measurable improvement;
 - run and verify the complete GitHub Actions suite after the Colab import regression fixes.
