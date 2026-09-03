@@ -42,7 +42,30 @@ PASS → promote / keep change
 FAIL → rollback
     ↓
 Regression evidence updated
+    ↓
+Successful Python self-repair → runtime process reload
 ```
+
+## Automatic failure trigger
+
+The application boundary observes exceptions produced while processing chat turns. Only known internal SPS failure classes are eligible for automatic self-repair, including routing, trace, session/state, validation, execution, sandbox, and serialization defects.
+
+Transient provider/model/network/timeout failures are explicitly excluded. A missing or unavailable Ollama model must not cause SPS-CA to rewrite its own source.
+
+The repair trigger supplies an explicit file scope derived from the failure class. Layer 08 can therefore generate a candidate only for the suspected responsible component.
+
+## Runtime reload after successful repair
+
+A successful self-repair of a Python module changes source code that may already be imported by the running web application. The application therefore schedules a same-command Python interpreter replacement after the HTTP response is allowed to complete.
+
+The reloader:
+
+- runs only when the current process is `ui/web_app.py`;
+- waits briefly so the repair response can finish;
+- replaces the interpreter with the same executable and arguments;
+- can be disabled for development/testing with `SPS_CA_DISABLE_RESTART=1`.
+
+This is runtime plumbing and does not create, rename, or collapse any SPS layer.
 
 ## What Phase 1 can repair
 
