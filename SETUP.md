@@ -1,10 +1,10 @@
-# SPS-CA Complete Setup Guide
+# SPS-CA Setup Guide
 
 ## Local / Google Colab
 
-Clone the repository and install the existing dependencies as described below. The default AI Brain provider is Ollama and the default model is `qwen2.5-coder:7b`.
+Clone the repository and install the dependencies. The default Brain provider is Ollama, with model selection resolved from the models currently installed on the connected Ollama server.
 
-### Fresh Colab runtime
+### Google Colab
 
 ```bash
 !git clone https://github.com/muhammadnaumantahir/SPS_CA.git
@@ -19,100 +19,114 @@ Verify Ollama:
 !curl -s http://127.0.0.1:11434/api/tags
 ```
 
-Run tests:
+Start the web application:
 
 ```bash
-!bash scripts/run_tests.sh
+!python ui/web_app.py
 ```
 
-## Local Windows setup
+### Local Windows
 
-### 1. Clone
-
-```bash
+```powershell
 git clone https://github.com/muhammadnaumantahir/SPS_CA.git
 cd SPS_CA
-```
-
-### 2. Python
-
-Install Python 3.11 or newer, then create/activate a virtual environment:
-
-```bash
 python -m venv .venv
-.venv\\Scripts\\activate
+.venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Ollama Brain
+Install Ollama, then verify and pull a coding model:
 
-Install Ollama, then verify:
-
-```bash
-ollama --version
+```powershell
 ollama list
 ollama pull qwen2.5-coder:7b
+ollama serve
 ```
 
-The model provider is intentionally separate from SPS capabilities. The Brain can be switched to another provider later through `models/` without turning that provider into a capability.
+In a second terminal:
 
-### 4. Verify
-
-```bash
-python -c "import tree_sitter, pytest, pydantic; print('dependencies OK')"
-pytest -q
-```
-
-## Run SPS-CA
-
-### Advanced web dashboard
-
-```bash
+```powershell
+cd SPS_CA
+.venv\Scripts\activate
 python ui/web_app.py
 ```
 
-Open `http://127.0.0.1:8080` in a browser.
+Open `http://127.0.0.1:8080`.
 
-The dashboard provides:
-- prompt and source-code workspace;
-- separate Brain panel with provider/model status;
-- live ten-layer architecture visualization;
-- Brain reasoning and ordered capability plan;
-- capability execution results;
-- modified code and unified diff;
-- complete JSON trace for research/evaluation;
-- explicit separation of Brain, layers and capabilities.
+### Local Linux / macOS
 
-The web dashboard's code mode is a controlled **preview** boundary. It does not silently mutate a user's local filesystem. Real project mutation remains under the Execution Layer.
+```bash
+git clone https://github.com/muhammadnaumantahir/SPS_CA.git
+cd SPS_CA
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+ollama pull qwen2.5-coder:7b
+ollama serve
+python ui/web_app.py
+```
 
-### CLI
+## What the browser workspace provides
+
+- Chat-first prompt and source-code workspace
+- Automatic language detection
+- Intent-safe capability routing
+- Working code view
+- Live request activity indicator while local inference is running
+- Saved conversations
+- Structured trace for completed turns
+- Agree/Disagree feedback used as learning evidence
+- Capability registry and provenance
+- Evolution evidence and controlled self-programming visibility
+- Ten-layer architecture view
+
+The browser chat is a controlled preview boundary. It returns proposed source changes and capability results without silently mutating an arbitrary local project directory.
+
+## CLI
 
 ```bash
 python ui/cli_interface.py
 ```
 
-Commands include `load`, `show project`, `show architecture`, `show registry`, `show brain`, `show experience`, `help`, and `quit`.
+The CLI exposes the same core assistant service for local use.
 
-## Runtime data and security
+## Testing
 
-Do not place real user projects, chats, credentials, or generated runtime data in Git. Never commit API keys, tokens or passwords. The Brain provider is configurable and should be supplied through runtime configuration/environment where applicable.
+The repository includes focused tests for the layers, capabilities, routing, learning, Evolution controls, evaluation harnesses, and UI/runtime boundaries.
 
-## Architecture reference
+Run the local suite with:
 
-See `docs/ARCHITECTURE.md` for the canonical ten-layer model. The public architecture is:
+```bash
+pytest -q
+```
 
-1. Software DNA Layer
-2. Governance Layer
-3. Cognitive Layer
-4. Knowledge Layer
-5. Experience Layer
-6. Meta-Learning Layer
-7. Adaptation Layer
-8. Evolution Layer
-9. Verification & Validation Layer
-10. Execution Layer
+## Runtime configuration
 
-**Brain:** separate AI intelligence service used by the Cognitive Layer and other controlled SPS processes.
+Leave model selection empty to let Ollama resolve an installed model at request time. The provider refreshes model discovery when needed.
 
-**Capabilities:** separate executable skills registered/versioned independently of the Brain.
+LLM generation has no default wall-clock cutoff. A specific caller can supply `timeout_seconds` when a bounded environment requires one.
+
+Automatic Evolution remains deny-by-default. Explicitly enabled controlled environments can use the Evolution authority and action limits documented in `docs/SELF_PROGRAMMING.md`.
+
+## Security
+
+Do not place credentials, API keys, tokens, passwords, private source code, or production data in the repository. Public sharing of a local UI can expose submitted code and should be treated accordingly.
+
+## Architecture
+
+SPS-CA keeps the following ten layers stable:
+
+1. Software DNA
+2. Governance
+3. Cognitive
+4. Knowledge
+5. Experience
+6. Meta-Learning
+7. Adaptation
+8. Evolution
+9. Verification & Validation
+10. Execution
+
+The Brain is a separate replaceable intelligence service. Capabilities are executable skills governed by the SPS control path.
