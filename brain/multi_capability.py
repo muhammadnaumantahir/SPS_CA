@@ -24,8 +24,12 @@ _MODIFICATION_TARGET_RE = re.compile(
     r"\b(code|function|class|method|logic|source|implementation|behavior|validation|logging|annotation|docstrings?|comments?|guard|error handling|cache|parameter|argument|input|output)\b",
     re.I,
 )
-_PROJECT_CONTEXT_RE = re.compile(
-    r"\b(project|repo(?:sitory)?|workspace|deployment|layout|directory|folder|file|package|module|configuration|environment|secrets)\b",
+_PROJECT_ARTIFACT_ACTION_RE = re.compile(
+    r"\b(?:create|add|delete|remove|move|rename)\s+"
+    r"(?:a|an|the|new)?\s*(?:file|folder|directory|project|module|package|workspace|layout)\b"
+    r"|\b(?:set\s+up|restructure|reorganize)\s+(?:the\s+)?(?:project|workspace|repo(?:sitory)?|directory|layout)\b"
+    r"|\b(?:configure)\s+(?:the\s+)?(?:project|workspace|repo(?:sitory)?|environment)\b"
+    r"|\b(?:project\s+operation|project\s+structure|deployment\s+layout|directory\s+convention)\b",
     re.I,
 )
 
@@ -42,7 +46,7 @@ def compose_explicit_capabilities(
     has_code: bool,
     available_ids: set[str],
 ) -> list[dict[str, str]]:
-    """Return a conservative, dependency-aware explicit capability chain."""
+    """Return a conservative capability chain only for explicit user actions."""
     req = " ".join((request or "").strip().split())
     if not req:
         return []
@@ -69,10 +73,16 @@ def compose_explicit_capabilities(
         if cid in {"CAP-004", "CAP-005"}:
             if not re.search(r"\b(find|detect|diagnos\w*|debug\w*|identify|investigate|fix|repair|resolve|patch)\b", req, re.I):
                 continue
-        if cid == "CAP-010" and not (
-            _PROJECT_CONTEXT_RE.search(req)
-            or re.search(r"\b(project\s+operation|project\s+structure|set\s+up|configure|workspace|deployment\s+layout|directory\s+convention)\b", req, re.I)
+        if cid == "CAP-006" and not re.search(
+            r"\b(?:refactor|optimi[sz]e|improve\s+performance)\b|"
+            r"\b(?:clean\s+up|cleanup)\s+(?:the\s+)?(?:code|implementation|logic|source|function|class|method)\b",
+            req,
+            re.I,
         ):
+            continue
+        if cid == "CAP-009" and not re.search(r"\b(?:validate|review|re-?validate|check)\b", req, re.I):
+            continue
+        if cid == "CAP-010" and not _PROJECT_ARTIFACT_ACTION_RE.search(req):
             continue
         hits.append((rank, pos, cid, name))
 
