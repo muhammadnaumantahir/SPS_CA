@@ -29,9 +29,8 @@ _EXPLICIT_TEST = re.compile(
 def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     """Return distinct task-level intent signals in a stable capability order.
 
-    The guard is deliberately clause-oriented: a request to "add a docstring"
-    is one modification, while "fix the bug and document the fix" contains two
-    explicit actions and must be classified as mixed.
+    Signals are scoped to action clauses so target nouns such as "validation"
+    or "function" do not become accidental secondary intents.
     """
     req = " ".join((request or "").lower().split())
     signals: list[str] = []
@@ -40,10 +39,16 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
         if intent not in signals and re.search(pattern, req, re.IGNORECASE):
             signals.append(intent)
 
-    add(
-        "code_generation",
-        r"\b(generate|write|create|build|develop|make)\b.{0,80}\b(code|program|script|application|app|function|class|solution|utility)\b",
-    )
+    generation_clause = r"(?:^|\b(?:then|and then)\b|,\s*)(generate|write|create|build|develop|make)\b[^,]{0,80}\b(code|program|script|application|app|function|class|solution|utility|validator)\b"
+    if not _EXPLICIT_TEST.search(req):
+        add("code_generation", generation_clause)
+    elif re.search(
+        r"(?:^|\b(?:then|and then)\b|,\s*)(generate|write|create|build|develop|make)\b[^,]{0,50}\b(code|program|script|application|app|function|class|solution|utility|validator)\b",
+        req,
+        re.IGNORECASE,
+    ):
+        add("code_generation", generation_clause)
+
     add("test_generation", _EXPLICIT_TEST.pattern)
     add(
         "bug_diagnosis",
@@ -52,7 +57,9 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     add("bug_fixing", r"\b(fix|repair|resolve|patch)\b")
     add("refactoring", r"\b(refactor|optimi[sz]e|cleanup|clean\s+up|improve\s+performance)\b")
     add("analysis", r"\b(explain|explanation|analy[sz]e|understand|walk\s+me\s+through|what\s+does|how\s+does)\b")
-    add("validation", r"\b(validate|validation|review|re-?validate|check\s+(?:syntax|correctness)|code\s+quality|security\s+review)\b")
+
+    validation_signal = r"\b(validate|validation|review|re-?validate|check\s+(?:syntax|correctness)|code\s+quality|security\s+review)\b"
+    add("validation", validation_signal)
 
     doc_action = bool(
         re.search(
@@ -98,6 +105,13 @@ def _intent_signals(request: str, *, has_code: bool) -> list[str]:
     )
     if project_action:
         add("project_operations", r"\b(?:project\s+operation|project\s+structure|set\s+up|configure|restructure|reorganize|workspace|repo(?:sitory)?|deployment\s+layout|directory\s+convention|file|folder|directory|package|module)\b")
+
+    # A target noun such as "input validation" belongs to the modification
+    # capability when it is the single requested action. It becomes mixed only
+    # when a separate validation action is explicitly requested.
+    if "code_modification" in signals and "validation" in signals and _MODIFICATION_TARGET.search(req):
+        if not re.search(r"\b(?:then|and then)\b|,\s*(?:then|and)\b|\band\s+(?:review|validate|re-validate|check)\b", req, re.IGNORECASE):
+            signals.remove("validation")
 
     if len(signals) > 1:
         if "code_modification" in signals and "documentation" in signals and re.search(
