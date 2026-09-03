@@ -8,7 +8,8 @@ preserving evolution provenance. The public ten-layer model is unchanged.
 from .controlled_evolution import ControlledEvolutionEngine
 from .evolution_engine import EvolutionError
 from .gap_planner import CapabilityGapPlanner
-from .self_programming import FailureDiagnosis, SelfProgrammingEngine, SelfProgrammingError, SelfRepairResult
+from .governed_self_programming import SelfProgrammingEngine
+from .self_programming import FailureDiagnosis, SelfProgrammingError, SelfRepairResult
 from .models import (
     CapabilityPlan,
     EvolutionRecord,
