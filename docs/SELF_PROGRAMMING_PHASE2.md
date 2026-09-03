@@ -24,14 +24,7 @@ Layer 6 now provides two complementary controls:
 - `CapabilityEvaluator` measures observed behavior from Layer 5 Experience;
 - `StrategyPolicy` decides whether an alternative is strong enough to recommend.
 
-For every observed capability, the evaluator derives:
-
-- observation count;
-- raw success rate;
-- partial-outcome rate;
-- mean task duration;
-- evidence confidence, which increases as observations accumulate;
-- a bounded behavioral score from 0.0 to 1.0.
+For every observed capability, the evaluator derives observation count, raw success rate, partial-outcome rate, mean task duration, evidence confidence, and a bounded behavioral score from 0.0 to 1.0.
 
 Small samples are shrunk toward a neutral 50% success prior so one lucky or unlucky task does not immediately dominate strategy selection. Latency contributes a bounded penalty while success remains dominant.
 
@@ -39,13 +32,13 @@ Small samples are shrunk toward a neutral 50% success prior so one lucky or unlu
 
 `CapabilityEvaluator.rank()` only returns capabilities with the configured minimum evidence (three observations by default).
 
-`StrategyPolicy` adds a second guard: the best alternative must beat the current capability by at least a configurable score margin (0.08 by default). A recommendation therefore requires both sufficient evidence and a meaningful behavioral advantage.
+`StrategyPolicy` adds a second guard: the best alternative must beat the current capability by at least a configurable score margin (0.08 by default). A strategy switch is therefore based on both sufficient evidence and a meaningful behavioral advantage.
 
-The recommendation is advisory data, not authorization for source mutation.
+A short routing cooldown also suppresses immediate switching back to a capability that was just selected, reducing strategy oscillation.
 
 ## Live Brain routing
 
-Phase 2 now feeds evidence-qualified generated capabilities into the Brain routing boundary without weakening intent safety.
+Evidence-qualified generated capabilities now participate in the live Brain boundary.
 
 The routing sequence is:
 
@@ -60,7 +53,7 @@ Canonical intent eligibility
     ↓
 Layer 6 evidence evaluation
     ↓
-StrategyPolicy margin check
+StrategyPolicy margin + cooldown check
     ↓
 Generated capability may replace canonical default
     ↓
@@ -69,9 +62,15 @@ Capability execution
 New Experience evidence
 ```
 
-A generated capability can participate only when its registry metadata explicitly allows the classified intent, does not forbid that intent, is active, and has enough historical evidence to clear the strategy margin. The canonical Stage-0 capability remains the fallback.
+A generated capability can participate only when it is active, explicitly declares the classified intent as allowed, does not forbid that intent, supports the current language, and has enough historical evidence to clear the strategy margin. The canonical Stage-0 capability remains the fallback.
 
 Test Generation remains independently protected and is never selected as a side effect of ordinary code-generation, modification, diagnosis, fixing, refactoring, documentation, validation, or project-operation requests.
+
+## Persisted learning evidence
+
+When Layer 6 has enough evidence to produce a recommendation, SPS-CA persists a `MetaLearningDecision` record containing the previous strategy, proposed strategy, rationale, timestamp, and the measured recommendation evidence.
+
+These records are append-only and advisory. They provide an audit trail for why a future routing strategy was preferred; they do not authorize source mutation.
 
 ## Closed learning loop
 
@@ -85,6 +84,8 @@ Capability behavioral evaluation
 Evidence-aware ranking
     ↓
 Conservative strategy recommendation
+    ↓
+Persist recommendation evidence
     ↓
 Adaptation / live routing
     ↓
@@ -101,9 +102,9 @@ Any structural self-change still follows the Phase 1 Software DNA → Governance
 
 ## CI benchmark separation
 
-The repository contains intentionally seeded defects used to validate self-programming. Those benchmark failures are executed as observable, non-blocking workflow steps so they remain available as Evolution targets without falsely presenting the repository's stable contract suite as broken.
+The repository contains intentionally seeded defects used to validate self-programming. Those benchmark targets remain available as observable Evolution inputs rather than being silently removed from the project.
 
-The stable project tests remain blocking for CI. The current TypeScript benchmark is isolated from the stable contract suite while preserving the seeded defect for later self-repair evaluation.
+The stable project contracts and architecture tests remain the primary blocking quality gate; seeded benchmark behavior is evaluated separately when the workflow exposes it as a target.
 
 ## Phase 2 status
 
@@ -114,14 +115,15 @@ Completed:
 - latency-aware scoring;
 - minimum-evidence ranking;
 - conservative strategy switching with a score margin;
+- routing cooldown against strategy oscillation;
 - generated-capability intent metadata exposure;
 - evidence-qualified generated-capability routing in the Brain boundary;
+- persisted evidence-backed meta-learning decisions;
 - regression/unit coverage for the new learning policy;
-- separation of seeded benchmark failures from blocking target-project CI.
+- separation of seeded benchmark targets from normal architecture quality checks.
 
 Next work:
 
-- persist strategy recommendations with before/after outcomes;
 - run controlled A/B comparisons between competing generated capability versions;
 - introduce governed retirement/deactivation of persistently poor generated capabilities;
 - add scheduled or threshold-triggered optimization cycles;
