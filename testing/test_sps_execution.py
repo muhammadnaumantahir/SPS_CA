@@ -33,6 +33,11 @@ def test_sps_execution_grows_capability_and_modifies_submitted_code(tmp_path: Pa
         file_path="app.py",
     )
 
+    # Debug: show full result on failure
+    if result.get("success") is not True:
+        import json as _json
+        print("DEBUG result:", _json.dumps({k: v for k, v in result.items() if k != "modified_code"}, indent=2, default=str))
+
     assert result["success"] is True
     assert result["generated"] is True
     assert result["execution"] == "success"

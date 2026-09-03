@@ -268,7 +268,7 @@ class ReusableHTTPServer(ThreadingHTTPServer):
 
 
 def main() -> None:
-    host, port = "127.0.0.1", 8080
+    host, port = "127.0.0.1", 5000
     print(f"SPS-CA dashboard: http://{host}:{port}")
     print("Conversational coding mode: enabled")
     print("Brain: provider-neutral; Ollama is the default provider")
