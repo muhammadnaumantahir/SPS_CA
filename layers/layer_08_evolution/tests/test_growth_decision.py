@@ -4,15 +4,28 @@ from layers.layer_08_evolution.growth_decision import GrowthDecision, GrowthDeci
 def test_disagreement_is_evidence_not_automatic_creation():
     decision = GrowthDecisionEngine().decide(
         existing_capability_id="CAP-005",
-        disagreement_count=3,
+        disagreement_count=1,
         capability_match=True,
-        repeated_pattern=True,
-        adaptation_viable=True,
+        repeated_pattern=False,
+        adaptation_viable=False,
         composition_viable=False,
         improvement_viable=False,
     )
-    assert decision.decision != GrowthDecision.CREATE
-    assert decision.reason_code in {"adapt", "insufficient_gap"}
+    assert decision.decision == GrowthDecision.REUSE
+
+
+def test_persistent_disagreement_can_justify_creation_when_gap_remains():
+    decision = GrowthDecisionEngine().decide(
+        existing_capability_id="CAP-005",
+        disagreement_count=3,
+        capability_match=True,
+        repeated_pattern=True,
+        adaptation_viable=False,
+        composition_viable=False,
+        improvement_viable=False,
+    )
+    assert decision.decision == GrowthDecision.CREATE
+    assert decision.reason_code == "persistent_capability_gap"
 
 
 def test_genuine_gap_can_create_capability():
