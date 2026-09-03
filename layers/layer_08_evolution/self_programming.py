@@ -9,8 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
-from layers.layer_01_software_dna import SoftwareDNA
-from layers.layer_01_software_dna.software_dna import DNAViolation
+from layers.layer_01_software_dna import DNAViolation as Layer1DNAViolation, SoftwareDNA
 from layers.layer_02_governance.governance import GovernanceGate
 from layers.layer_02_governance.models import ChangeType, DecisionStatus
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
@@ -176,7 +175,7 @@ Context:\n{context_files}
                 return (f"protected governance/DNA target: {edit.file_path}", False)
         try:
             result = self.dna.check_action(action_description=change.description, matched_rule_ids=["rule_007"])
-        except (DNAViolation, ValueError, TypeError) as exc:
+        except (Layer1DNAViolation, ValueError, TypeError) as exc:
             return (str(exc), False)
         return ("; ".join(result.warnings) if result.warnings else "DNA check passed", result.allowed)
 
