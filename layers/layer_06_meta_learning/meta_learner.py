@@ -1,13 +1,7 @@
 """Layer 06: Meta-Learning.
 
-``MetaLearner`` reads Layer 05's :class:`ExperienceLog` and turns raw task
-history into actionable strategy changes: detecting when a capability is
-failing too often, recommending a better-performing alternative, and
-measuring whether success rates are actually improving over time.
-
-Meta-learning only recommends strategy changes for future task routing. It
-does not modify code or capabilities itself. Capability generation is Layer 08
-(Evolution)'s responsibility.
+Reads Layer 05 Experience evidence, detects recurring failures, compares
+capability behavior, and persists auditable strategy recommendations.
 """
 
 from __future__ import annotations
@@ -20,6 +14,7 @@ from layers.layer_05_experience.experience_log import ExperienceLog
 
 from .capability_evaluator import CapabilityEvaluator
 from .models import MetaLearningDecision
+from .strategy_policy import StrategyPolicy, StrategyRecommendation
 
 DEFAULT_DECISIONS_PATH = "experience/logs/meta_learning_decisions.json"
 DEFAULT_MIN_OCCURRENCES = 3
@@ -29,80 +24,51 @@ DEFAULT_FAILURE_RATE_THRESHOLD = 0.2
 class MetaLearner:
     """Detect failure patterns and recommend capability strategy changes."""
 
-    def __init__(self, evaluator: Optional[CapabilityEvaluator] = None) -> None:
+    def __init__(self, evaluator: Optional[CapabilityEvaluator] = None, policy: Optional[StrategyPolicy] = None) -> None:
         self.evaluator = evaluator or CapabilityEvaluator()
+        self.policy = policy or StrategyPolicy(evaluator=self.evaluator)
 
     def analyze_failure_patterns(self, experience_log: ExperienceLog) -> Dict[str, int]:
-        """Return ``{failure_category: count}`` from the experience log."""
         return experience_log.get_failure_patterns()
 
-    def detect_capability_failure(
-        self,
-        experience_log: ExperienceLog,
-        capability_id: str,
-        min_occurrences: int = DEFAULT_MIN_OCCURRENCES,
-        failure_rate_threshold: float = DEFAULT_FAILURE_RATE_THRESHOLD,
-    ) -> bool:
-        """True if ``capability_id`` has failed often enough to act on."""
+    def detect_capability_failure(self, experience_log: ExperienceLog, capability_id: str, min_occurrences: int = DEFAULT_MIN_OCCURRENCES, failure_rate_threshold: float = DEFAULT_FAILURE_RATE_THRESHOLD) -> bool:
         usage_count = experience_log.get_capability_usage_count(capability_id)
         if usage_count < min_occurrences:
             return False
         failure_rate = 1.0 - experience_log.get_capability_success_rate(capability_id)
         return failure_rate > failure_rate_threshold
 
-    def recommend_strategy_change(
-        self,
-        experience_log: ExperienceLog,
-        failed_capability_id: str,
-        candidate_capability_ids: Optional[List[str]] = None,
-    ) -> str:
-        """Recommend the best evidenced alternative capability.
-
-        Phase 2 replaces raw success-rate comparison with the bounded
-        behavioral evaluator, which accounts for success, partial outcomes,
-        latency and evidence confidence. Candidates still need the evaluator's
-        minimum evidence before they can win a recommendation.
-        """
+    def recommend_strategy_change(self, experience_log: ExperienceLog, failed_capability_id: str, candidate_capability_ids: Optional[List[str]] = None) -> str:
         if candidate_capability_ids is None:
-            candidate_capability_ids = sorted(
-                {
-                    task.selected_capability
-                    for task in experience_log.tasks
-                    if task.selected_capability
-                    and task.selected_capability != failed_capability_id
-                }
-            )
+            candidate_capability_ids = sorted({task.selected_capability for task in experience_log.tasks if task.selected_capability and task.selected_capability != failed_capability_id})
+        recommendation = self.policy.recommend(experience_log, failed_capability_id, candidate_capability_ids)
+        if recommendation.recommended_capability_id is None:
+            return f"No strategy switch recommended for {failed_capability_id}: {recommendation.reason}"
+        return recommendation.recommended_capability_id
 
-        best_id = self.evaluator.choose_best(
+    def recommend_with_evidence(self, experience_log: ExperienceLog, current_capability_id: str, candidate_capability_ids: List[str], *, recent_selected_capabilities: List[str] | None = None) -> StrategyRecommendation:
+        return self.policy.recommended_for_future_routing(
             experience_log,
+            current_capability_id,
             candidate_capability_ids,
-            min_observations=DEFAULT_MIN_OCCURRENCES,
-        )
-        if best_id is None:
-            return (
-                f"No alternative capability with sufficient usage history to "
-                f"recommend replacing {failed_capability_id}."
-            )
-        return best_id
-
-    def evaluate_capabilities(
-        self,
-        experience_log: ExperienceLog,
-        capability_ids: List[str],
-        *,
-        min_observations: int = DEFAULT_MIN_OCCURRENCES,
-    ):
-        """Return Phase 2 evidence-ranked capability evaluations."""
-        return self.evaluator.rank(
-            experience_log,
-            capability_ids,
-            min_observations=min_observations,
+            recent_selected_capabilities=recent_selected_capabilities or [],
         )
 
-    def measure_improvement(
-        self, experience_log: ExperienceLog, baseline_success_rate: float
-    ) -> float:
-        """Return percentage improvement of current success rate over baseline."""
+    def create_decision(self, recommendation: StrategyRecommendation, *, triggered_by: str) -> MetaLearningDecision:
+        """Convert a recommendation and its measured evidence into an auditable record."""
+        return MetaLearningDecision(
+            decision_id=f"meta_learning_decision_{len(triggered_by) + int(recommendation.current_score * 10000):05d}",
+            triggered_by=triggered_by,
+            previous_strategy=recommendation.current_capability_id,
+            new_strategy=recommendation.recommended_capability_id or recommendation.current_capability_id,
+            rationale=recommendation.reason,
+            evidence=recommendation.to_dict(),
+        )
+
+    def evaluate_capabilities(self, experience_log: ExperienceLog, capability_ids: List[str], *, min_observations: int = DEFAULT_MIN_OCCURRENCES):
+        return self.evaluator.rank(experience_log, capability_ids, min_observations=min_observations)
+
+    def measure_improvement(self, experience_log: ExperienceLog, baseline_success_rate: float) -> float:
         current = experience_log.get_overall_success_rate()
         if baseline_success_rate <= 0:
             return current * 100.0
@@ -125,9 +91,7 @@ class MetaLearningDecisionLog:
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
     @classmethod
-    def load_from_json(
-        cls, path: Union[str, Path] = DEFAULT_DECISIONS_PATH
-    ) -> "MetaLearningDecisionLog":
+    def load_from_json(cls, path: Union[str, Path] = DEFAULT_DECISIONS_PATH) -> "MetaLearningDecisionLog":
         path = Path(path)
         if not path.exists():
             return cls()
