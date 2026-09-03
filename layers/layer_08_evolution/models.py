@@ -72,6 +72,68 @@ class TestRunResult:
         return self.coverage_percent is not None and self.coverage_percent >= 80.0
 
 
+@dataclass(frozen=True)
+class FailureDiagnosis:
+    """Structured classification of an observed SPS-CA failure."""
+
+    failure_id: str
+    category: str
+    component: str
+    symptom: str
+    root_cause_hypothesis: str
+    severity: str
+    affected_files: List[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.failure_id:
+            raise ValueError("FailureDiagnosis.failure_id must be non-empty")
+        if not self.category:
+            raise ValueError("FailureDiagnosis.category must be non-empty")
+        if not self.symptom:
+            raise ValueError("FailureDiagnosis.symptom must be non-empty")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "failure_id": self.failure_id,
+            "category": self.category,
+            "component": self.component,
+            "symptom": self.symptom,
+            "root_cause_hypothesis": self.root_cause_hypothesis,
+            "severity": self.severity,
+            "affected_files": list(self.affected_files),
+        }
+
+
+@dataclass
+class SelfRepairResult:
+    """Auditable result returned by controlled Phase-1 self-repair."""
+
+    success: bool
+    diagnosis: FailureDiagnosis
+    decision: str
+    change_id: Optional[str] = None
+    execution_status: Optional[str] = None
+    rollback_triggered: bool = False
+    regression_case_id: Optional[str] = None
+    message: str = ""
+    repair_attempts: int = 0
+    candidate: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "diagnosis": self.diagnosis.to_dict(),
+            "decision": self.decision,
+            "change_id": self.change_id,
+            "execution_status": self.execution_status,
+            "rollback_triggered": self.rollback_triggered,
+            "regression_case_id": self.regression_case_id,
+            "message": self.message,
+            "repair_attempts": self.repair_attempts,
+            "candidate": self.candidate,
+        }
+
+
 @dataclass
 class EvolutionRecord:
     """Persisted, auditable record of one full evolution cycle."""
