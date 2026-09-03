@@ -36,8 +36,9 @@ class LLMRequest:
         system: Optional system-level instruction.
         model: Provider-specific model identifier, e.g. ``"qwen2.5-coder:7b"``.
         temperature: Sampling temperature.
-        timeout_seconds: Max time to wait. Local inference (Ollama on
-            modest hardware) can be slow, so this defaults high.
+        timeout_seconds: Optional max time to wait. ``None`` disables the
+            inference timeout, which is the default for local models because
+            generation time depends heavily on the model and available CPU/GPU.
         metadata: Free-form extra context for logging/tracing.
     """
 
@@ -45,7 +46,7 @@ class LLMRequest:
     system: Optional[str] = None
     model: str = ""
     temperature: float = 0.2
-    timeout_seconds: float = 120.0
+    timeout_seconds: Optional[float] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
