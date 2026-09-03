@@ -15,6 +15,7 @@ from typing import Optional
 
 from layers.layer_03_cognitive.llm_interface import LLMInterface, LLMQueryError
 from layers.layer_01_software_dna import SoftwareDNA
+from layers.layer_02_governance import GovernanceGate, ChangeType
 from layers.layer_02_governance.models import DecisionStatus
 
 from .evolution_engine import EvolutionEngine as BaseEvolutionEngine
@@ -30,6 +31,7 @@ class ControlledEvolutionEngine(BaseEvolutionEngine):
         super().__init__(*args, **kwargs)
         self.llm = llm or LLMInterface(timeout_seconds=120.0)
         self.dna = SoftwareDNA()
+        self.governance_gate = self.governance_gate or GovernanceGate()
 
     def next_capability_id(self) -> str:
         """Allocate only CAP-011+; CAP-001..CAP-010 are permanently canonical."""
@@ -127,6 +129,22 @@ Contract:
         module_dir = self.implement_capability(plan, files)
         try:
             result = self.test_capability(plan.capability_id, project_root=project_root)
+
+            decision = None
+            if governance_decision_status is None:
+                decision = self.governance_gate.make_decision(
+                    change_id=f"evolution_{plan.capability_id}",
+                    change_type=ChangeType.EVOLUTION,
+                    change_description=plan.description,
+                    affected_files=[
+                        str(module_dir / "capability.py"),
+                        str(module_dir / "tests.py"),
+                        str(module_dir / "metadata.json"),
+                    ],
+                    related_capabilities=[plan.capability_id],
+                )
+                governance_decision_status = decision.decision
+
             governed = governance_decision_status in {DecisionStatus.AUTO_APPROVED, DecisionStatus.APPROVED}
             dna_result = self.dna.check_action(
                 f"promote generated capability {plan.capability_id}",
@@ -149,8 +167,10 @@ Contract:
                     "implemented": False,
                     "candidate_created": True,
                     "promoted": False,
+                    "registered": False,
                     "rolled_back": True,
                     "dna_blocked": True,
+                    "governance_decision": governance_decision_status.value if isinstance(governance_decision_status, DecisionStatus) else str(governance_decision_status),
                     "dna": {"checked_rule_ids": dna_result.checked_rule_ids, "hard_violations": [r.id for r in dna_result.violated_hard_rules], "warnings": dna_result.warnings},
                     "test_result": {"passed": result.passed, "tests_run": result.tests_run, "tests_failed": result.tests_failed, "coverage_percent": result.coverage_percent},
                     "generation_method": files.metadata.get("generation_method", "deterministic_fallback"),
@@ -171,8 +191,10 @@ Contract:
                 "implemented": promoted,
                 "candidate_created": True,
                 "promoted": promoted,
+                "registered": bool(registered),
                 "rolled_back": not promoted,
                 "dna_blocked": False,
+                "governance_decision": governance_decision_status.value if isinstance(governance_decision_status, DecisionStatus) else str(governance_decision_status),
                 "dna": {"checked_rule_ids": dna_result.checked_rule_ids, "warnings": dna_result.warnings},
                 "test_result": {"passed": result.passed, "tests_run": result.tests_run, "tests_failed": result.tests_failed, "coverage_percent": result.coverage_percent},
                 "generation_method": files.metadata.get("generation_method", "deterministic_fallback"),
