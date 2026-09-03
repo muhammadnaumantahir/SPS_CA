@@ -1,12 +1,1 @@
-{
-  "id": "CAP-008",
-  "name": "Documentation Generation",
-  "version": "0.1.0",
-  "description": "Detects functions/classes with no docstring and generates a minimal docstring stub from the signature.",
-  "entry_point": "capabilities.seeds.cap_008_documentation_generation.capability.run",
-  "origin": "seed",
-  "status": "active",
-  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
-  "parent_capability_id": null,
-  "tags": ["documentation", "generation"]
-}
+{"id":"LEGACY-CAP-008","name":"Documentation Generation","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-008.","entry_point":"capabilities.seeds.cap_008_documentation_generation.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}

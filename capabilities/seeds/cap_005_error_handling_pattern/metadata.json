@@ -1,12 +1,1 @@
-{
-  "id": "CAP-005",
-  "name": "Error Handling Pattern",
-  "version": "0.1.0",
-  "description": "Detects functions that perform risky operations (file/network/dict access) without any error handling and proposes a try/except wrapper.",
-  "entry_point": "capabilities.seeds.cap_005_error_handling_pattern.capability.run",
-  "origin": "seed",
-  "status": "active",
-  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
-  "parent_capability_id": null,
-  "tags": ["reliability", "refactor"]
-}
+{"id":"LEGACY-CAP-005","name":"Error Handling Pattern","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-005 or CAP-006 as appropriate.","entry_point":"capabilities.seeds.cap_005_error_handling_pattern.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}

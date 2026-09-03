@@ -1,12 +1,1 @@
-{
-  "id": "CAP-003",
-  "name": "Unit Test Generation",
-  "version": "1.1.0",
-  "description": "Generates executable pytest smoke tests unless the request explicitly asks for a source-code modification; explicit modification requests are routed to the natural-language code modifier.",
-  "entry_point": "capabilities.seeds.cap_003_unit_test_generation.request_router.run",
-  "origin": "seed",
-  "status": "active",
-  "target_languages": ["python", "java", "javascript", "typescript", "go", "csharp"],
-  "parent_capability_id": null,
-  "tags": ["testing", "generation"]
-}
+{"id":"LEGACY-CAP-003","name":"Unit Test Generation","version":"1.0.0","description":"Retired legacy capability; use canonical CAP-007.","entry_point":"capabilities.seeds.cap_003_unit_test_generation.capability.run","origin":"seed","status":"retired","target_languages":["python"],"tags":["legacy","retired"]}
