@@ -57,16 +57,13 @@ Successful or failed controlled Evolution execution is also recorded as a Layer-
 
 `OptimizationActionPlanner` converts triggered plans into explicit `CapabilityPlan` objects. It does not implement, register, execute, or retire anything itself.
 
-## Measuring actual self-improvement
+## Self-improvement benchmark
 
-`evaluation/self_improvement_benchmark.py` provides a deterministic before/after evidence harness. It evaluates the same capability with `CapabilityEvaluator` against a baseline Experience log and a post-Evolution Experience log. A result is marked `improved=True` only when:
+`evaluation/self_improvement_benchmark.py` provides a deterministic before/after measurement harness. It requires both successful promotion/registration and a configured minimum behavioral score delta (default `+0.05`) before reporting that Evolution actually improved the capability.
 
-1. the Evolution result reports successful promotion/registration; and
-2. the post-Evolution behavioral score exceeds the baseline by the configured minimum delta (default `0.05`).
+`evaluation/tests/test_end_to_end_self_improvement.py` exercises the complete control path without an external LLM: Layer 6 triggers from failure evidence, `EvolutionExecutionAuthority` authorizes one action, Layer 8 receives the planned capability through the execution service, and the benchmark verifies that post-Evolution evidence is measurably better.
 
-This deliberately separates **successful self-programming** from **successful self-improvement**. Promotion alone is not treated as proof that the new capability is better.
-
-The benchmark is non-mutating. It accepts the actual governed Evolution callable from the runtime and scores the resulting Experience evidence, so production execution policy remains in the existing Layer-8 path.
+This benchmark is deliberately deterministic and does not mutate production source; it proves the control flow and measurement contract before live provider-backed Evolution is used.
 
 ## Live Brain routing
 
@@ -93,7 +90,7 @@ Candidate generation → tests → DNA → Governance → promotion/rollback
     ↓
 Evolution outcome recorded in Experience
     ↓
-Before/after behavioral measurement
+Self-improvement benchmark / subsequent task evidence
     ↓
 Conservative routing / retirement
 ```
@@ -108,7 +105,7 @@ Any structural self-change still follows the Phase 1 Software DNA → Governance
 
 The repository contains intentionally seeded defects used to validate self-programming. Those benchmark targets remain available as observable Evolution inputs rather than being silently removed from the project.
 
-The stable project contracts and architecture tests remain the primary blocking quality gate; seeded benchmark behavior is evaluated separately when the workflow exposes it as a target.
+The evaluation workflow runs the deterministic benchmark tests as part of `evaluation/tests`, keeping self-improvement proof separate from any provider-dependent runtime experiments.
 
 ## Phase 2 status
 
@@ -131,12 +128,12 @@ Completed:
 - explicit default-deny execution authority for automatic Evolution;
 - automatic authorized handoff through the existing governed Evolution pipeline;
 - Experience recording of controlled Evolution outcomes;
-- deterministic before/after self-improvement measurement;
-- regression/unit coverage for the new learning policy;
+- deterministic self-improvement measurement;
+- end-to-end trigger → authorization → Evolution → measurement regression coverage;
 - separation of seeded benchmark targets from normal architecture quality checks.
 
 Next work:
 
 - persist richer A/B and retirement outcome telemetry;
 - improve long-horizon evidence aggregation without expanding conversational prompt history;
-- integrate the benchmark with a repository-level seeded capability scenario so the project can demonstrate a complete measured improvement under CI.
+- connect the benchmark to real provider-backed Evolution runs in a controlled, explicitly authorized integration environment.
