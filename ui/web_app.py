@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from brain import Brain
 from core.assistant_service import SpsAssistantService
+from core.self_programming_service import SelfProgrammingService
 from layers.architecture import architecture_manifest
 from layers.layer_08_evolution.evolution_evidence import EvolutionEvidenceStore
 from experience.evolution_trace import EvolutionTraceStore
@@ -27,6 +28,7 @@ EVOLUTION_PATH = ROOT / "runtime" / "evolution_events.json"
 sessions = SessionStore(SESSIONS_PATH)
 evolution = EvolutionEvidenceStore(EVOLUTION_PATH, REGISTRY_PATH)
 trace_store = EvolutionTraceStore(ROOT / "experience" / "traces" / "evolution_history.json", ROOT / "experience" / "traces" / "stage_state.json")
+self_programming = SelfProgrammingService(ROOT)
 
 
 def service_for(model: str = "") -> SpsAssistantService:
@@ -103,8 +105,55 @@ def requested_target_language(request: str) -> str:
     return ""
 
 
+def build_persisted_turn_data(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return turn metadata that cannot recursively contain its parent payload."""
+    metadata = dict(payload)
+    metadata.pop("conversation", None)
+    metadata.pop("session", None)
+    return metadata
+
+
+def internal_failure_scope(error_text: str) -> tuple[str, list[str]] | None:
+    """Map safe, internal SPS defects to the smallest repair scope.
+
+    Provider/model/network errors intentionally return None: transient model
+    availability must never cause autonomous source mutation.
+    """
+    text = (error_text or "").lower()
+    if any(token in text for token in ("provider unavailable", "timed out", "ollama", "model '")):
+        return None
+    mapping = (
+        (("circular reference", "serialization", "json"), "chat persistence serialization", ["ui/web_app.py"]),
+        (("routing", "intent classification", "test_generation"), "brain routing", ["brain/brain.py", "brain/routing_guard.py"]),
+        (("trace", "audit trail", "evolution history"), "trace persistence", ["ui/web_app.py", "experience/evolution_trace.py"]),
+        (("session", "conversation state", "state failure"), "session state", ["ui/session_store.py", "ui/web_app.py"]),
+        (("validation", "validator", "regression"), "validation path", ["core/assistant_service.py"]),
+        (("execution", "rollback", "sandbox"), "execution path", ["layers/layer_10_execution/execution_engine.py"]),
+    )
+    for tokens, component, files in mapping:
+        if any(token in text for token in tokens):
+            return component, files
+    return None
+
+
+def attempt_internal_repair(error_text: str, component: str, affected_files: list[str]) -> dict[str, Any] | None:
+    scope = internal_failure_scope(error_text)
+    if scope is None:
+        return None
+    chosen_component, chosen_files = scope
+    try:
+        return self_programming.repair(
+            symptom=error_text,
+            component=component or chosen_component,
+            affected_files=chosen_files if chosen_files else affected_files,
+            tests=["python -m pytest -q"],
+        )
+    except Exception as repair_error:  # noqa: BLE001
+        return {"success": False, "error": str(repair_error), "attempted": True, "component": chosen_component}
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SPS-CA/3.4"
+    server_version = "SPS-CA/3.5"
 
     def _send(self, status: int, payload: Any, content_type: str = "application/json") -> None:
         body = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode() if content_type == "application/json" else str(payload).encode()
@@ -151,7 +200,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/chat": self._handle_chat(data); return
             if path == "/api/feedback": self._handle_feedback(data); return
             self._send(404, {"error": "not found"})
-        except Exception as exc: self._send(500, {"error": f"SPS-CA request failed: {exc}"})
+        except Exception as exc:
+            self._send(500, {"error": f"SPS-CA request failed: {exc}"})
 
     def do_PUT(self) -> None:
         path = urlparse(self.path).path
@@ -200,6 +250,11 @@ class Handler(BaseHTTPRequestHandler):
         if target_language: service.brain.detect_language = lambda _code, _request, _filename: (target_language, 0.99, "explicit target language in current request")
         try:
             turn = service.run_turn(request=request, code=turn_code, language=detected, filename=filename, conversation=conversation)
+        except Exception as exc:  # noqa: BLE001
+            repair = attempt_internal_repair(str(exc), "chat turn execution", ["core/assistant_service.py"])
+            payload = {"success": False, "error": str(exc), "assistant_message": f"I could not complete this turn: {exc}", "self_programming": repair}
+            self._send(500, payload)
+            return
         finally:
             service.brain.detect_language = original_detect_language
 
@@ -209,10 +264,24 @@ class Handler(BaseHTTPRequestHandler):
                         "model": turn.brain.get("model", service.brain.model)})
         if turn.success:
             persisted_conversation = list(turn.conversation)
+            # Do not place the parent payload directly inside itself. The previous
+            # implementation made payload -> conversation -> turnData -> payload,
+            # which json.dumps correctly rejected as a circular reference.
             if persisted_conversation and persisted_conversation[-1].get("role") == "assistant":
-                persisted_conversation[-1] = {**persisted_conversation[-1], "turnData": payload}
+                persisted_conversation[-1] = {**persisted_conversation[-1], "turnData": build_persisted_turn_data(payload)}
             payload["conversation"] = persisted_conversation
-            payload["session"] = sessions.save(sid, persisted_conversation, turn.output_code or turn_code, filename, detected, confidence, payload["model"])
+            try:
+                payload["session"] = sessions.save(sid, persisted_conversation, turn.output_code or turn_code, filename, detected, confidence, payload["model"])
+            except Exception as exc:  # noqa: BLE001
+                repair = attempt_internal_repair(str(exc), "chat persistence", ["ui/web_app.py"])
+                payload["self_programming"] = repair
+                payload["persistence_error"] = str(exc)
+                self._send(500, payload)
+                return
+        else:
+            repair = attempt_internal_repair(turn.error or payload.get("error", ""), "failed SPS turn", ["core/assistant_service.py"])
+            if repair:
+                payload["self_programming"] = repair
         self._send(200 if turn.success else 422, payload)
 
     def _handle_feedback(self, data: dict[str, Any]) -> None:
