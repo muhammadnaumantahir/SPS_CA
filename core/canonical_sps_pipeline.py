@@ -11,7 +11,7 @@ from layers.layer_04_knowledge import KnowledgeCore
 from layers.layer_05_experience import ExperienceLog, Task
 from layers.layer_06_meta_learning import MetaLearner
 from layers.layer_07_adaptation import Adaptation
-from ui.sps_execution import SPSExecutionService
+from ui.brain_orchestrated_execution import BrainOrchestratedExecutionService
 
 
 class CanonicalSPSPipeline:
@@ -19,7 +19,7 @@ class CanonicalSPSPipeline:
 
     def __init__(self, *, registry_path: str = "capabilities/registry.json") -> None:
         self.registry_path = registry_path
-        self.execution = SPSExecutionService(registry_path=registry_path)
+        self.execution = BrainOrchestratedExecutionService(registry_path=registry_path)
         self.brain = Brain()
         self.knowledge = KnowledgeCore()
         self.meta_learning = MetaLearner()
@@ -57,7 +57,7 @@ class CanonicalSPSPipeline:
         )
         result["brain"] = {
             "component": "SPS-CA Brain",
-            "role": "reasoning, prompt analysis, intent classification and planning support",
+            "role": "AI reasoning, intent classification, task decomposition, capability orchestration and result composition",
             "intent_signal": brain_intent,
             "replaceable": True,
         }
@@ -86,7 +86,7 @@ class CanonicalSPSPipeline:
         layers = [
             layer(1, "completed" if dna.get("allowed") is not False else "blocked", "SoftwareDNA", "DNA decision", "Final hard-boundary check uses the actual validation, governance, sandbox and rollback state."),
             layer(2, "completed" if governance else "evaluated", "GovernanceGate", governance or "governance context", "Authorization remains explicit and is never bypassed by capability generation."),
-            layer(3, "completed", "CognitiveCore + Brain", f"intent={brain_intent}", "Brain supplies replaceable intelligence; CognitiveCore owns structured task analysis and capability selection."),
+            layer(3, "completed", "CognitiveCore + Brain", f"intent={brain_intent}", "Brain supplies replaceable intelligence and decomposes compound requests into dependent capability tasks."),
             layer(4, "completed" if knowledge_valid else "blocked", "KnowledgeCore", f"experience_count={len(experience.tasks)}", "A validated knowledge snapshot supplies structured context to reasoning and routing."),
             layer(5, "completed", "ExperienceLog", f"tasks={len(experience.tasks)}", "Historical task outcomes and reusable-capability evidence are available to the pipeline."),
             layer(6, "completed", "MetaLearner", f"failure_patterns={len(failure_patterns)}", "Observed failure patterns are evaluated before the next strategy is selected."),
