@@ -1,9 +1,4 @@
-"""SPS-CA scenario orchestration for analysis, capability routing, and growth.
-
-This service coordinates the ten SPS layers for a submitted coding scenario and
-persists the resulting research trace. It is presentation-adjacent orchestration,
-not an additional SPS layer.
-"""
+"""SPS-CA scenario orchestration for analysis, capability routing, and growth."""
 
 from __future__ import annotations
 
@@ -15,6 +10,7 @@ from experience.evolution_trace import EvolutionTraceStore
 from layers.layer_03_cognitive import CognitiveCore
 from layers.layer_02_governance import ChangeType, GovernanceGate
 from layers.layer_08_evolution import CapabilityGapPlanner, EvolutionEngine
+from layers.layer_08_evolution.growth_decision import GrowthDecision, GrowthDecisionEngine
 from layers.capability_registry import CapabilityRegistryManager
 
 
@@ -48,10 +44,8 @@ class SPSScenarioService:
         self.core = cognitive_core or CognitiveCore()
         self.registry = registry or CapabilityRegistryManager(registry_path)
         self.governance = governance or GovernanceGate()
-        self.trace_store = EvolutionTraceStore(
-            history_path=trace_history_path,
-            stage_path=trace_stage_path,
-        )
+        self.growth_decision = GrowthDecisionEngine()
+        self.trace_store = EvolutionTraceStore(history_path=trace_history_path, stage_path=trace_stage_path)
         self.evolution = EvolutionEngine(
             governance_gate=self.governance,
             generated_dir=generated_dir,
@@ -59,10 +53,7 @@ class SPSScenarioService:
             registry_path=registry_path,
             evaluation_dir=evaluation_dir,
         )
-        self.gap_planner = CapabilityGapPlanner(
-            seeds_dir=seeds_dir,
-            generated_dir=generated_dir,
-        )
+        self.gap_planner = CapabilityGapPlanner(seeds_dir=seeds_dir, generated_dir=generated_dir)
 
     def analyze_submission(
         self,
@@ -73,7 +64,7 @@ class SPSScenarioService:
         file_path: str = "",
         project_root: str = ".",
     ) -> SPSAnalysisResult:
-        """Analyze a submitted scenario and develop a missing capability when needed."""
+        """Analyze, route, and apply an explicit Layer-8 growth decision."""
         scenario = self.trace_store.start_scenario(
             user_request=user_request,
             code=code,
@@ -85,19 +76,10 @@ class SPSScenarioService:
         stage = int(scenario["stage_before"])
 
         try:
-            request = self.core.receive_request(
-                user_request,
-                code_context=code,
-                target_project=file_path,
-                target_language=language,
-            )
+            request = self.core.receive_request(user_request, code_context=code, target_project=file_path, target_language=language)
             file_label = file_path or "<submitted-code>"
             project_analysis = self.core.analyze_single_file(file_label, code)
-            candidates = self.core.select_candidate_capabilities(
-                project_analysis,
-                user_request=user_request,
-            )
-
+            candidates = self.core.select_candidate_capabilities(project_analysis, user_request=user_request)
             analysis = {
                 "user_intent": request.user_request,
                 "language": language.lower(),
@@ -108,17 +90,13 @@ class SPSScenarioService:
                 "parse_ok": bool(project_analysis.files and project_analysis.files[0].parse_ok),
                 "candidate_count": len(candidates),
             }
-            self.trace_store.append_event(
-                scenario_id,
-                "task_and_code_analysis",
-                {
-                    "why": "Combine the user's requested change with the submitted source code before selecting a capability.",
-                    "what": "Task intent, language, parse status, and code structure summary.",
-                    "how": "Layer 2 Cognitive Core analyzed the submitted single-file code.",
-                    "functions_discovered": project_analysis.total_functions,
-                    "parse_ok": analysis["parse_ok"],
-                },
-            )
+            self.trace_store.append_event(scenario_id, "task_and_code_analysis", {
+                "why": "Combine the user's requested change with the submitted source code before selecting a capability.",
+                "what": "Task intent, language, parse status, and code structure summary.",
+                "how": "Cognitive Core analyzed the submitted single-file code.",
+                "functions_discovered": project_analysis.total_functions,
+                "parse_ok": analysis["parse_ok"],
+            })
 
             registry_matches = self.registry.search_capabilities(user_request, language=language)
             core_ids = [candidate.id for candidate in candidates]
@@ -127,54 +105,59 @@ class SPSScenarioService:
             selected = self._select_capability(candidates, registry_matches, user_request)
             search = {
                 "query": user_request,
-                "candidate_source": {
-                    "layer_02_ids": core_ids,
-                    "layer_09_ids": registry_ids,
-                },
+                "candidate_source": {"layer_02_ids": core_ids, "layer_09_ids": registry_ids},
                 "capability_ids": capability_ids,
                 "selected": selected.id if selected else None,
                 "found": selected is not None,
-                "why": (
-                    f"Selected {selected.id} because its registered metadata or Layer 2 tags matched the request."
-                    if selected
-                    else "No registered capability matched the requested behavior."
-                ),
+                "why": f"Selected {selected.id} because its registered metadata or Cognitive tags matched the request." if selected else "No registered capability matched the requested behavior.",
             }
-            self.trace_store.append_event(
-                scenario_id,
-                "capability_search",
-                {
-                    "why": search["why"],
-                    "what": "Layer 2 candidates and Layer 9 registered capability matches.",
-                    "how": "Cognitive Core relevance ranking plus Capability Registry search.",
-                    "capability_ids": capability_ids,
-                },
-            )
+            self.trace_store.append_event(scenario_id, "capability_search", {
+                "why": search["why"],
+                "what": "Cognitive candidates and registered capability matches.",
+                "how": "Cognitive Core relevance ranking plus Capability Registry search.",
+                "capability_ids": capability_ids,
+            })
 
-            if selected is None:
+            # Layer 8 is now an explicit decision-maker. A capability gap may
+            # produce CREATE, but disagreement is never passed as a create
+            # command; feedback evidence is analyzed separately by the
+            # EvolutionEvidenceStore.
+            growth = self.growth_decision.decide(
+                existing_capability_id=selected.id if selected else "",
+                capability_match=selected is not None,
+                disagreement_count=0,
+                repeated_pattern=False,
+                adaptation_viable=False,
+                composition_viable=False,
+                improvement_viable=False,
+            )
+            self.trace_store.append_event(scenario_id, "sps_growth_decision", {
+                "why": growth.reasoning,
+                "what": "Layer 8 selected the least-structural growth action justified by current evidence.",
+                "how": "GrowthDecisionEngine evaluated capability match and available growth alternatives.",
+                "decision": growth.decision.value,
+                "reason_code": growth.reason_code,
+                "evidence": growth.evidence,
+            })
+
+            if growth.decision == GrowthDecision.CREATE:
                 plan = self.evolution.plan_capability_for_gap(
                     task_description=user_request,
                     language=language,
-                    reason="No suitable registered capability was found for the requested behavior.",
+                    reason=growth.reasoning,
                     task_id=scenario_id,
                 )
-                self.trace_store.append_event(
-                    scenario_id,
-                    "capability_gap_planned",
-                    {
-                        "why": plan.provenance.get("why", "Capability gap detected."),
-                        "what": plan.provenance.get("what", user_request),
-                        "how": plan.provenance.get("how", "Layer 8 planned the capability gap."),
-                        "when": plan.provenance.get("when", "scenario_time"),
-                        "capability_id": plan.capability_id,
-                    },
-                )
-
+                self.trace_store.append_event(scenario_id, "capability_gap_planned", {
+                    "why": growth.reasoning,
+                    "what": plan.provenance.get("what", user_request),
+                    "how": plan.provenance.get("how", "Layer 8 planned the capability gap."),
+                    "when": plan.provenance.get("when", "scenario_time"),
+                    "capability_id": plan.capability_id,
+                    "growth_decision": growth.decision.value,
+                })
                 governance_decision = self._govern_generated_capability(plan)
                 development = self.evolution.develop_capability_for_gap(
-                    plan,
-                    project_root=project_root,
-                    governance_decision_status=governance_decision.decision,
+                    plan, project_root=project_root, governance_decision_status=governance_decision.decision,
                 )
                 generation = {
                     "required": True,
@@ -183,47 +166,44 @@ class SPSScenarioService:
                     "name": plan.name,
                     "trigger_pattern": plan.trigger_pattern,
                     "provenance": plan.provenance,
-                    "developed": True,
-                    "governance": {
-                        "decision_id": governance_decision.id,
-                        "decision": governance_decision.decision.value,
-                        "rationale": governance_decision.rationale,
+                    "growth_decision": {
+                        "decision": growth.decision.value,
+                        "reason_code": growth.reason_code,
+                        "reasoning": growth.reasoning,
+                        "evidence": growth.evidence,
                     },
+                    "developed": True,
+                    "governance": {"decision_id": governance_decision.id, "decision": governance_decision.decision.value, "rationale": governance_decision.rationale},
                     **development,
                 }
-                generation_status = (
-                    "capability_developed"
-                    if development["registered"]
-                    else "capability_development_failed"
-                )
-                self.trace_store.append_event(
-                    scenario_id,
-                    generation_status,
-                    {
-                        "why": "The requested behavior had no suitable registered capability.",
-                        "what": f"Generated {plan.capability_id} and ran its quality gates.",
-                        "how": "Layer 8 generation/test pipeline followed by Layer 7 governance and Layer 9 registry persistence.",
-                        "capability_id": plan.capability_id,
-                        "registered": development["registered"],
-                        "tests_passed": development["test_result"]["passed"],
-                        "governance_decision": governance_decision.decision.value,
-                    },
-                )
+                generation_status = "capability_developed" if development["registered"] else "capability_development_failed"
+                self.trace_store.append_event(scenario_id, generation_status, {
+                    "why": growth.reasoning,
+                    "what": f"Generated {plan.capability_id} and ran its quality gates.",
+                    "how": "Layer 8 generation/test pipeline followed by governance and registry persistence.",
+                    "capability_id": plan.capability_id,
+                    "registered": development["registered"],
+                    "tests_passed": development["test_result"]["passed"],
+                    "governance_decision": governance_decision.decision.value,
+                })
             else:
                 generation = {
                     "required": False,
                     "layer": "Layer 8 - Evolution",
-                    "reason": "Existing capability is available; capability generation is not required for this scenario.",
-                    "reused": selected.id,
+                    "growth_decision": {
+                        "decision": growth.decision.value,
+                        "reason_code": growth.reason_code,
+                        "reasoning": growth.reasoning,
+                        "evidence": growth.evidence,
+                    },
+                    "reason": growth.reasoning,
+                    "reused": selected.id if selected else None,
                 }
                 generation_status = "analyzed"
 
             completed = self.trace_store.complete_scenario(
-                scenario_id,
-                status=generation_status,
-                analysis=analysis,
-                capability_search=search,
-                capability_generation=generation,
+                scenario_id, status=generation_status, analysis=analysis,
+                capability_search=search, capability_generation=generation,
             )
             return SPSAnalysisResult(
                 scenario_id=scenario_id,
@@ -233,20 +213,12 @@ class SPSScenarioService:
                 capability_generation=completed["capability_generation"],
             )
         except Exception as exc:
-            self.trace_store.complete_scenario(
-                scenario_id,
-                status="failed",
-                result={"success": False, "error": str(exc)},
-            )
+            self.trace_store.complete_scenario(scenario_id, status="failed", result={"success": False, "error": str(exc)})
             raise
 
     def _govern_generated_capability(self, plan: Any):
         module_dir = Path(self.evolution.generated_dir) / plan.capability_id.lower().replace("-", "_")
-        affected = [
-            str(module_dir / "capability.py"),
-            str(module_dir / "tests.py"),
-            str(module_dir / "metadata.json"),
-        ]
+        affected = [str(module_dir / name) for name in ("capability.py", "tests.py", "metadata.json")]
         return self.governance.make_decision(
             change_id=f"evolution_{plan.capability_id}",
             change_type=ChangeType.EVOLUTION,
@@ -259,18 +231,7 @@ class SPSScenarioService:
     def _select_capability(candidates: List[Any], registry_matches: List[Any], request: str):
         """Select only an explicitly relevant capability; generic candidates are not a match."""
         request_lower = request.lower()
-        priority = (
-            ("syntax", "CAP-002"),
-            ("test", "CAP-003"),
-            ("loop", "CAP-004"),
-            ("exception", "CAP-005"),
-            ("error handling", "CAP-005"),
-            ("unused", "CAP-006"),
-            ("annotation", "CAP-007"),
-            ("type", "CAP-007"),
-            ("doc", "CAP-008"),
-            ("documentation", "CAP-008"),
-        )
+        priority = (("syntax", "CAP-002"), ("test", "CAP-003"), ("loop", "CAP-004"), ("exception", "CAP-005"), ("error handling", "CAP-005"), ("unused", "CAP-006"), ("annotation", "CAP-007"), ("type", "CAP-007"), ("doc", "CAP-008"), ("documentation", "CAP-008"))
         by_id = {getattr(item, "id", ""): item for item in candidates + registry_matches}
         for keyword, capability_id in priority:
             if keyword in request_lower and capability_id in by_id:
@@ -294,9 +255,5 @@ class SPSScenarioService:
                 scored.append((score, capability))
         if not scored:
             return None
-        # Require at least 2 matching tokens to avoid single-generic-word false positives.
         scored.sort(key=lambda item: (-item[0], getattr(item[1], "id", "")))
-        best_score = scored[0][0]
-        if best_score < 2:
-            return None
-        return scored[0][1]
+        return scored[0][1] if scored[0][0] >= 2 else None
