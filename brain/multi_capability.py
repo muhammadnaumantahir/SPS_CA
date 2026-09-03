@@ -6,7 +6,7 @@ import re
 
 
 _ACTIONS: tuple[tuple[str, str, int, tuple[str, ...]], ...] = (
-    ("analysis", "CAP-003", 10, ("analy[sz]e", "explain", "understand", "walk me through", "review")),
+    ("analysis", "CAP-003", 10, ("analy[sz]e", "explain", "understand", "walk me through")),
     ("diagnosis", "CAP-004", 20, ("find", "detect", "diagnos", "debug", "identify")),
     ("generation", "CAP-001", 30, ("generate", "create", "write", "build", "develop", "make")),
     ("modification", "CAP-002", 40, ("add", "change", "modify", "update", "extend", "implement", "replace", "insert", "delete", "remove")),
@@ -14,12 +14,11 @@ _ACTIONS: tuple[tuple[str, str, int, tuple[str, ...]], ...] = (
     ("refactoring", "CAP-006", 60, ("refactor", "optim[iz]e", "cleanup", "clean up", "improve performance")),
     ("tests", "CAP-007", 70, ("test", "tests", "pytest", "unit test", "unit tests", "integration test", "integration tests")),
     ("documentation", "CAP-008", 80, ("document", "documentation", "docstring", "docstrings", "comment", "comments", "readme")),
-    ("validation", "CAP-009", 90, ("validate", "validation", "check syntax", "check correctness", "code quality", "security review")),
+    ("validation", "CAP-009", 90, ("validate", "validation", "review", "check syntax", "check correctness", "code quality", "security review")),
     ("project_operations", "CAP-010", 100, ("create file", "add file", "delete file", "remove file", "move file", "rename file", "folder", "directory", "project structure")),
 )
 
 _GENERATION_TARGET_RE = re.compile(r"\b(code|program|script|application|app|function|class|module|solution|implementation)\b", re.I)
-_TEST_TARGET_RE = re.compile(r"\b(tests?|pytest|unit tests?|integration tests?)\b", re.I)
 
 
 def _position(request: str, patterns: tuple[str, ...]) -> int | None:
@@ -49,8 +48,6 @@ def compose_explicit_capabilities(
         if cid == "CAP-002":
             if not has_code:
                 continue
-            # "add tests" is a testing action, not a source modification. Keep
-            # CAP-002 when the same request separately asks for a real code change.
             if re.search(r"\b(add|write|create|generate)\s+(?:\w+\s+){0,2}tests?\b", req, re.I):
                 code_change_signal = re.search(
                     r"\b(add|change|modify|update|extend|implement|replace|insert|delete|remove)\b.{0,40}"
