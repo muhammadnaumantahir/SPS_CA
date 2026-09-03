@@ -334,23 +334,16 @@ class SpsAssistantService:
         code: str = "",
         language: str = "python",
     ) -> str:
+        """Build a concise chat response; resulting source stays in Working Code."""
         failed = next((r for r in results if r["status"] == "failed"), None)
         if failed:
             return f"I analyzed the request but {failed['name']} could not complete it. {failed.get('error') or ''}".strip()
         names = ", ".join(r["name"] for r in results if r.get("name"))
         if changed and names:
-            explanation = f"Done. I applied {names.lower()} to the code. {reasoning or intent}".strip()
-        elif names:
-            explanation = f"I analyzed the request with {names.lower()}. {reasoning or intent}".strip()
-        else:
-            explanation = reasoning or intent or "I analyzed the request and no capability change was required."
-
-        # Share the resulting code inline, like any other chat assistant would,
-        # instead of leaving it to a separate panel the person has to go find.
-        if changed and code:
-            fence = f"```{language}\n{code.rstrip()}\n```"
-            return f"{explanation}\n\n{fence}"
-        return explanation
+            return f"Done. I applied {names.lower()} to the code. {reasoning or intent}".strip()
+        if names:
+            return f"I analyzed the request with {names.lower()}. {reasoning or intent}".strip()
+        return reasoning or intent or "I analyzed the request and no capability change was required."
 
     @staticmethod
     def _diff(before: str, after: str, filename: str) -> str:
