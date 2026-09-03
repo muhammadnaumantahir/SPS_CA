@@ -43,15 +43,7 @@ def expand_suite(data: dict[str, Any]) -> list[dict[str, Any]]:
                 language = str(group.get("language", "python"))
                 filename = str(group.get("filename", "main.py"))
                 feedback = group.get("feedback")
-            scenarios.append({
-                "id": f"{group.get('id', 'group')}-{index:03d}",
-                "request": request,
-                "code": code,
-                "language": language,
-                "filename": filename,
-                "expected": expected,
-                "feedback": feedback,
-            })
+            scenarios.append({"id": f"{group.get('id', 'group')}-{index:03d}", "request": request, "code": code, "language": language, "filename": filename, "expected": expected, "feedback": feedback})
     return scenarios
 
 
@@ -60,15 +52,12 @@ def _match_expected(turn: Any, expected: dict[str, Any]) -> tuple[bool, list[str
     intent = str(turn.intent or "")
     capability_ids = [str(x.get("capability_id") or x.get("id") or "") for x in turn.capability_results]
     status = "success" if turn.success else ("blocked" if "blocked" in str(turn.trace.get("status", "")) else "failure")
-    expected_intent = expected.get("intent")
-    if expected_intent and intent != expected_intent:
-        failures.append(f"intent={intent!r}, expected={expected_intent!r}")
-    expected_capability = expected.get("capability_id")
-    if expected_capability and expected_capability not in capability_ids:
-        failures.append(f"capability={capability_ids!r}, expected={expected_capability!r}")
-    expected_status = expected.get("status")
-    if expected_status and status != expected_status:
-        failures.append(f"status={status!r}, expected={expected_status!r}")
+    if expected.get("intent") and intent != expected["intent"]:
+        failures.append(f"intent={intent!r}, expected={expected['intent']!r}")
+    if expected.get("capability_id") and expected["capability_id"] not in capability_ids:
+        failures.append(f"capability={capability_ids!r}, expected={expected['capability_id']!r}")
+    if expected.get("status") and status != expected["status"]:
+        failures.append(f"status={status!r}, expected={expected['status']!r}")
     for fragment in expected.get("output_contains", []) or []:
         if str(fragment) not in str(turn.output_code or ""):
             failures.append(f"output missing {fragment!r}")
@@ -80,100 +69,82 @@ def _match_expected(turn: Any, expected: dict[str, Any]) -> tuple[bool, list[str
 def _record_feedback(evolution: EvolutionEvidenceStore, result: dict[str, Any], feedback: str | None) -> None:
     if feedback not in {"agree", "disagree"}:
         return
-    common = {
-        "session_id": result["run_id"],
-        "turn_id": result["index"],
-        "request": result["request"],
-        "language": result["language"],
-        "capability_id": result["capability_id"],
-        "code": result.get("output_code", ""),
-    }
+    common = {"session_id": result["run_id"], "turn_id": result["index"], "request": result["request"], "language": result["language"], "capability_id": result["capability_id"], "code": result.get("output_code", "")}
     if feedback == "agree":
         evolution.record_agreement(**common)
         return
-    event = evolution.record_disagreement(
-        session_id=common["session_id"], turn_id=common["turn_id"], request=common["request"],
-        language=common["language"], language_confidence=float(result.get("language_confidence", 0.0)),
-        previous_capability_id=common["capability_id"], code=common["code"],
-    )
+    event = evolution.record_disagreement(session_id=common["session_id"], turn_id=common["turn_id"], request=common["request"], language=common["language"], language_confidence=float(result.get("language_confidence", 0.0)), previous_capability_id=common["capability_id"], code=common["code"])
     analysis = evolution.analyze(event)
     if analysis.get("decision") == "create":
         evolution.record_creation(analysis)
 
 
-def run_suite(path: str | Path, *, model: str = "", live_evolve: bool = False, max_scenarios: int | None = None, results_dir: str | Path = DEFAULT_RESULTS_DIR) -> dict[str, Any]:
+def _generated_capability_count() -> int:
+    registry = Path(REGISTRY_PATH)
+    if not registry.exists():
+        return 0
+    try:
+        data = json.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    return sum(1 for item in data.get("capabilities", []) if item.get("generated") and item.get("origin") != "historical_migration")
+
+
+def run_suite(path: str | Path, *, model: str = "", live_evolve: bool = False, max_scenarios: int | None = None, results_dir: str | Path = DEFAULT_RESULTS_DIR, record_feedback: bool = True) -> dict[str, Any]:
     suite_path = Path(path)
     data = json.loads(suite_path.read_text(encoding="utf-8"))
     scenarios = expand_suite(data)
     if max_scenarios is not None:
         scenarios = scenarios[:max(0, max_scenarios)]
-    if live_evolve:
-        os.environ["SPS_CA_AUTO_EVOLVE"] = "true"
-    else:
-        os.environ.setdefault("SPS_CA_AUTO_EVOLVE", "false")
-
+    os.environ["SPS_CA_AUTO_EVOLVE"] = "true" if live_evolve else "false"
     run_id = f"suite_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:6]}"
     root = Path(results_dir)
     root.mkdir(parents=True, exist_ok=True)
-    output = {
-        "run_id": run_id,
-        "suite": str(suite_path),
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "live_evolution": live_evolve,
-        "total": len(scenarios),
-        "passed": 0,
-        "failed": 0,
-        "scenarios": [],
-    }
+    output: dict[str, Any] = {"run_id": run_id, "suite": str(suite_path), "started_at": datetime.now(timezone.utc).isoformat(), "live_evolution": live_evolve, "total": len(scenarios), "passed": 0, "failed": 0, "generated_capabilities_at_start": _generated_capability_count(), "scenarios": []}
     evolution = EvolutionEvidenceStore(EVOLUTION_PATH, REGISTRY_PATH)
     for index, scenario in enumerate(scenarios, 1):
         request = str(scenario.get("request", "")).strip()
         service = SpsAssistantService(registry_path=REGISTRY_PATH, model=model)
-        start = time.monotonic()
-        turn = service.run_turn(
-            request=request,
-            code=str(scenario.get("code", "")),
-            language=str(scenario.get("language", "python")),
-            filename=str(scenario.get("filename", "main.py")),
-            conversation=[],
-        )
+        turn = service.run_turn(request=request, code=str(scenario.get("code", "")), language=str(scenario.get("language", "python")), filename=str(scenario.get("filename", "main.py")), conversation=[])
         passed, failures = _match_expected(turn, dict(scenario.get("expected", {})))
-        capability_id = (turn.capability_results[-1].get("capability_id") if turn.capability_results else "")
-        result = {
-            "run_id": run_id,
-            "index": index,
-            "scenario_id": str(scenario.get("id", f"scenario-{index:03d}")),
-            "request": request,
-            "language": str(scenario.get("language", "python")),
-            "filename": str(scenario.get("filename", "main.py")),
-            "expected": scenario.get("expected", {}),
-            "actual": {
-                "intent": turn.intent,
-                "capability_id": capability_id,
-                "status": "success" if turn.success else "failure",
-                "elapsed_ms": turn.elapsed_ms,
-            },
-            "passed": passed,
-            "assertion_failures": failures,
-            "output_code": turn.output_code,
-            "language_confidence": float((turn.brain or {}).get("language_confidence", 0.0) or 0.0),
-            "trace": turn.trace,
-            "learning_context": turn.learning_context,
-        }
-        _record_feedback(evolution, result, scenario.get("feedback"))
+        capability_id = turn.capability_results[-1].get("capability_id") if turn.capability_results else ""
+        result = {"run_id": run_id, "index": index, "scenario_id": str(scenario.get("id", f"scenario-{index:03d}")), "request": request, "language": str(scenario.get("language", "python")), "filename": str(scenario.get("filename", "main.py")), "expected": scenario.get("expected", {}), "actual": {"intent": turn.intent, "capability_id": capability_id, "status": "success" if turn.success else "failure", "elapsed_ms": turn.elapsed_ms}, "passed": passed, "assertion_failures": failures, "output_code": turn.output_code, "language_confidence": 0.0, "trace": turn.trace, "learning_context": turn.learning_context}
+        if record_feedback:
+            _record_feedback(evolution, result, scenario.get("feedback"))
         output["scenarios"].append(result)
-        if passed:
-            output["passed"] += 1
-        else:
-            output["failed"] += 1
+        output["passed"] += int(passed)
+        output["failed"] += int(not passed)
         (root / f"{run_id}.json").write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"[{index:03d}/{len(scenarios):03d}] {'PASS' if passed else 'FAIL'} {result['scenario_id']} · {turn.intent or 'unknown'} · {capability_id or 'none'}")
-
     output["finished_at"] = datetime.now(timezone.utc).isoformat()
     output["pass_rate"] = round(output["passed"] / output["total"], 4) if output["total"] else 0.0
-    latest = root / "latest.json"
-    latest.write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    output["generated_capabilities_at_end"] = _generated_capability_count()
+    output["evolution_events"] = len(evolution.list_events(200))
+    (root / "latest.json").write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return output
+
+
+def run_measurement(path: str | Path, *, model: str = "", max_scenarios: int | None = None, results_dir: str | Path = DEFAULT_RESULTS_DIR) -> dict[str, Any]:
+    measurement_id = f"measurement_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:6]}"
+    baseline = run_suite(path, model=model, live_evolve=False, max_scenarios=max_scenarios, results_dir=results_dir, record_feedback=False)
+    evolved = run_suite(path, model=model, live_evolve=True, max_scenarios=max_scenarios, results_dir=results_dir, record_feedback=True)
+    result = {
+        "measurement_id": measurement_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "suite": str(path),
+        "baseline_run_id": baseline["run_id"],
+        "evolved_run_id": evolved["run_id"],
+        "baseline_pass_rate": baseline.get("pass_rate", 0.0),
+        "evolved_pass_rate": evolved.get("pass_rate", 0.0),
+        "pass_rate_delta": round(evolved.get("pass_rate", 0.0) - baseline.get("pass_rate", 0.0), 4),
+        "generated_capability_delta": int(evolved.get("generated_capabilities_at_end", 0)) - int(baseline.get("generated_capabilities_at_start", 0)),
+        "evolution_events_at_end": evolved.get("evolution_events", 0),
+        "evidence": {"baseline": {"total": baseline.get("total", 0), "passed": baseline.get("passed", 0), "failed": baseline.get("failed", 0)}, "evolved": {"total": evolved.get("total", 0), "passed": evolved.get("passed", 0), "failed": evolved.get("failed", 0)}},
+    }
+    root = Path(results_dir); root.mkdir(parents=True, exist_ok=True)
+    (root / f"{measurement_id}.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    (root / "latest_measurement.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    return result
 
 
 def main() -> int:
@@ -181,9 +152,14 @@ def main() -> int:
     parser.add_argument("--file", default=DEFAULT_SUITE)
     parser.add_argument("--model", default="")
     parser.add_argument("--live-evolve", action="store_true", help="Allow threshold-triggered Evolution actions")
+    parser.add_argument("--measure-improvement", action="store_true", help="Run baseline then evolved suite and measure the observed change")
     parser.add_argument("--max-scenarios", type=int, default=None)
     parser.add_argument("--results-dir", default=DEFAULT_RESULTS_DIR)
     args = parser.parse_args()
+    if args.measure_improvement:
+        result = run_measurement(args.file, model=args.model, max_scenarios=args.max_scenarios, results_dir=args.results_dir)
+        print(json.dumps(result, indent=2))
+        return 0 if result["evolved_pass_rate"] >= result["baseline_pass_rate"] else 1
     result = run_suite(args.file, model=args.model, live_evolve=args.live_evolve, max_scenarios=args.max_scenarios, results_dir=args.results_dir)
     print(json.dumps({"run_id": result["run_id"], "total": result["total"], "passed": result["passed"], "failed": result["failed"], "pass_rate": result["pass_rate"]}, indent=2))
     return 0 if result["failed"] == 0 else 1
