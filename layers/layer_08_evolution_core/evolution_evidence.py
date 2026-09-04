@@ -121,11 +121,37 @@ class EvolutionEvidenceStore:
         """Make an explicit SPS Growth Decision from scored evidence."""
         count = int(event.get("disagreement_count") or 0)
         parent = event.get("previous_capability_id") or ""
-        pattern = bool(event.get("failure_pattern"))
+        pattern_name = event.get("failure_pattern") or ""
+        pattern = bool(pattern_name)
+
+        # A previous capability being present does not prove it satisfies the
+        # requested behavior. For an explicitly identified "unmet requirement"
+        # with no quantitative fitness supplied, treat the missing match as
+        # unknown evidence rather than assuming 100% fitness. This lets the
+        # accumulated failure pattern influence growth without making a single
+        # disagreement an automatic CREATE.
+        explicit_capability_match = event.get("capability_match")
+        capability_match = explicit_capability_match
+        derived_gap_evidence = False
+        quantitative_fields = (
+            "capability_fitness",
+            "recurrence_score",
+            "adaptation_viability",
+            "improvement_viability",
+            "composition_viability",
+            "creation_need",
+            "confidence_score",
+            "regression_risk",
+        )
+        has_quantitative_evidence = any(event.get(field) is not None for field in quantitative_fields)
+        if capability_match is None and not has_quantitative_evidence and pattern_name == "repeated unmet user requirement":
+            capability_match = False
+            derived_gap_evidence = True
+
         decision = self.growth_decision.decide(
             existing_capability_id=parent,
             disagreement_count=count,
-            capability_match=event.get("capability_match"),
+            capability_match=capability_match,
             repeated_pattern=count >= 3 and pattern,
             adaptation_viable=bool(event.get("adaptation_viability") is not None and float(event.get("adaptation_viability") or 0) >= 70),
             composition_viable=bool(event.get("composition_viability") is not None and float(event.get("composition_viability") or 0) >= 60),
@@ -141,6 +167,7 @@ class EvolutionEvidenceStore:
             evidence={
                 "source_event_id": event.get("event_id", ""),
                 "failure_pattern_detected": pattern,
+                "derived_gap_evidence": derived_gap_evidence,
             },
         )
         events = self._load()
@@ -169,6 +196,10 @@ class EvolutionEvidenceStore:
         """Register a generated capability only after an explicit CREATE decision."""
         if analysis.get("decision") != GrowthDecision.CREATE.value:
             raise ValueError("Capability creation requires an explicit CREATE growth decision.")
+
+        growth = analysis.get("growth_decision") or {}
+        if growth.get("decision") != GrowthDecision.CREATE.value:
+            raise ValueError("Capability creation requires the recorded Growth Decision to be CREATE.")
 
         events = self._load()
         existing = [
@@ -212,11 +243,12 @@ class EvolutionEvidenceStore:
             "extra_metadata": {
                 "provenance": provenance,
                 "tags": ["evolved", "explainable"],
-                "decision_scores": analysis.get("growth_decision", {}).get("scores", {}),
+                "decision_scores": growth.get("scores", {}),
             },
         }
         self.registry.register_from_dict(metadata)
         creation = dict(analysis)
+        creation["decision"] = GrowthDecision.CREATE.value
         creation.update({
             "event_type": "capability_created",
             "event_id": self._next_id(events),
