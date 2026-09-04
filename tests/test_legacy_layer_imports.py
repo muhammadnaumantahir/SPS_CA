@@ -1,5 +1,8 @@
 """Regression tests for legacy layer package compatibility imports."""
 
+import subprocess
+import sys
+
 
 def test_layer_05_legacy_submodules():
     from layers.layer_05_experience.experience_log import ExperienceLog
@@ -21,6 +24,18 @@ def test_layer_08_legacy_submodules():
     assert EvolutionEvidenceStore
     assert GrowthDecisionEngine
     assert CapabilityPlan
+
+
+def test_layer_08_legacy_import_from_fresh_process():
+    code = "from layers.layer_08_evolution.evolution_evidence import EvolutionEvidenceStore; print(EvolutionEvidenceStore.__name__)"
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "EvolutionEvidenceStore" in result.stdout
 
 
 def test_canonical_pipeline_import():
