@@ -39,6 +39,27 @@ def test_disagreement_evidence_can_progress_to_create(tmp_path):
     assert decisions == ["defer", "adapt", "create"]
 
 
+def test_unscored_repeated_unmet_requirement_can_create_from_accumulated_evidence(tmp_path):
+    store = _store(tmp_path)
+    decisions = []
+    for n in range(1, 4):
+        event = store.record_disagreement(
+            session_id="s1",
+            turn_id=n,
+            request="Create a reusable capability for repeated structured-data parsing failures.",
+            language="python",
+            language_confidence=0.95,
+            previous_capability_id="CAP-002",
+            code="def parse(value): return value",
+        )
+        analysis = store.analyze(event)
+        decisions.append(analysis["decision"])
+
+    assert decisions[:2] == ["defer", "defer"]
+    assert decisions[2] == "create"
+    assert analysis["growth_decision"]["evidence"]["capability_match"] is False
+
+
 def test_record_creation_requires_explicit_create(tmp_path):
     store = _store(tmp_path)
     with pytest.raises(ValueError, match="explicit CREATE"):
