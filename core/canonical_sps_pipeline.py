@@ -18,16 +18,16 @@ from ui.sps_autonomous import AutonomousSPSExecutionService
 class CanonicalSPSPipeline:
     """Run one submission through the canonical autonomous SPS boundary."""
 
-    def __init__(self, *, registry_path: str = "capabilities/registry.json") -> None:
+    def __init__(self, *, registry_path: str = "capabilities/registry.json", experience_path: str = "experience/logs/experience_log.json") -> None:
         self.registry_path = registry_path
         self.execution = AutonomousSPSExecutionService(registry_path=registry_path)
         self.brain = Brain()
         self.knowledge = KnowledgeCore()
         self.meta_learning = MetaLearner()
         self.adaptation = Adaptation()
-        self.experience_memory = ExecutionExperienceStore()
+        self.experience_memory = ExecutionExperienceStore(experience_path)
 
-    def run_submission(self, *, user_request: str, code: str, language: str, file_path: str = "", target_project: Optional[str] = None, source: str = "runtime", run_id: str = "") -> Dict[str, Any]:
+    def run_submission(self, *, user_request: str, code: str, language: str, file_path: str = "", target_project: Optional[str] = None, source: str = "runtime", run_id: str = "", scenario_id: str = "", feedback: str = "") -> Dict[str, Any]:
         language = (language or "python").lower()
         file_path = file_path or self._default_filename(language)
         brain_intent = self.brain.infer_intent_class(user_request, code, file_path)
@@ -57,11 +57,11 @@ class CanonicalSPSPipeline:
             request=user_request, language=language, status=status, capability_id=capability_id,
             outcome=str(result.get("final_response") or result.get("execution") or result.get("validation") or status),
             failure_category="execution_failure" if not success else None, source=source,
-            scenario_id=str(result.get("scenario_id") or ""), run_id=run_id, error=str(error) if error else None,
+            scenario_id=scenario_id, run_id=run_id, feedback=feedback, error=str(error) if error else None,
             metadata={"brain_intent": brain_intent, "historical_matches": len(historical_context)},
             target_project=target_project or "sps_workspace",
         )
-        result["experience"] = {"record_id": experience_task.id, "source": experience_task.source, "remembered": True, "history_matches_before_execution": len(historical_context), "status": experience_task.status, "capability_id": experience_task.selected_capability}
+        result["experience"] = {"record_id": experience_task.id, "source": experience_task.source, "remembered": True, "history_matches_before_execution": len(historical_context), "status": experience_task.status, "capability_id": experience_task.selected_capability, "scenario_id": experience_task.scenario_id, "run_id": experience_task.run_id, "feedback": experience_task.feedback}
         pipeline = self._build_pipeline(result=result, brain_intent=brain_intent, knowledge_valid=knowledge_valid, experience=experience, failure_patterns=failure_patterns, reusable_capabilities=reusable_capabilities, adaptation_changes=adaptation_changes, adaptation_ok=adaptation_ok)
         result["brain"] = {"component": "SPS-CA Brain", "role": "autonomous AI reasoning, task decomposition, strategy selection, reflection, capability orchestration, evolution decisions and result composition", "intent_signal": brain_intent, "replaceable": True, "closed_loop": True, "historical_experience": {"matches": len(historical_context), "successes": sum(item.status == "success" for item in historical_context), "failures": sum(item.status == "failure" for item in historical_context)}}
         result["pipeline"] = pipeline
