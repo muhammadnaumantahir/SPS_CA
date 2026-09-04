@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SCENARIO_FILE = REPO / "evaluation/scenarios/growth_1000.json"
+SCENARIO_FILE = REPO / "evaluation/scenarios/growth.json"
 GENERATOR = REPO / "scripts/generate_growth_scenarios.py"
 
 
