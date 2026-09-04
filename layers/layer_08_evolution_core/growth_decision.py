@@ -42,8 +42,6 @@ class GrowthScoreThresholds:
 class GrowthDecisionEngine:
     """Choose the least-structural growth action justified by scored evidence."""
 
-    _ACTIONS = tuple(decision.value for decision in GrowthDecision if decision is not GrowthDecision.DEFER)
-
     def __init__(self, thresholds: GrowthScoreThresholds | None = None) -> None:
         self.thresholds = thresholds or GrowthScoreThresholds()
 
@@ -67,46 +65,29 @@ class GrowthDecisionEngine:
         regression_risk: float | None = None,
         evidence: Mapping[str, object] | None = None,
     ) -> GrowthDecisionResult:
-        values = self._normalise_inputs(
-            existing_capability_id=existing_capability_id,
-            disagreement_count=disagreement_count,
-            capability_match=capability_match,
-            repeated_pattern=repeated_pattern,
-            adaptation_viable=adaptation_viable,
-            composition_viable=composition_viable,
-            improvement_viable=improvement_viable,
-            capability_fitness=capability_fitness,
-            recurrence=recurrence,
-            adaptation_viability=adaptation_viability,
-            improvement_viability=improvement_viability,
-            composition_viability=composition_viability,
-            creation_need=creation_need,
-            confidence=confidence,
-            regression_risk=regression_risk,
-        )
+        values = {
+            "existing_capability_id": existing_capability_id,
+            "disagreement_count": max(0, int(disagreement_count)),
+            "capability_match": bool(capability_match),
+            "repeated_pattern": bool(repeated_pattern),
+            "adaptation_viable": bool(adaptation_viable),
+            "composition_viable": bool(composition_viable),
+            "improvement_viable": bool(improvement_viable),
+            "capability_fitness": self._clip(capability_fitness, 100.0 if capability_match else 0.0),
+            "recurrence": self._clip(recurrence, min(100.0, max(0, int(disagreement_count)) * 25.0)),
+            "adaptation_viability": self._clip(adaptation_viability, 100.0 if adaptation_viable else 0.0),
+            "improvement_viability": self._clip(improvement_viability, 100.0 if improvement_viable else 0.0),
+            "composition_viability": self._clip(composition_viability, 100.0 if composition_viable else 0.0),
+            "creation_need": self._clip(creation_need, 100.0 if (not capability_match and repeated_pattern) else 0.0),
+            "confidence": self._clip(confidence, 100.0 if (capability_match or repeated_pattern) else 0.0),
+            "regression_risk": self._clip(regression_risk, 0.0),
+        }
         scores = self._score_actions(values)
         combined_evidence = dict(evidence or {})
         combined_evidence.update(values)
         selected = self._select(scores, values)
-        reason_code, reasoning = self._explain(selected, values, scores)
-        return self._result(selected, reason_code, reasoning, combined_evidence, scores)
-
-    def _normalise_inputs(self, **kwargs: object) -> dict[str, object]:
-        capability_fitness = self._clip(kwargs.pop("capability_fitness"), 100.0 if kwargs.get("capability_match") else 0.0)
-        disagreement_count = max(0, int(kwargs["disagreement_count"]))
-        recurrence_default = min(100.0, disagreement_count * 25.0)
-        return {
-            **kwargs,
-            "disagreement_count": disagreement_count,
-            "capability_fitness": capability_fitness,
-            "recurrence": self._clip(kwargs.pop("recurrence"), recurrence_default),
-            "adaptation_viability": self._clip(kwargs.pop("adaptation_viability"), 100.0 if kwargs.get("adaptation_viable") else 0.0),
-            "improvement_viability": self._clip(kwargs.pop("improvement_viability"), 100.0 if kwargs.get("improvement_viable") else 0.0),
-            "composition_viability": self._clip(kwargs.pop("composition_viability"), 100.0 if kwargs.get("composition_viable") else 0.0),
-            "creation_need": self._clip(kwargs.pop("creation_need"), 100.0 if (not kwargs.get("capability_match") and kwargs.get("repeated_pattern")) else 0.0),
-            "confidence": self._clip(kwargs.pop("confidence"), 100.0 if (kwargs.get("capability_match") or kwargs.get("repeated_pattern")) else 0.0),
-            "regression_risk": self._clip(kwargs.pop("regression_risk"), 0.0),
-        }
+        reason_code, reasoning = self._explain(selected, scores)
+        return GrowthDecisionResult(selected, reason_code, reasoning, combined_evidence, scores)
 
     def _score_actions(self, values: dict[str, object]) -> dict[str, float]:
         fitness = float(values["capability_fitness"])
@@ -118,50 +99,41 @@ class GrowthDecisionEngine:
         confidence = float(values["confidence"])
         risk = float(values["regression_risk"])
         match = bool(values["capability_match"])
-
         scores = {
             "reuse": self._weighted((fitness, 0.55), (100.0 - risk, 0.15), (confidence, 0.30)) if match else 0.0,
             "adapt": self._weighted((adaptation, 0.55), (recurrence, 0.15), (confidence, 0.30)) if match else 0.0,
             "improve": self._weighted((improvement, 0.55), (100.0 - fitness, 0.20), (recurrence, 0.10), (confidence, 0.15)) if match else 0.0,
             "compose": self._weighted((composition, 0.60), (recurrence, 0.15), (confidence, 0.25)) if match else 0.0,
-            "create": self._weighted((creation, 0.50), (recurrence, 0.20), (confidence, 0.20), (100.0 - fitness, 0.10)) if not match else self._weighted((creation, 0.55), (recurrence, 0.20), (confidence, 0.20), (100.0 - fitness, 0.05)),
+            "create": self._weighted((creation, 0.50), (recurrence, 0.20), (confidence, 0.20), (100.0 - fitness, 0.10)),
         }
         return {key: round(value, 2) for key, value in scores.items()}
 
     def _select(self, scores: dict[str, float], values: dict[str, object]) -> GrowthDecision:
-        confidence = float(values["confidence"])
-        match = bool(values["capability_match"])
-        fitness = float(values["capability_fitness"])
         thresholds = self.thresholds
-
-        if confidence < thresholds.confidence_min:
+        if float(values["confidence"]) < thresholds.confidence_min:
             return GrowthDecision.DEFER
-        if match and fitness >= thresholds.reuse_min and scores["reuse"] >= thresholds.reuse_min:
+        if bool(values["capability_match"]) and float(values["capability_fitness"]) >= thresholds.reuse_min and scores["reuse"] >= thresholds.reuse_min:
             return GrowthDecision.REUSE
-
         ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         for action, score in ranked:
-            threshold = getattr(thresholds, f"{action}_min")
-            if score < threshold:
+            if score < getattr(thresholds, f"{action}_min"):
                 continue
-            if action == "create" and match and fitness >= thresholds.improve_min:
+            if action == "create" and bool(values["capability_match"]) and float(values["capability_fitness"]) >= thresholds.improve_min:
                 continue
             return GrowthDecision(action)
         return GrowthDecision.DEFER
 
     @staticmethod
-    def _explain(decision: GrowthDecision, values: dict[str, object], scores: dict[str, float]) -> tuple[str, str]:
-        if decision is GrowthDecision.REUSE:
-            return "capability_sufficient", "Existing capability fitness is high enough to reuse without structural growth."
-        if decision is GrowthDecision.ADAPT:
-            return "contextual_adaptation", "Evidence shows the existing capability is suitable after contextual adaptation."
-        if decision is GrowthDecision.IMPROVE:
-            return "capability_degradation", "The capability remains relevant but scored improvement is better justified than replacement."
-        if decision is GrowthDecision.COMPOSE:
-            return "composition_pattern", "Existing capabilities cover the required primitives and the composition score justifies a reusable composite."
-        if decision is GrowthDecision.CREATE:
-            return "capability_gap", "Evidence and confidence indicate a genuine capability gap with sufficient creation score."
-        return "insufficient_evidence", "Evidence does not yet justify structural growth with sufficient confidence."
+    def _explain(decision: GrowthDecision, scores: dict[str, float]) -> tuple[str, str]:
+        explanations = {
+            GrowthDecision.REUSE: ("capability_sufficient", "Existing capability fitness is high enough to reuse without structural growth."),
+            GrowthDecision.ADAPT: ("contextual_adaptation", "Evidence shows the existing capability is suitable after contextual adaptation."),
+            GrowthDecision.IMPROVE: ("capability_degradation", "The capability remains relevant but scored improvement is better justified than replacement."),
+            GrowthDecision.COMPOSE: ("composition_pattern", "Existing capabilities cover the required primitives and the composition score justifies a reusable composite."),
+            GrowthDecision.CREATE: ("capability_gap", "Evidence and confidence indicate a genuine capability gap with sufficient creation score."),
+            GrowthDecision.DEFER: ("insufficient_evidence", "Evidence does not yet justify structural growth with sufficient confidence."),
+        }
+        return explanations[decision]
 
     @staticmethod
     def _weighted(*parts: tuple[float, float]) -> float:
@@ -174,10 +146,6 @@ class GrowthDecisionEngine:
         except (TypeError, ValueError):
             result = default
         return max(0.0, min(100.0, result))
-
-    @staticmethod
-    def _result(decision, reason_code, reasoning, evidence, scores):
-        return GrowthDecisionResult(decision, reason_code, reasoning, evidence, scores)
 
 
 __all__ = ["GrowthDecision", "GrowthDecisionResult", "GrowthDecisionEngine", "GrowthScoreThresholds"]
