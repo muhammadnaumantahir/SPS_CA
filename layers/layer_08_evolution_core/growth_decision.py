@@ -45,18 +45,20 @@ class GrowthDecisionEngine:
     def __init__(self, thresholds: GrowthScoreThresholds | None = None) -> None:
         self.thresholds = thresholds or GrowthScoreThresholds()
 
-    def decide(self, *, existing_capability_id: str = "", disagreement_count: int = 0, capability_match: bool = False, repeated_pattern: bool = False, adaptation_viable: bool = False, composition_viable: bool = False, improvement_viable: bool = False, capability_fitness: float | None = None, recurrence: float | None = None, adaptation_viability: float | None = None, improvement_viability: float | None = None, composition_viability: float | None = None, creation_need: float | None = None, confidence: float | None = None, regression_risk: float | None = None, evidence: Mapping[str, object] | None = None) -> GrowthDecisionResult:
+    def decide(self, *, existing_capability_id: str = "", disagreement_count: int = 0, capability_match: bool | None = None, repeated_pattern: bool = False, adaptation_viable: bool = False, composition_viable: bool = False, improvement_viable: bool = False, capability_fitness: float | None = None, recurrence: float | None = None, adaptation_viability: float | None = None, improvement_viability: float | None = None, composition_viability: float | None = None, creation_need: float | None = None, confidence: float | None = None, regression_risk: float | None = None, evidence: Mapping[str, object] | None = None) -> GrowthDecisionResult:
+        inferred_capability_match = bool(existing_capability_id)
+        effective_capability_match = inferred_capability_match if capability_match is None else bool(capability_match)
         values = {
             "existing_capability_id": existing_capability_id,
             "disagreement_count": max(0, int(disagreement_count)),
-            "capability_match": bool(capability_match), "repeated_pattern": bool(repeated_pattern),
-            "capability_fitness": self._clip(capability_fitness, 100.0 if capability_match else 0.0),
+            "capability_match": effective_capability_match, "repeated_pattern": bool(repeated_pattern),
+            "capability_fitness": self._clip(capability_fitness, 100.0 if effective_capability_match else 0.0),
             "recurrence": self._clip(recurrence, min(100.0, max(0, int(disagreement_count)) * 25.0)),
             "adaptation_viability": self._clip(adaptation_viability, 100.0 if adaptation_viable else 0.0),
             "improvement_viability": self._clip(improvement_viability, 100.0 if improvement_viable else 0.0),
             "composition_viability": self._clip(composition_viability, 100.0 if composition_viable else 0.0),
-            "creation_need": self._clip(creation_need, 100.0 if (not capability_match and repeated_pattern) else 0.0),
-            "confidence": self._clip(confidence, 100.0 if (capability_match or repeated_pattern) else 0.0),
+            "creation_need": self._clip(creation_need, 100.0 if (not effective_capability_match and repeated_pattern) else 0.0),
+            "confidence": self._clip(confidence, 100.0 if (effective_capability_match or repeated_pattern) else 0.0),
             "regression_risk": self._clip(regression_risk, 0.0),
         }
         scores = self._score_actions(values)
