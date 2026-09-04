@@ -291,31 +291,47 @@ class Handler(BaseHTTPRequestHandler):
         conversation = data.get("conversation", session.get("conversation", []))
         if not isinstance(conversation, list): self._send(400, {"error": "conversation must be a list"}); return
 
-        detected, confidence, evidence = Brain.detect_language(code, request)
-        if prompt_tag:
-            detected = LANGUAGE_ALIASES.get(prompt_tag, prompt_tag)
-            confidence = 1.0
-            evidence = ["explicit fenced code language"]
-        requested = requested_target_language(request)
-        if requested:
-            detected, confidence = requested, 1.0
-            evidence = ["explicit requested target language"]
-        result = service_for(model).run_turn(
-            request=request, code=code, filename=filename, language=detected,
-            conversation=conversation, language_confidence=confidence,
-        )
-        payload = result.as_dict()
-        payload["language_evidence"] = evidence
-        payload["session"] = sessions.save(
-            sid, payload.get("conversation", conversation), payload.get("output_code", code), filename,
-            payload.get("language", detected), payload.get("language_confidence", confidence),
-            payload.get("model", model), payload.get("session", {}).get("title", session.get("title", "New chat")),
-        )
-        payload["persisted_turn"] = build_persisted_turn_data(payload)
-        if not result.success:
-            repair = attempt_internal_repair(result.error or payload.get("error", ""), "failed SPS turn", ["core/assistant_service.py"])
+        detected, confidence, evidence = Brain.detect_language(code, request, filename)
+        if prompt_tag in Brain.SUPPORTED and prompt_tag != detected: detected, confidence, evidence = prompt_tag, 0.99, "explicit fenced-code language tag in prompt"
+        target_language = requested_target_language(request)
+        intent_class = Brain.infer_intent_class(request, code, filename)
+        if target_language: detected, confidence, evidence = target_language, 0.99, "explicit target language in current request"
+        turn_code = "" if target_language and intent_class == "code_generation" else code
+
+        service = service_for(model)
+        original_detect_language = service.brain.detect_language
+        if target_language: service.brain.detect_language = lambda _code, _request, _filename: (target_language, 0.99, "explicit target language in current request")
+        try:
+            turn = service.run_turn(request=request, code=turn_code, language=detected, filename=filename, conversation=conversation)
+        except Exception as exc:  # noqa: BLE001
+            repair = attempt_internal_repair(str(exc), "chat turn execution", ["core/assistant_service.py"])
+            payload = {"success": False, "error": str(exc), "assistant_message": f"I could not complete this turn: {exc}", "self_programming": repair}
+            self._send(500, payload)
+            return
+        finally:
+            service.brain.detect_language = original_detect_language
+
+        payload = turn.as_dict()
+        payload.update({"session_id": sid, "language": detected, "language_confidence": confidence,
+                        "language_evidence": evidence, "capabilities": service.capability_catalog(),
+                        "model": turn.brain.get("model", service.brain.model)})
+        if turn.success:
+            persisted_conversation = list(turn.conversation)
+            if persisted_conversation and persisted_conversation[-1].get("role") == "assistant":
+                persisted_conversation[-1] = {**persisted_conversation[-1], "turnData": build_persisted_turn_data(payload)}
+            payload["conversation"] = persisted_conversation
+            try:
+                payload["session"] = sessions.save(sid, persisted_conversation, turn.output_code or turn_code, filename, detected, confidence, payload["model"])
+            except Exception as exc:  # noqa: BLE001
+                repair = attempt_internal_repair(str(exc), "chat persistence", ["ui/web_app.py"])
+                payload["self_programming"] = repair
+                payload["persistence_error"] = str(exc)
+                self._send(500, payload)
+                return
+        else:
+            repair = attempt_internal_repair(turn.error or payload.get("error", ""), "failed SPS turn", ["core/assistant_service.py"])
             if repair: payload["self_programming"] = repair
-        self._send(200 if result.success else 422, payload)
+        self._send(200 if turn.success else 422, payload)
 
     def _handle_chat_stream(self, data: dict[str, Any]) -> None:
         """Stream lifecycle updates while the real chat worker is executing."""
