@@ -52,6 +52,105 @@
   <script src="/static/app.js"></script>
   <script src="/static/progress.js"></script>
   <script>
+    // Use the existing POST payload/response shape, but keep the connection alive
+    // while a local model (especially in Colab/ngrok) is generating code.
+    document.addEventListener('DOMContentLoaded', () => {
+      const originalSend = window.send;
+      if (typeof originalSend !== 'function') return;
+
+      const streamChat = async (payload) => {
+        const response = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          let message = `Chat request failed (${response.status})`;
+          try {
+            const errorData = await response.json();
+            message = errorData.error || errorData.assistant_message || message;
+          } catch (_) {}
+          throw new Error(message);
+        }
+        if (!response.body) throw new Error('Streaming is unavailable in this browser.');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let result = null;
+        let done = false;
+        while (!done) {
+          const chunk = await reader.read();
+          done = chunk.done;
+          if (chunk.value) buffer += decoder.decode(chunk.value, {stream: !done});
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop() || '';
+          for (const frame of frames) {
+            const line = frame.split('\n').find(item => item.startsWith('data: '));
+            if (!line) continue;
+            let event;
+            try { event = JSON.parse(line.slice(6)); } catch (_) { continue; }
+            if (event.type === 'stage') {
+              const button = document.getElementById('sendBtn');
+              if (button && event.stage) {
+                button.textContent = event.stage === 'complete' ? 'Finishing…' : `${event.stage}…`;
+              }
+            } else if (event.type === 'result') {
+              result = event.payload || null;
+            } else if (event.type === 'error') {
+              throw new Error(event.message || 'Chat stream failed.');
+            }
+          }
+        }
+        if (!result) throw new Error('Chat stream ended without a result.');
+        return result;
+      };
+
+      window.send = async function sendWithStreaming() {
+        const request = document.getElementById('request').value.trim();
+        if (!request) return;
+        if (!state.sessionId) await newChat();
+        const code = document.getElementById('code').value;
+        state.code = code;
+        const sendButton = document.getElementById('sendBtn');
+        sendButton.disabled = true;
+        sendButton.textContent = 'Connecting…';
+        const conversation = state.conversation.map(m => ({role:m.role, content:m.content, turnData:m.turnData}));
+        try {
+          const d = await streamChat({
+            session_id: state.sessionId,
+            request,
+            code,
+            filename: document.getElementById('filename').value || 'main.py',
+            model: state.model,
+            conversation
+          });
+          state.language = d.language || 'unknown';
+          state.confidence = d.language_confidence || 0;
+          state.model = d.model || state.model;
+          state.code = d.output_code ?? code;
+          state.conversation = (d.conversation || []).map(m => ({role:m.role, content:m.content, turnData:m.turnData}));
+          const last = state.conversation.at(-1);
+          if (last?.role === 'assistant') last.turnData = d;
+          state.turn = Math.floor(state.conversation.length / 2);
+          document.getElementById('request').value = '';
+          document.getElementById('code').value = state.code;
+          document.getElementById('languageChip').textContent = `Auto · ${state.language}`;
+          document.getElementById('sessionTitle').textContent = d.session?.title || document.getElementById('sessionTitle').textContent;
+          document.getElementById('turnPill').textContent = `Turn ${state.turn}`;
+          renderMessages();
+          renderChatInsights();
+          await refreshSessions();
+        } catch (error) {
+          state.conversation.push({role:'assistant',content:`I could not complete this turn.\n\n${error.message}`});
+          renderMessages();
+        } finally {
+          sendButton.disabled = false;
+          sendButton.textContent = 'Send ↗';
+        }
+      };
+    });
+
     document.addEventListener('DOMContentLoaded', async () => {
       const host = document.getElementById('capabilityAnalytics');
       if (!host) return;
