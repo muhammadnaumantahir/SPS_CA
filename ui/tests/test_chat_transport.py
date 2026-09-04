@@ -6,6 +6,6 @@ def test_chat_uses_stream_transport_for_long_running_generation():
     html = Path("ui/web/index.html").read_text(encoding="utf-8")
 
     assert "/api/chat/stream" in html
-    assert "EventSource" not in html  # POST body is required for chat context; use fetch streaming instead.
     assert "reader.read()" in html
-    assert "network error" in html.lower()
+    assert "Chat stream ended without a result." in html
+    assert "I could not complete this turn." in html
