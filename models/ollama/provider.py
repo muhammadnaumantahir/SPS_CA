@@ -26,6 +26,7 @@ from models.base import (
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 # Legacy preference only. It is never trusted when the model is not installed.
 DEFAULT_MODEL = "qwen2.5-coder:7b"
+LIGHTER_CODER_MODELS = ("qwen2.5-coder:7b", "qwen2.5-coder:3b")
 
 
 class OllamaProvider(LLMProvider):
@@ -88,14 +89,14 @@ class OllamaProvider(LLMProvider):
         self._active_model = models[0]
         return self._active_model
 
-    @property
-    def active_model(self) -> str:
-        return self._active_model
+    def _lighter_fallback_model(self, failed_model: str, models: list[str]) -> str:
+        """Pick a known lighter coder model after an inference worker is SIGKILLed."""
+        for candidate in LIGHTER_CODER_MODELS:
+            if candidate in models and candidate != failed_model:
+                return candidate
+        return ""
 
-    def generate(self, request: LLMRequest) -> LLMResponse:
-        # Resolve against the live server on EVERY request. A stale browser/session
-        # model cannot force SPS-CA to use a model that no longer exists.
-        model = self.resolve_model(request.model or "")
+    def _generate_once(self, model: str, request: LLMRequest) -> requests.Response:
         payload: dict[str, Any] = {
             "model": model,
             "prompt": request.prompt,
@@ -104,9 +105,8 @@ class OllamaProvider(LLMProvider):
         }
         if request.system:
             payload["system"] = request.system
-
         try:
-            response = requests.post(
+            return requests.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
                 timeout=request.timeout_seconds,
@@ -120,20 +120,28 @@ class OllamaProvider(LLMProvider):
         except requests.RequestException as exc:
             raise LLMUnavailableError(f"Ollama request failed: {exc}") from exc
 
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        # Resolve against the live server on EVERY request. A stale browser/session
+        # model cannot force SPS-CA to use a model that no longer exists.
+        model = self.resolve_model(request.model or "")
+        response = self._generate_once(model, request)
+
+        # A SIGKILL from llama-server is typically the runtime killing a model
+        # process under memory pressure. Recover when a lighter installed coder
+        # model exists instead of surfacing an unrecoverable provider failure.
+        if response.status_code == 500 and "signal: killed" in response.text.lower():
+            current_models = self.list_models()
+            fallback = self._lighter_fallback_model(model, current_models)
+            if fallback:
+                model = fallback
+                response = self._generate_once(model, request)
+
         # Colab can restart/change its model between discovery and generation.
         if response.status_code == 404:
             current_models = self.list_models()
             if current_models and model not in current_models:
                 model = self.resolve_model("")
-                payload["model"] = model
-                try:
-                    response = requests.post(
-                        f"{self.base_url}/api/generate",
-                        json=payload,
-                        timeout=request.timeout_seconds,
-                    )
-                except requests.RequestException as exc:
-                    raise LLMUnavailableError(f"Ollama retry failed: {exc}") from exc
+                response = self._generate_once(model, request)
 
         if response.status_code != 200:
             raise LLMUnavailableError(
@@ -145,4 +153,5 @@ class OllamaProvider(LLMProvider):
         except ValueError as exc:
             raise LLMUnavailableError("Ollama returned invalid /api/generate JSON") from exc
 
+        self._active_model = model
         return LLMResponse(text=data.get("response", ""), model=model, provider=self.name, raw=data)
