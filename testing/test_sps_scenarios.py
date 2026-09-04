@@ -28,7 +28,20 @@ def _run_evolution_proof(scenario):
         registry_path = root / "registry.json"
         store = EvolutionEvidenceStore(path=events_path, registry_path=registry_path)
         request = "Create a reusable capability for repeated structured-data parsing failures."
-        kwargs = {"session_id": "proof-session", "turn_id": "proof-turn", "request": request, "language": "python", "language_confidence": 0.99, "previous_capability_id": "CAP-001", "code": "def parse(value):\n    return value\n"}
+        kwargs = {
+            "session_id": "proof-session",
+            "turn_id": "proof-turn",
+            "request": request,
+            "language": "python",
+            "language_confidence": 0.99,
+            "previous_capability_id": "CAP-001",
+            "code": "def parse(value):\n    return value\n",
+            "capability_match": False,
+            "capability_fitness": 10.0,
+            "recurrence_score": 80.0,
+            "confidence_score": 95.0,
+            "creation_need": 95.0,
+        }
         events = [store.record_disagreement(**kwargs) for _ in range(3)]
         analysis = store.analyze(events[-1])
         assert analysis["event_type"] == "evolution_analysis"
