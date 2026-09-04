@@ -2,7 +2,7 @@ from pathlib import Path
 import json
 from itertools import product
 
-OUT = Path("evaluation/scenarios/growth_1000.json")
+OUT = Path("evaluation/scenarios/growth.json")
 DOMAINS = ["payments", "inventory", "customer profiles", "file processing", "reporting", "notifications", "authentication", "analytics", "scheduling", "data import"]
 CANONICAL = {
     "CAP-001": ("code_generation", "Create a Python function for {domain} that supports {feature}.", ""),
