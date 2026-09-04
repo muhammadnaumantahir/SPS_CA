@@ -1,6 +1,33 @@
 from layers.layer_08_evolution_core.growth_decision import GrowthDecision, GrowthDecisionEngine
 
 
+def test_existing_capability_id_implies_match_when_match_flag_is_omitted():
+    result = GrowthDecisionEngine().decide(
+        existing_capability_id="CAP-005",
+        capability_fitness=94.0,
+        recurrence=20.0,
+        adaptation_viability=30.0,
+        improvement_viability=25.0,
+        composition_viability=10.0,
+        creation_need=5.0,
+        confidence=95.0,
+        regression_risk=5.0,
+    )
+    assert result.evidence["capability_match"] is True
+
+
+def test_explicit_capability_mismatch_overrides_existing_capability_id():
+    result = GrowthDecisionEngine().decide(
+        existing_capability_id="CAP-005",
+        capability_match=False,
+        capability_fitness=94.0,
+        recurrence=20.0,
+        confidence=95.0,
+    )
+    assert result.evidence["capability_match"] is False
+    assert result.decision is GrowthDecision.DEFER
+
+
 def test_high_fitness_reuses_existing_capability():
     result = GrowthDecisionEngine().decide(existing_capability_id="CAP-005", capability_fitness=94.0, recurrence=20.0, adaptation_viability=30.0, improvement_viability=25.0, composition_viability=10.0, creation_need=5.0, confidence=95.0, regression_risk=5.0)
     assert result.decision is GrowthDecision.REUSE
