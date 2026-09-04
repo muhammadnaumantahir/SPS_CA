@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 import pytest
 from brain.brain import Brain
-SCENARIO_FILE = Path(__file__).resolve().parents[1] / "evaluation" / "scenarios" / "growth_1000.json"
+SCENARIO_FILE = Path(__file__).resolve().parents[1] / "evaluation" / "scenarios" / "growth.json"
 
 @pytest.fixture(scope="module")
 def scenarios():
