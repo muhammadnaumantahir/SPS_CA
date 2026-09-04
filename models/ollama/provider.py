@@ -20,7 +20,10 @@ from models.base import (
     LLMUnavailableError,
 )
 
-DEFAULT_BASE_URL = "http://localhost:11434"
+# Use an IPv4 loopback default. In Colab/runtime environments, "localhost"
+# can resolve to IPv6 (::1) while Ollama is listening on IPv4 (127.0.0.1).
+# Explicit custom URLs remain supported for remote Ollama servers.
+DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 # Legacy preference only. It is never trusted when the model is not installed.
 DEFAULT_MODEL = "qwen2.5-coder:7b"
 
