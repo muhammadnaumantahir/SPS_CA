@@ -71,21 +71,13 @@ class EvolutionEvidenceStore:
         parent = event.get("previous_capability_id") or ""
         pattern = bool(event.get("failure_pattern"))
         decision = self.growth_decision.decide(
-            existing_capability_id=parent,
-            disagreement_count=count,
-            capability_match=bool(parent),
-            repeated_pattern=count >= 3 and pattern,
-            adaptation_viable=count == 2,
-            composition_viable=False,
-            improvement_viable=False,
-            capability_fitness=event.get("capability_fitness"),
-            recurrence=event.get("recurrence_score"),
-            adaptation_viability=event.get("adaptation_viability"),
-            improvement_viability=event.get("improvement_viability"),
-            composition_viability=event.get("composition_viability"),
-            creation_need=event.get("creation_need"),
-            confidence=event.get("confidence_score"),
-            regression_risk=event.get("regression_risk"),
+            existing_capability_id=parent, disagreement_count=count, capability_match=bool(parent),
+            repeated_pattern=count >= 3 and pattern, adaptation_viable=count == 2,
+            composition_viable=False, improvement_viable=False,
+            capability_fitness=event.get("capability_fitness"), recurrence=event.get("recurrence_score"),
+            adaptation_viability=event.get("adaptation_viability"), improvement_viability=event.get("improvement_viability"),
+            composition_viability=event.get("composition_viability"), creation_need=event.get("creation_need"),
+            confidence=event.get("confidence_score"), regression_risk=event.get("regression_risk"),
             evidence={"source_event_id": event.get("event_id", ""), "failure_pattern_detected": pattern},
         )
         events = self._load()
@@ -133,14 +125,6 @@ class EvolutionEvidenceStore:
         events = self._load()
         related = [e for e in events if e.get("created_capability_id") == capability_id]
         provenance = ((capability.extra_metadata or {}).get("provenance") if capability else None) or {}
-        if not provenance and related:
-            created = related[-1]
-            provenance = dict(created.get("provenance") or {})
-            provenance.setdefault("decision", "create"); provenance.setdefault("created_at", created.get("timestamp"))
-            provenance.setdefault("parent_capability_id", created.get("previous_capability_id") or None)
-            provenance.setdefault("trigger_event_ids", [created.get("event_id", "")]); provenance.setdefault("reasoning", created.get("reasoning", ""))
-            provenance.setdefault("evidence_summary", created.get("evidence_summary", "")); provenance.setdefault("validation_status", created.get("validation_status", "registered"))
-            provenance.setdefault("source_request", created.get("request", ""))
         return {"capability": capability.to_dict() if capability else None, "provenance": provenance, "events": related, "parent": provenance.get("parent_capability_id")}
 
     @staticmethod
