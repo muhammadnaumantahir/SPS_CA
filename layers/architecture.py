@@ -5,6 +5,7 @@ implemented by the corresponding layer packages. The Brain is a separate,
 replaceable reasoning service and is not a layer or capability.
 """
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Final
 
 LAYERS = (
@@ -15,7 +16,7 @@ LAYERS = (
     (5, "Experience core", "Stores runtime outcomes, feedback, and historical learning signals", ("Experience Log", "Long-Term Learning", "Experience Data Models")),
     (6, "Meta-learning core", "Evaluates and improves how the system learns", ("Capability Evaluator", "Meta-Learner", "Strategy Policy", "A/B Experimentation", "Optimization Cycle Controller")),
     (7, "Adaptation core", "Changes behavior by context without modifying source code", ("Adaptation Engine", "Adaptation Records", "Contextual Strategy Adjustment")),
-    (8, "Evolution core", "Performs governed structural self-growth and capability lifecycle management", ("Controlled Evolution Engine", "Evolution Cycle", "Capability Gap Planning", "SPS Growth Decision", "Evolution Evidence", "Evolution Transaction", "Evolution Execution Authority", "Self-Programming", "Capability Retirement")),
+    (8, "Evolution core", "Performs governed structural self-growth and capability lifecycle management", ("Controlled Evolution Engine", "Evolution Cycle", "Capability Gap Planning", "SPS Growth Decision", "Evolution Evidence", "Evolution Transaction", "Evolution Execution Authority", "Self-Programming", "Capability Retirement", "Measured Capability Improvement")),
     (9, "Verification & Validation Core", "Screens candidate changes before production execution", ("Validation Engine", "Validation Data Models", "Sandbox & Test Execution")),
     (10, "Execution Core", "Translates validated decisions into observable action", ("Execution Engine", "Execution Data Models", "Action Execution")),
 )
@@ -25,9 +26,34 @@ LAYER_SUBCOMPONENTS: Final = {n: list(parts) for n, _, _, parts in LAYERS}
 BRAIN: Final = {"name": "SPS-CA Brain", "role": "reasoning, prompt analysis, planning, code generation, debugging, strategy analysis", "default_provider": "Ollama", "replaceable": True, "boundary": "separate model service"}
 SUPPORTING_SUBSYSTEMS: Final = ("Capability Registry", "Capability Lineage", "LLM Provider Abstraction")
 
+@dataclass(frozen=True)
+class LayerManifest:
+    number: int
+    name: str
+    purpose: str
+    sub_components: tuple[str, ...]
+
+    @property
+    def description(self) -> str:
+        return self.purpose
+
+
 def architecture_manifest() -> dict:
     return {
         "layers": [{"number": n, "name": name, "purpose": purpose, "description": purpose, "sub_components": list(parts)} for n, name, purpose, parts in LAYERS],
         "brain": dict(BRAIN),
         "supporting_subsystems": list(SUPPORTING_SUBSYSTEMS),
     }
+
+
+LAYER_MANIFEST: Final = tuple(
+    LayerManifest(number=n, name=name, purpose=purpose, sub_components=tuple(parts))
+    for n, name, purpose, parts in LAYERS
+)
+
+
+def get_layer(number: int) -> LayerManifest:
+    for layer in LAYER_MANIFEST:
+        if layer.number == number:
+            return layer
+    raise KeyError(f"Unknown SPS layer: {number}")
