@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from layers.architecture import LAYER_NAMES, LAYER_SUBCOMPONENTS, LAYERS, BRAIN
+from layers.architecture import BRAIN, LAYER_NAMES, LAYER_SUBCOMPONENTS, LAYERS
 
 CANONICAL_NAMES = [
     "Software DNA Core", "Governance Core", "Cognitive core", "Knowledge core",
@@ -8,17 +8,17 @@ CANONICAL_NAMES = [
     "Verification & Validation Core", "Execution Core",
 ]
 
-CANONICAL_DIRECTORIES = [
+IMPLEMENTATION_DIRECTORIES = [
+    "layer_01_software_dna", "layer_02_governance", "layer_03_cognitive",
+    "layer_04_knowledge", "layer_05_experience", "layer_06_meta_learning",
+    "layer_07_adaptation", "layer_08_evolution", "layer_09_validation", "layer_10_execution",
+]
+
+DUPLICATE_CORE_DIRECTORIES = {
     "layer_01_software_dna_core", "layer_02_governance_core", "layer_03_cognitive_core",
     "layer_04_knowledge_core", "layer_05_experience_core", "layer_06_meta_learning_core",
     "layer_07_adaptation_core", "layer_08_evolution_core", "layer_09_verification_validation_core",
     "layer_10_execution_core",
-]
-
-LEGACY_DIRECTORIES = {
-    "layer_01_software_dna", "layer_02_governance", "layer_03_cognitive",
-    "layer_04_knowledge", "layer_05_experience", "layer_06_meta_learning",
-    "layer_07_adaptation", "layer_08_evolution", "layer_09_validation", "layer_10_execution",
 }
 
 
@@ -39,9 +39,15 @@ def test_brain_is_outside_the_ten_layers():
     assert all("Brain" not in name for name in CANONICAL_NAMES)
 
 
-def test_implementation_directories_use_core_names():
+def test_each_layer_has_one_implementation_directory():
     layers_root = Path(__file__).parents[1]
-    for directory in CANONICAL_DIRECTORIES:
+    for directory in IMPLEMENTATION_DIRECTORIES:
         assert (layers_root / directory).is_dir(), directory
-    for legacy in LEGACY_DIRECTORIES:
-        assert not (layers_root / legacy).exists(), legacy
+    for duplicate in DUPLICATE_CORE_DIRECTORIES:
+        assert not (layers_root / duplicate).exists(), duplicate
+    implementation_dirs = sorted(
+        path.name
+        for path in layers_root.iterdir()
+        if path.is_dir() and path.name.startswith("layer_")
+    )
+    assert implementation_dirs == sorted(IMPLEMENTATION_DIRECTORIES)
