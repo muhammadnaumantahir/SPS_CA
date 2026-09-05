@@ -1,19 +1,17 @@
-"""Compatibility package for the renamed Layer 5 implementation.
+"""Layer 03: Experience.
 
-The canonical implementation lives in :mod:`layers.layer_05_experience_core`.
-Keep legacy package and submodule imports working for existing code/tests.
+Append-only task history plus derived metrics (success rates, failure
+patterns) that Layer 4 (Meta-Learning) and Layer 5 (Adaptation) build on.
 """
 
-from importlib import import_module
-import sys
+from .experience_log import (DEFAULT_FAILURE_PATTERNS_PATH, DEFAULT_LOG_PATH,
+                             ExperienceLog)
+from .models import Task, TaskStatus
 
-# Register legacy submodules before importing the canonical package exports.
-# Layer 8 can import ExperienceLog while Layer 5 is still initializing.
-for _module_name in ("experience_log", "models", "long_term_learning"):
-    sys.modules[f"{__name__}.{_module_name}"] = import_module(
-        f"layers.layer_05_experience_core.{_module_name}"
-    )
-
-from layers.layer_05_experience_core import *
-
-del import_module, sys, _module_name
+__all__ = [
+    "ExperienceLog",
+    "Task",
+    "TaskStatus",
+    "DEFAULT_LOG_PATH",
+    "DEFAULT_FAILURE_PATTERNS_PATH",
+]

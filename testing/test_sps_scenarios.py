@@ -20,7 +20,7 @@ def scenarios():
     return scenarios
 
 def _run_evolution_proof(scenario):
-    from layers.layer_08_evolution_core.evolution_evidence import EvolutionEvidenceStore
+    from layers.layer_08_evolution.evolution_evidence import EvolutionEvidenceStore
     from layers.capability_registry.registry import CapabilityRegistryManager
     with tempfile.TemporaryDirectory(prefix="sps_ca_evolution_proof_") as tmp:
         root = Path(tmp)

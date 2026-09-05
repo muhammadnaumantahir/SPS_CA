@@ -1,32 +1,55 @@
-"""Compatibility package for the renamed Layer 8 implementation.
+"""Layer 08: Evolution Engine.
 
-The canonical implementation lives in :mod:`layers.layer_08_evolution_core`.
-Keep legacy package and submodule imports working for existing code/tests.
+Layer 8 owns the self-programming lifecycle: detecting limitations,
+planning capability growth, generating candidates, validating them, and
+preserving evolution provenance. The public ten-layer model is unchanged.
 """
 
-from importlib import import_module
-import sys
+from .controlled_evolution import ControlledEvolutionEngine
+from .evolution_engine import EvolutionError
+from .evolution_cycle import EvolutionCycleOutcome
+from .execution_authority import EvolutionExecutionAuthority
+from .gap_planner import CapabilityGapPlanner
+from .governed_self_programming import SelfProgrammingEngine
+from .growth_decision import GrowthDecision, GrowthDecisionEngine, GrowthDecisionResult
+from .capability_improvement import CapabilityImprovementEngine, ImprovementComparison, ImprovementDecision
+from .optimization_action_planner import EvolutionActionPlan, OptimizationActionPlanner
+from .retirement import GovernedRetirementManager, RetirementRecommendation
+from .self_programming import FailureDiagnosis, SelfProgrammingError, SelfRepairResult
+from .models import (
+    CapabilityPlan,
+    EvolutionRecord,
+    EvolutionTrigger,
+    GeneratedCapabilityFiles,
+    TestRunResult,
+)
 
-from layers.layer_08_evolution_core import *
+EvolutionEngine = ControlledEvolutionEngine
 
-for _module_name in (
-    "capability_improvement",
-    "controlled_evolution",
-    "evolution_cycle",
-    "evolution_engine",
-    "evolution_evidence",
-    "evolution_transaction",
-    "execution_authority",
-    "gap_planner",
-    "governed_self_programming",
-    "growth_decision",
-    "models",
-    "optimization_action_planner",
-    "retirement",
-    "self_programming",
-):
-    sys.modules[f"{__name__}.{_module_name}"] = import_module(
-        f"layers.layer_08_evolution_core.{_module_name}"
-    )
-
-del import_module, sys, _module_name
+__all__ = [
+    "EvolutionEngine",
+    "ControlledEvolutionEngine",
+    "EvolutionError",
+    "EvolutionCycleOutcome",
+    "EvolutionExecutionAuthority",
+    "CapabilityGapPlanner",
+    "GrowthDecision",
+    "GrowthDecisionEngine",
+    "GrowthDecisionResult",
+    "CapabilityImprovementEngine",
+    "ImprovementComparison",
+    "ImprovementDecision",
+    "OptimizationActionPlanner",
+    "EvolutionActionPlan",
+    "SelfProgrammingEngine",
+    "SelfProgrammingError",
+    "FailureDiagnosis",
+    "SelfRepairResult",
+    "GovernedRetirementManager",
+    "RetirementRecommendation",
+    "CapabilityPlan",
+    "EvolutionRecord",
+    "EvolutionTrigger",
+    "GeneratedCapabilityFiles",
+    "TestRunResult",
+]
